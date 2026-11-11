@@ -1,0 +1,15 @@
+{
+  "name": "drift_v0",
+  "description": "First experiment: lock the diff fully, add preload, raise engine torque 20 percent. Diff and torque meanings are inferred; not game-tested.",
+  "values": {
+    "diff_power_lock": 1.0,
+    "diff_coast_lock": 1.0,
+    "diff_preload": 80,
+    "diff_power_lock_max": 1.0,
+    "diff_coast_lock_max": 1.0,
+    "diff_preload_max": 120
+  },
+  "scale": {
+    "engine_torque_scale": 1.2
+  }
+}
