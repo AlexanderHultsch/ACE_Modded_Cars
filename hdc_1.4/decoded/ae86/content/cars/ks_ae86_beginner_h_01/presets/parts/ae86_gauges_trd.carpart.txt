@@ -1,0 +1,7 @@
+2: "TRD Instrument Cluster"
+3: 45
+4: 1
+5: "content\cars\ks_toyota_ae86_sprinter_trueno\meshes\sports\toyota_ae86_sprinter_trueno_int_gauges_trd.mesh"
+14: "TRD Instrument Cluster"
+53: ""
+105: "Toyota"

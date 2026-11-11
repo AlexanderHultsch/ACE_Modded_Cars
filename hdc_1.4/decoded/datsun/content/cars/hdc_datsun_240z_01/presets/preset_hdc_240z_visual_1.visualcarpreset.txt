@@ -1,0 +1,67 @@
+1: "hina_drift_club"
+2: "HDC"
+3: "G-Nose"
+4: 1
+5: "content\cars\hdc_datsun_240z_01\skins\design_240z_2.cardesign"
+6: "content\cars\hdc_datsun_240z_01\skins\rimdesign_240z.design"
+6: "content\cars\common_assets\parts\rims\rs_watanabe\r14\6jx14\rimdesign_wata_1.design"
+8 {
+  1: "content\cars\hdc_datsun_240z_01\materials\g_nose\EXT_SKIN_GNOSE.material"
+  2 {
+    1: ""
+    10: "content\cars\common_assets\customization\ks_nissan\colours\datsun_paint_red_905.oemmultilayercolor"
+    20: ""
+  }
+  3 {
+    1: ""
+    20: ""
+  }
+  4 {
+    1: ""
+    20: ""
+  }
+}
+8 {
+  1: "content\cars\hdc_datsun_240z_01\materials\INT_OCC_LEATHER_DET.material"
+  2 {
+    1: ""
+    10: "content\cars\common_assets\customization\ks_nissan\colours\datsun_leather_black.oemmultilayercolor"
+    20: ""
+  }
+  3 {
+    1: ""
+  }
+  4 {
+    1: ""
+  }
+}
+8 {
+  1: "content\cars\common_assets\parts\rims\rs_watanabe\r14\6jx14\rim_single\EXT_RIM_WATA.material"
+  2 {
+    1: ""
+    10: "content\cars\common_assets\parts\rims\rs_watanabe\r14\6jx14\colours\rs_rim_black.oemmultilayercolor"
+    20: ""
+  }
+  3 {
+    1: ""
+  }
+  4 {
+    1: ""
+  }
+}
+8 {
+  1: "content\cars\common_assets\parts\rims\rs_watanabe\r14\6jx14\rim_dual\EXT_RIM_WATA_DUAL.material"
+  2 {
+    1: ""
+    10: "content\cars\common_assets\parts\rims\rs_watanabe\r14\6jx14\colours\rs_rim_black.oemmultilayercolor"
+    20: ""
+  }
+  3 {
+    1: ""
+  }
+  4 {
+    1: ""
+  }
+}
+15: ""
+19: 1

@@ -1,0 +1,9 @@
+2: "BODY"
+3: (f32) 1
+4: (f32) 1.79
+6: ""
+7: "content\cars\hdc_datsun_240z_01\data\aero\wing_body_AOA_CL.curve"
+8: "content\cars\hdc_datsun_240z_01\data\aero\wing_body_AOA_CD.curve"
+11: (f32) 1
+15: <16 bytes>
+16: <16 bytes>

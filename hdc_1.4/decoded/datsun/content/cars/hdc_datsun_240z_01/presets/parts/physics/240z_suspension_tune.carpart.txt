@@ -1,0 +1,15 @@
+2: "240Z Suspension Tune"
+3: 500
+4: 1
+14: "240Z Suspension Tune"
+53: ""
+102 {
+  1: "content\cars\hdc_datsun_240z_01\data\tuning\hdc_datsun_240z_01_g_nose_setup.tuningpart"
+}
+102 {
+  1: "content\cars\hdc_datsun_240z_01\data\tuning\hdc_datsun_240z_01_g_nose_setuplimits.tuningpart"
+}
+102 {
+  1: "content\cars\hdc_datsun_240z_01\data\tuning\hdc_datsun_240z_01_g_nose_coilovers.tuningpart"
+}
+105: "Nissan"

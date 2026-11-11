@@ -1,0 +1,12 @@
+1: "content\cars\hdc_rx7_fd_01\data\CarData.car"
+5: ""
+6 {
+  1: <4 bytes>
+  2 {
+    1: (f32) 87.5903
+    2: (f32) 5.79286
+    3: (f32) 100.009
+  }
+}
+7: ""
+8: "content\cars\hdc_rx7_fd_01\data\Setup\hdc_rx7_fd_01.carsetup"

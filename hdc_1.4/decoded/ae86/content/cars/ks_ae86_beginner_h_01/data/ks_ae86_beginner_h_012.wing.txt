@@ -1,0 +1,14 @@
+2: "REAR"
+3: (f32) 1
+4: (f32) 1.68
+6 {
+  2: (f32) 0.33
+  3: (f32) -2
+}
+7: "content\cars\ks_ae86_beginner_h_01\data\wing_rear_AOA_CL.curve"
+8: "content\cars\ks_ae86_beginner_h_01\data\wing_rear_AOA_CD.curve"
+11: (f32) 1
+12: (f32) 1
+13: (f32) 1
+15: <16 bytes>
+16: <16 bytes>

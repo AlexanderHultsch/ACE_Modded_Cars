@@ -1,0 +1,40 @@
+2: "240Z G-Nose Dual Exhaust"
+3: 529
+4: 1
+5: "content\cars\ks_datsun_240z_fairlady\meshes\parts\datsun_240z_fairlady_ext_gnose_exhaust.mesh"
+14: "Dual Exhaust"
+84 {
+  1 {
+    1: "EXHAUST L1"
+    3 {
+      1 {
+        1: (f32) 0.507
+        2: (f32) 0.37
+        3: (f32) -2.031
+      }
+      2 {
+        1: (f32) 5
+      }
+      3: ""
+    }
+    6: "content\cars\common_assets\emitters\backfire_type_1.carparticleemitterdata_emitterspack"
+    7: 2
+  }
+  1 {
+    1: "EXHAUST L2"
+    3 {
+      1 {
+        1: (f32) 0.494
+        2: (f32) 0.318
+        3: (f32) -1.983
+      }
+      2 {
+        1: (f32) 5
+      }
+      3: ""
+    }
+    6: "content\cars\common_assets\emitters\backfire_type_1.carparticleemitterdata_emitterspack"
+    7: 2
+  }
+}
+105: "Nissan"

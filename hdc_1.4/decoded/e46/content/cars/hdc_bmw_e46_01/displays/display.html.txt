@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script src='../../common_assets/displays/js/cohtml.js'></script>
+    <script src='../../common_assets/displays/js/displays.js'></script>
+
+    <link rel='stylesheet' type='text/css' href='../../common_assets/displays/css/common.css'>
+    <link rel='stylesheet' type='text/css' href='display.css'>
+
+    <script src='display.js'></script>
+</head>
+
+<body class="cardisplay"
+    data-mode="off"
+    data-bind-car="CarDisplay.process({{ModelCurrentCar}})">
+    <div id="common" class="pAbsolute"></div>
+
+    <div class="pAbsolute backlight main"></div>
+    <div class="pAbsolute backlight main2"></div>
+    <div class="pAbsolute backlight climate"></div>
+    <div class="pAbsolute backlight radio1"></div>
+    <div class="pAbsolute backlight radio2"></div>
+
+    <div id="perfmode" class="pAbsolute"></div>
+    <div id="reverseneutral" class="pAbsolute"></div>
+    <div id="gear" class="pAbsolute" data-bind-value="{{ModelCurrentCar}}.gear"></div>
+
+    <div id="odometer" class="is-flex pAbsolute">
+        <div class="value" data-bind-value="ksUI.pad({{ModelCurrentCar}}.total_km,6)"></div>
+    </div>
+    <div id="trip" class="is-flex pAbsolute">
+        <div class="unit km">km</div>
+        <div class="value" data-bind-value="ksUI.pad({{ModelCurrentCar}}.current_km.toFixed(1),5)"></div>
+    </div>
+
+    <div id="ambient" class="page">
+        <div class="value" data-bind-value="CarDisplay.convert.getSignedValue({{ModelCurrentCar}}.air_temperature_c, '+ ', '- ')"></div>
+        <div class="unit">&deg;C</div>
+    </div>
+
+    <div id="clock" class="page">
+        <div class="value" data-bind-value="CarDisplay.convert.timeOfDayToTime({{ModelCurrentCar}})"></div>
+    </div>
+
+    <div id="fuel" class="page">
+        <div class="value" data-bind-value="{{ModelCurrentCar}}.fuel_liter_per_lap.toFixed(1)"></div>
+        <div class="unit">L</div>
+    </div>
+
+
+</body>
+
+</html>

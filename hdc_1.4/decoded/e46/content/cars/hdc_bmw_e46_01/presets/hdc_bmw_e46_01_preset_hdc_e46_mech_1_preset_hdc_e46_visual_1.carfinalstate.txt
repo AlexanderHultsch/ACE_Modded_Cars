@@ -1,0 +1,80 @@
+1: "content\cars\hdc_bmw_e46_01\data\CarData.car"
+2: "content\cars\hdc_bmw_e46_01\hdc_bmw_e46_01.actor"
+10 {
+  1: "content\cars\hdc_bmw_e46_01\presets\preset_hdc_e46_mech_1.mechanicalcarpreset"
+  2: "content\cars\hdc_bmw_e46_01\presets\preset_hdc_e46_visual_1.visualcarpreset"
+  3 {
+    1: "EXT SKIN"
+    2 {
+      1: "content\cars\hdc_bmw_e46_01\materials\EXT_SKIN.material"
+      2 {
+        1: ""
+        10: "content\cars\common_assets\customization\ks_bmw\colours\bmw_paint_grey_silver.oemmultilayercolor"
+        20: ""
+      }
+      3 {
+        1: ""
+        20: ""
+      }
+      4 {
+        1: ""
+        20: ""
+      }
+    }
+  }
+  3 {
+    1: "INT CARPAINT INHERIT"
+    2 {
+      1: "content\cars\hdc_bmw_e46_01\materials\INT_ELEC_CARPAINT.material"
+    }
+  }
+  100: "e6714e7c-54a2-ae30-380e-8d7f5d593956"
+  101 {
+    1: 16605139596994588208
+    2: 4039321493964405078
+  }
+}
+20 {
+  1: "content\cars\hdc_bmw_e46_01\skins\rim_e46csl.compatiblerim"
+  2: "content\cars\hdc_bmw_e46_01\skins\rimdesign_e46csl.design"
+  3 {
+    1: "RIM"
+    2 {
+      1: "content\cars\hdc_bmw_e46_01\materials\EXT_RIM.material"
+      2 {
+        1: ""
+        10: "content\cars\common_assets\customization\ks_bmw\colours\bmw_rim_silver_polished.oemmultilayercolor"
+        20: ""
+      }
+      3 {
+        1: ""
+      }
+      4 {
+        1: ""
+      }
+    }
+  }
+  3 {
+    1: "RIM BLUR STATIC"
+    2 {
+      1: "content\cars\hdc_bmw_e46_01\materials\EXT_RIM_BLUR_STATIC.material"
+    }
+  }
+  3 {
+    1: "RIM BLUR"
+    2 {
+      1: "content\cars\hdc_bmw_e46_01\materials\EXT_RIM_BLUR.material"
+    }
+  }
+  100: "400437ff-10ca-2ff7-53bb-ee7638c5cf28"
+  101 {
+    1: 4612873486972104695
+    2: 6033678317318950696
+  }
+}
+51: ""
+52 {
+  1: 16605139596994588208
+  2: 4039321493964405078
+}
+70: (f32) 9.87386

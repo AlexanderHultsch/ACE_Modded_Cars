@@ -1,0 +1,13 @@
+2: "REAR"
+3: (f32) 0.5
+4: (f32) 1.8
+6 {
+  2: (f32) 0.58
+  3: (f32) -2.05
+}
+7: "content\cars\hdc_bmw_e46_01\data\aero\wing_rear_AOA_CL.curve"
+8: "content\cars\hdc_bmw_e46_01\data\aero\wing_rear_AOA_CD.curve"
+12: (f32) -0.6
+14: (f32) -0.06
+15: <16 bytes>
+16: <16 bytes>

@@ -1,0 +1,52 @@
+2: "Design 1"
+3 {
+  1: "EXT_SKIN"
+  2: "EXT SKIN"
+  3: "content\cars\hdc_bmw_e46_01\materials\EXT_SKIN.material"
+  6 {
+    1 {
+      1: 2
+      11: 1
+      12: 1
+      13: 1
+      14: 1
+      15: 1
+      16: 1
+    }
+    2: ""
+    3: ""
+    4: "content\cars\common_assets\customization\ks_bmw\colours\bmw_paint_black_sapphire.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_bmw\colours\bmw_paint_grey_silver.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_bmw\colours\bmw_paint_silverstone.oemmultilayercolor"
+  }
+  4: "content\cars\ks_lamborghini_huracan_sto\skins\colouroem_sto.table"
+  5: "STO_Verde_Aries"
+  5: "STO_Bianco_Monocerus"
+  5: "STO_Grigio_Lynx"
+  5: "STO_Nero_Noctis"
+  5: "STO_Rosso_Mars"
+  5: "STO_Giallo_Belenus"
+  5: "STO_Arancio_Xanto"
+  5: "STO_Verde_Selvans"
+  5: "STO_Blu_Nila"
+}
+3 {
+  1: "INT_ELEC_CARPAINT"
+  2: "INT CARPAINT INHERIT"
+  3: "content\cars\hdc_bmw_e46_01\materials\INT_ELEC_CARPAINT.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_bmw_e46_01\materials\EXT_SKIN.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+      38: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+102: "BMW"

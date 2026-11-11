@@ -1,0 +1,9 @@
+2: "240Z LSD Differential"
+3: 504
+4: 1
+14: "240Z LSD Differential"
+53: ""
+102 {
+  1: "content\cars\hdc_datsun_240z_01\data\tuning\hdc_datsun_240z_01_lsd.tuningpart"
+}
+105: "Nissan"

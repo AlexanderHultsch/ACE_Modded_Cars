@@ -1,0 +1,14 @@
+2: "REAR"
+3: (f32) 1
+4: (f32) 1.98
+6 {
+  2: (f32) 0.6
+  3: (f32) -1.9
+}
+7: "content\cars\hdc_mercedes_190e_01\data\wing_rear_aoa_cl.curve"
+8: "content\cars\hdc_mercedes_190e_01\data\wing_rear_aoa_cd.curve"
+11: (f32) 1
+12: (f32) 1.1
+13: (f32) 3
+15: <16 bytes>
+16: <16 bytes>

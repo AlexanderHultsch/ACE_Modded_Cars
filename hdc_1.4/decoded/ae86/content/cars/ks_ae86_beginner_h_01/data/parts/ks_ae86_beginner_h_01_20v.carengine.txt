@@ -1,0 +1,21 @@
+1: (f32) 0.09
+2: "content\cars\ks_ae86_beginner_h_01\data\parts\HEADER_POWER_20v.curve"
+3: "content\cars\ks_ae86_beginner_h_01\data\parts\coast_20v.curve"
+4 {
+  1: (f32) 1
+  2: (f32) 1
+  3: "content\cars\ks_ae86_beginner_h_01\data\parts\throttle_20v.curve"
+  6: (f32) 0.88
+  7: (f32) 0.88
+  9: 1
+  10: (f32) 1
+}
+5: 1000
+6: 11000
+7: 30
+14: "content\cars\ks_ae86_beginner_h_01\data\parts\throttle_20v.curve"
+15: (f32) 7500
+19: ""
+27: ""
+28: ""
+50: ""

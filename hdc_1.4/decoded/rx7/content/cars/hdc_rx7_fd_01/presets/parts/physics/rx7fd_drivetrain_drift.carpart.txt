@@ -1,0 +1,14 @@
+2: "RX7 FD Drift Drivetrain"
+3: 504
+14: "RX7 FD Drift Drivetrain"
+53: ""
+102 {
+  1: "content\cars\hdc_rx7_fd_01\data\parts\hdc_rx7_fd_01_drivetrain_drift.tuningpart"
+}
+102 {
+  1: "content\cars\hdc_rx7_fd_01\data\parts\hdc_rx7_fd_01_gearbox_drift.tuningpart"
+}
+102 {
+  1: "content\cars\hdc_rx7_fd_01\data\parts\hdc_rx7_fd_01_clutch_drift.tuningpart"
+}
+105: "Mazda"

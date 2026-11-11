@@ -1,0 +1,14 @@
+2: "DIFFUSER"
+3: (f32) 0.5
+4: (f32) 2.31
+6 {
+  2: (f32) -0.31
+  3: (f32) -2.15
+}
+7: "content\cars\ks_bmw_m4_csl\data\wing_diffuser_AOA_CL.curve"
+8: "content\cars\ks_bmw_m4_csl\data\wing_diffuser_AOA_CD.curve"
+12: (f32) 1.6
+13: (f32) 1
+14: (f32) -0.04
+15: <16 bytes>
+16: <16 bytes>

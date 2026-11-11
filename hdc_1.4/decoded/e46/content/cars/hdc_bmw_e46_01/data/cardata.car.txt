@@ -1,0 +1,1099 @@
+1 {
+  1: (f32) 1495
+  2: "Hina's Drift Club - BMW M3 CSL"
+  4 {
+    2: (f32) -0.17166
+    3: (f32) -1.05864
+  }
+  6: (f32) 63
+  8: (f32) 0.755
+  9 {
+    1: (f32) 1.78
+    2: (f32) 1.37
+    3: (f32) 4.49
+  }
+  10: (f32) -0.4
+  11: (f32) -0.375
+  14: (f32) 28000
+  15: (f32) 251
+  18 {
+    1: ""
+    2: ""
+    3: ""
+  }
+}
+2 {
+  2: (f32) 2.729
+  3: (f32) 0.517
+  4 {
+    1: (f32) 40
+    2: (f32) 0.0004
+    3: (f32) 0.05
+  }
+  8 {
+    1: (f32) 54000
+    3 {
+      1: (f32) 0.0193681
+      2: (f32) 0.04
+      3: (f32) 80
+      4: (f32) 1.5
+      5: (f32) 0.05
+      6: (f32) 200
+    }
+    4 {
+      1: (f32) 0.0556319
+      2: (f32) 0.03
+      3: (f32) 500
+      4: (f32) 1.5
+      5: (f32) 0.04
+      6: (f32) 500
+    }
+    5: (f32) 0.0656319
+    6 {
+      1 {
+        1: (f32) 1700
+        2: (f32) 4600
+      }
+      2 {
+        1: (f32) 3400
+        2: (f32) 9200
+      }
+      3: (f32) 0.15
+      4: (f32) 0.15
+      12: ""
+    }
+    9: ""
+  }
+  9 {
+    1: (f32) 55000
+    3 {
+      1: (f32) 0.0746095
+      2: (f32) 0.04
+      3: (f32) 500
+      4: (f32) 1.5
+      5: (f32) 0.05
+      6: (f32) 500
+    }
+    4 {
+      1: (f32) 0.0153905
+      2: (f32) 0.03
+      3: (f32) 500
+      4: (f32) 1.5
+      5: (f32) 0.04
+      6: (f32) 500
+    }
+    5: (f32) 0.0153905
+    6 {
+      1 {
+        1: (f32) 1300
+        2: (f32) 3900
+      }
+      2 {
+        1: (f32) 4800
+        2: (f32) 5700
+      }
+      3: (f32) 0.12
+      4: (f32) 0.12
+      12: ""
+    }
+    9: ""
+  }
+  18 {
+    2: ""
+    1: (f32) 36000
+  }
+  19 {
+    2: ""
+    1: (f32) 6000
+  }
+  20: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_front_1.coilover"
+  21: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_rear_1.coilover"
+  22: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_front_sus_1.suspension"
+  23: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_rear_sus_m2.suspension"
+  24 {
+    2: ""
+  }
+  25 {
+    2: ""
+  }
+  40 {
+    1 {
+      3: (f32) 32
+      4: (f32) 0.0005
+      5: (f32) -1.5
+      6: (f32) 0.05
+      1: (f32) -0.182
+      2: (f32) 1.623
+    }
+    3 {
+      1 {
+        1: (f32) 0.25
+        2: (f32) 0.41947
+        3: (f32) -0.098
+      }
+      2 {
+        1: (f32) 0.20467
+        2: (f32) 0.0984
+        3: (f32) -0.019
+      }
+      3 {
+        1: (f32) 0.50098
+        2: (f32) -0.15828
+        3: (f32) 0.02243
+      }
+      4 {
+        1: (f32) 0.5055
+        2: (f32) -0.16024
+        3: (f32) -0.29877
+      }
+      5 {
+        1: (f32) 0.10506
+        2: (f32) -0.19273
+        3: (f32) 0.01
+      }
+      6 {
+        1: (f32) 0.45097
+        2: (f32) -0.1432
+        3: (f32) 0.12571
+      }
+      7 {
+        1: (f32) 0.035
+        2: (f32) -0.16867
+        3: (f32) 0.13323
+      }
+    }
+  }
+  41 {
+    1 {
+      3: (f32) 35
+      4: (f32) 0.0002
+      5: (f32) -1.6
+      1: (f32) -0.197
+      2: (f32) 1.609
+    }
+    5 {
+      1 {
+        1: (f32) 0.324887
+        2: (f32) 0.058295
+        3: (f32) 0.185905
+      }
+      1 {
+        1: (f32) 0.380237
+        2: (f32) 0.110343
+        3: (f32) -0.031525
+      }
+      1 {
+        1: (f32) 0.368038
+        2: (f32) -0.103737
+        3: (f32) 0.249803
+      }
+      1 {
+        1: (f32) 0.515867
+        2: (f32) -0.11327
+        3: (f32) -0.156548
+      }
+      1 {
+        1: (f32) 0.482838
+        2: (f32) -0.044287
+        3: (f32) -0.20717
+      }
+      2 {
+        1: (f32) 0.083261
+        2: (f32) 0.066299
+        3: (f32) 0.055376
+      }
+      2 {
+        1: (f32) 0.10581
+        2: (f32) 0.130454
+        3: (f32) 0.020348
+      }
+      2 {
+        1: (f32) 0.06396
+        2: (f32) -0.14544
+        3: (f32) 0.02646
+      }
+      2 {
+        1: (f32) 0.129052
+        2: (f32) -0.101334
+        3: (f32) -0.05899
+      }
+      2 {
+        1: (f32) 0.104347
+        2: (f32) -0.03408
+        3: (f32) -0.174475
+      }
+    }
+  }
+  50: (f32) -0.189
+  51: (f32) -0.211
+  52: (f32) 1.518
+  53: (f32) 1.525
+}
+3 {
+  4: (f32) 100
+  5: ""
+  6: ""
+  7: ""
+  8: ""
+  15 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  39 {
+    1: (f32) 0.85
+    2: (f32) 0.7
+    3: (f32) 10
+    11: (f32) 2.5
+    12: (f32) 3
+    4: 0
+  }
+  46: (f32) 400
+  47: (f32) 0.4
+  50: ""
+  51: ""
+  102: (f32) 6
+  103: 1
+  104: (f32) 3
+  9: 6
+  10 {
+    1: "R"
+    2: (f32) -3.678
+  }
+  10 {
+    1: "N"
+  }
+  10 {
+    1: "1"
+    2: (f32) 4.055
+  }
+  10 {
+    1: "2"
+    2: (f32) 2.396
+  }
+  10 {
+    1: "3"
+    2: (f32) 1.582
+  }
+  10 {
+    1: "4"
+    2: (f32) 1.192
+  }
+  10 {
+    1: "5"
+    2: (f32) 1
+  }
+  10 {
+    1: "6"
+    2: (f32) 0.872
+  }
+  11: (f32) 3.09
+  17: (f32) 250
+  18: (f32) 270
+  19: (f32) 250
+  20: 1
+  21: ""
+  22: (f32) 750
+  23: (f32) 1000
+  24: (f32) 0.4
+  25: (f32) 0.017
+  26 {
+    1: "content\cars\ks_alfa_romeo_giulia_gtam\data\autoBlipProfile.curve"
+  }
+  27 {
+    2: "content\cars\ks_alfa_romeo_giulia_gtam\data\downShiftProfile.curve"
+    4: (f32) 1200
+    5: (f32) 1800
+  }
+  28 {
+    1: 6950
+    2: 80
+    3: (f32) 0.95
+    4: (f32) 0.3
+  }
+  12: (f32) 0.04
+  13: (f32) 0.04
+  14: (f32) 1
+}
+4 {
+  1: (f32) 0.22
+  2: "content\cars\hdc_bmw_e46_01\data\bmw_m3_e46_coupe_engine_power_1.curve"
+  3: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_engine_coast_1.curve"
+  4 {
+    1: (f32) 1
+    2: (f32) 1
+    3: "content\cars\hdc_bmw_e46_01\data\bmw_m3_e46_coupe_throttle_response_1.curve"
+    6: (f32) 0.98
+    7: (f32) 0.88
+    9: 1
+    10: (f32) 0.15
+    5: (f32) 5000
+  }
+  5: 700
+  6: 8100
+  7: 30
+  8: (f32) 10
+  14: "content\cars\hdc_bmw_e46_01\data\bmw_m3_e46_coupe_throttle_response_1.curve"
+  15: (f32) 8100
+  19 {
+    1: (f32) 4000
+    2: (f32) 1
+    3: (f32) 100
+    4: (f32) 2850
+    5: 100
+    6: (f32) 0.2
+    7: 1
+    8: (f32) 6.7
+    9: (f32) 1
+  }
+  20: (f32) 40
+  27 {
+    1: (f32) 2
+    2: (f32) 5
+    3: (f32) 8400
+    4: (f32) 1
+    5: (f32) 0.2
+  }
+  28: ""
+  40: (f32) 0.98
+  41: (f32) 0.97
+  50: ""
+  63: 10
+}
+5 {
+  1: (f32) 3700
+  2: (f32) 68
+  3: (f32) 1100
+  5: (f32) 0.5
+  8: ""
+  9: ""
+  14: ""
+}
+6 {
+  1: ""
+}
+7 {
+  1 {
+    2: (f32) 80
+    3: (f32) 20
+    4: (f32) 0.08
+    5: (f32) 10
+    6: (f32) 1
+    7 {
+      1: (f32) -1
+      2: (f32) -1
+    }
+    7 {
+      1: (f32) 0.1
+      2: (f32) 0.305
+      3: (f32) 12
+      4: (f32) 3
+      5: (f32) 10
+      6: (f32) 3
+      7: (f32) 10
+    }
+  }
+  2 {
+    1 {
+      1: (f32) -1
+      2: (f32) -1
+      5: (f32) 0.7
+    }
+    1 {
+      1: (f32) 0.06
+      2: (f32) 0.12
+      3: (f32) 7.5
+      4: (f32) 0.1
+      5: (f32) 1
+    }
+    2: (f32) 40
+    3: 4
+    4: (f32) 15
+  }
+  4 {
+    1: (f32) 100
+    2: (f32) 20
+    3: ""
+    3 {
+      1: (f32) 0.5
+      2: (f32) 1
+      3: (f32) 1.5
+      4: (f32) 1.5
+      5: (f32) 0.1
+      6: (f32) 0.15
+      8: (f32) 0.9
+      10: (f32) 0.3
+      11: (f32) 0.6
+      12: (f32) 1
+      13: (f32) 1
+    }
+  }
+}
+8 {
+  1: (f32) 1.5
+  2: (f32) 450
+  3: (f32) 14
+  4: (f32) 0.0026
+  5: (f32) 1
+}
+12 {
+  1: (f32) 1
+  2: (f32) 2
+  3 {
+    2: "BODY"
+    3: (f32) 1
+    4: (f32) 2.07
+    6 {
+      2: (f32) 0.13
+      3: (f32) -0.3
+    }
+    7: "content\cars\hdc_bmw_e46_01\data\aero\wing_body_AOA_CL.curve"
+    8: "content\cars\hdc_bmw_e46_01\data\aero\wing_body_AOA_CD.curve"
+    11: (f32) 1
+    15: <16 bytes>
+    16: <16 bytes>
+  }
+  3 {
+    2: "FRONT"
+    3: (f32) 0.5
+    4: (f32) 1.8
+    6 {
+      2: (f32) -0.34
+      3: (f32) 1.9
+    }
+    7: "content\cars\hdc_bmw_e46_01\data\aero\wing_front_AOA_CL.curve"
+    8: "content\cars\hdc_bmw_e46_01\data\aero\wing_front_AOA_CD.curve"
+    12: (f32) -0.1
+    14: (f32) -0.04
+    15: <16 bytes>
+    16: <16 bytes>
+  }
+  3 {
+    2: "REAR"
+    3: (f32) 0.5
+    4: (f32) 1.8
+    6 {
+      2: (f32) 0.58
+      3: (f32) -2.05
+    }
+    7: "content\cars\hdc_bmw_e46_01\data\aero\wing_rear_AOA_CL.curve"
+    8: "content\cars\hdc_bmw_e46_01\data\aero\wing_rear_AOA_CD.curve"
+    12: (f32) -0.6
+    14: (f32) -0.06
+    15: <16 bytes>
+    16: <16 bytes>
+  }
+  10: "content\cars\hdc_bmw_e46_01\data\wings\ks_bmw_m3_e460.wing"
+  10: "content\cars\hdc_bmw_e46_01\data\wings\ks_bmw_m3_e461.wing"
+  10: "content\cars\hdc_bmw_e46_01\data\wings\ks_bmw_m3_e462.wing"
+}
+16: "content\cars\hdc_bmw_e46_01\data\setup\limits_m3_e46.carsetuplimits"
+18 {
+  1 {
+    2: (f32) -0.524
+    3: (f32) -0.0463931
+  }
+  2 {
+    1: (f32) 0.9
+  }
+  3 {
+    1: (f32) 1
+    2: (f32) 1
+    3: (f32) 1
+  }
+}
+19: "content\cars\hdc_bmw_e46_01\data\setup\hdc_bmw_e46_01.carsetup"
+20: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_engine_1.carengine"
+21: "content\cars\hdc_bmw_e46_01\collider\bmw_m3_e46_csl_collider.mesh"
+22: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_1.drivetrain"
+23 {
+  1: 6
+  2 {
+    1: "R"
+    2: (f32) -3.746
+  }
+  2 {
+    1: "N"
+  }
+  2 {
+    1: "1"
+    2: (f32) 3.5
+  }
+  2 {
+    1: "2"
+    2: (f32) 2.1
+  }
+  2 {
+    1: "3"
+    2: (f32) 1.669
+  }
+  2 {
+    1: "4"
+    2: (f32) 1.226
+  }
+  2 {
+    1: "5"
+    2: (f32) 1
+  }
+  2 {
+    1: "6"
+    2: (f32) 0.828
+  }
+  3: (f32) 3.91
+  4: (f32) 200
+  5: (f32) 280
+  6: (f32) 250
+  8 {
+    1: 1
+    4: 1
+  }
+  9: (f32) 1000
+  10: (f32) 0.4
+  11: (f32) 0.017
+  12 {
+    1: "content\cars\hdc_bmw_e46_01\data\autoBlipProfile.curve"
+    2: 1
+  }
+  13 {
+    1: 7900
+    3: (f32) 0.95
+    4: (f32) 0.26
+    2: 4500
+  }
+  20: (f32) 100
+}
+24: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_1.gearbox"
+25 {
+  1: (f32) 0.13
+  2: (f32) 1000
+  3 {
+    1: "content\cars\hdc_bmw_e46_01\data\upShiftProfile.curve"
+    2: "content\cars\hdc_bmw_e46_01\data\downShiftProfile.curve"
+    3: 1
+    4: (f32) 1200
+    5: (f32) 2800
+  }
+  1 {
+    1: (f32) 1658
+    2: "Alfa Romeo Giulia Quadrifoglio"
+    4 {
+      2: (f32) -0.2
+      3: (f32) -1.5675
+    }
+    5: (f32) 30
+    6: (f32) 58
+    7: (f32) 0.00165
+    8: (f32) 0.74
+    9 {
+      1: (f32) 1.8
+      2: (f32) 1.4
+      3: (f32) 4.55
+    }
+    10: (f32) -0.335
+    11: (f32) -0.31
+    14: (f32) 20000
+    15: (f32) 50
+  }
+  2 {
+    2: (f32) 2.82
+    3: (f32) 0.5
+    4 {
+      1: (f32) 40
+      2: (f32) 0.0004
+      3: (f32) 0.05
+      4: 1
+    }
+    5 {
+      1: (f32) -0.09
+      2: (f32) 1.58
+      3: (f32) 40
+      4: (f32) 0.00015
+      5: (f32) -1.1
+      6: (f32) 0.045
+    }
+    6 {
+      1: (f32) -0.13
+      2: (f32) 1.654
+      3: (f32) 45
+      4: (f32) -0.0005
+      5: (f32) -1.5
+      6: (f32) 0.045
+    }
+    8 {
+      1: (f32) 37000
+      3 {
+        1: (f32) 0.09
+        2: (f32) 0.01
+        3: (f32) 800
+        4: (f32) 1.5
+      }
+      4 {
+        1: (f32) 0.06
+        2: (f32) 0.01
+        3: (f32) 800
+        4: (f32) 1.5
+      }
+      5: (f32) 0.14
+      6 {
+        1 {
+          1: (f32) 1200
+          2: (f32) 4700
+        }
+        2 {
+          1: (f32) 5500
+          2: (f32) 6500
+        }
+        3: (f32) 0.11
+        4: (f32) 0.115
+      }
+    }
+    9 {
+      1: (f32) 53000
+      3 {
+        1: (f32) 0.06
+        2: (f32) 0.01
+        3: (f32) 500
+        4: (f32) 1.5
+      }
+      4 {
+        1: (f32) 0.035
+        2: (f32) 0.01
+        3: (f32) 500
+        4: (f32) 1.5
+      }
+      5: (f32) 0.07
+      6 {
+        1 {
+          1: (f32) 2030
+          2: (f32) 4200
+        }
+        2 {
+          1: (f32) 4510
+          2: (f32) 6200
+        }
+        3: (f32) 0.12
+        4: (f32) 0.11
+      }
+    }
+    10 {
+      1 {
+        1: (f32) 0.383634
+        2: (f32) 0.35763
+        3: (f32) 0.125877
+      }
+      2 {
+        1: (f32) 0.383634
+        2: (f32) 0.317122
+        3: (f32) -0.155822
+      }
+      3 {
+        1: (f32) 0.405724
+        2: (f32) -0.090262
+        3: (f32) 0.31489
+      }
+      4 {
+        1: (f32) 0.431108
+        2: (f32) -0.11316
+        3: (f32) -0.016224
+      }
+      5 {
+        1: (f32) 0.122077
+        2: (f32) 0.395598
+        3: (f32) -0.048805
+      }
+      6 {
+        1: (f32) 0.124138
+        2: (f32) -0.07644
+        3: (f32) 0.004009
+      }
+      7 {
+        1: (f32) 0.433067
+        2: (f32) -0.110101
+        3: (f32) 0.108892
+      }
+      8 {
+        1: (f32) 0.082122
+        2: (f32) -0.07318
+        3: (f32) 0.125877
+      }
+    }
+    11 {
+      1 {
+        1: (f32) 0.41888
+        2: (f32) 0.106409
+        3: (f32) 0.009688
+      }
+      2 {
+        1: (f32) 0.41888
+        2: (f32) 0.106409
+        3: (f32) -0.079688
+      }
+      3 {
+        1: (f32) 0.492522
+        2: (f32) -0.08182
+        3: (f32) 0.181061
+      }
+      4 {
+        1: (f32) 0.525204
+        2: (f32) -0.102497
+        3: (f32) -0.100878
+      }
+      5 {
+        1: (f32) 0.143935
+        2: (f32) 0.124005
+        3: (f32) 0.014983
+      }
+      6 {
+        1: (f32) 0.133205
+        2: (f32) -0.101831
+        3: (f32) -0.040996
+      }
+      7 {
+        1: (f32) 0.407138
+        2: (f32) 0.043824
+        3: (f32) 0.169374
+      }
+      8 {
+        1: (f32) 0.143063
+        2: (f32) 0.055556
+        3: (f32) 0.189786
+      }
+    }
+    18 {
+      1: (f32) 34000
+      2: ""
+    }
+    19 {
+      1: (f32) 15760
+      2: ""
+    }
+  }
+  4 {
+    1: (f32) 0.135
+    2: "content\cars\ks_alfa_romeo_giulia_gtam\data\HEADER_POWER.curve"
+    3: "content\cars\ks_alfa_romeo_giulia_gtam\data\coast.curve"
+    5: 850
+    6: 7400
+    7: 20
+    14: "content\cars\ks_alfa_romeo_giulia_gtam\data\throttle.curve"
+    15: (f32) 7500
+    16: (f32) 1.45
+    17: (f32) 5
+    19: ""
+    24 {
+      1: (f32) 0.75
+      2: (f32) 0.995
+      3: (f32) 0.99
+      4: (f32) 2700
+      5: (f32) 2.5
+      6: (f32) 2.5
+      7: (f32) 0.705
+    }
+    24 {
+      1: (f32) 0.75
+      2: (f32) 0.995
+      3: (f32) 0.99
+      4: (f32) 2700
+      5: (f32) 2.5
+      6: (f32) 2.5
+      7: (f32) 0.705
+    }
+    27: ""
+    28: ""
+    29: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam0.turbo"
+    29: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam1.turbo"
+  }
+  5 {
+    1: (f32) 3400
+    2: (f32) 0.65
+    3: (f32) 200
+    5: (f32) 0.5
+    8 {
+      2 {
+        1: 20
+        2: 1
+        3: "content\cars\ks_alfa_romeo_giulia_gtam\data\ctrl_ebbCONTROLLER_0.curve"
+        4: (f32) 0.01
+        5: (f32) 1
+      }
+      2 {
+        1: 13
+        2: 2
+        3: "content\cars\ks_alfa_romeo_giulia_gtam\data\ctrl_ebbCONTROLLER_1.curve"
+        4: (f32) 0.95
+        5: (f32) 1.2
+      }
+      2 {
+        1: 1
+        2: 2
+        3: "content\cars\ks_alfa_romeo_giulia_gtam\data\ctrl_ebbCONTROLLER_2.curve"
+        4: (f32) 0.95
+        5: (f32) 1.2
+      }
+    }
+    9: ""
+  }
+  6 {
+    1: ""
+  }
+  7 {
+    1 {
+      2: (f32) 200
+      3: (f32) 20
+      4: (f32) 0.08
+      5: (f32) 10
+      6: (f32) 1
+      7 {
+        1: (f32) 0.04
+        2: (f32) 0.08
+        3: (f32) 15
+        4: (f32) 10
+        5: (f32) 5
+        6: (f32) 5
+        7: (f32) 4
+      }
+      7 {
+        1: (f32) 0.1
+        2: (f32) 0.2
+        3: (f32) 15
+        4: (f32) 5.5
+        5: (f32) 5
+        6: (f32) 5
+        7: (f32) 4
+      }
+      7: ""
+    }
+    2 {
+      1 {
+        1: (f32) -1
+        2: (f32) -1
+        5: (f32) 0.7
+      }
+      1 {
+        1: (f32) 0.055
+        2: (f32) 0.11
+        3: (f32) 5
+        4: (f32) 0.4
+        5: (f32) 0.7
+      }
+      2: (f32) 250
+      3: 4
+    }
+    3 {
+      1: 1
+      2: (f32) 200
+      3: (f32) 50
+      4: (f32) 0.2
+      5: (f32) 0.21
+      6: (f32) 0.8
+      7: (f32) 0.3
+    }
+    4: ""
+  }
+  8 {
+    1: (f32) 1.214
+    2: (f32) 380
+    3: (f32) 11.8
+    4: (f32) 0.00206
+    5: (f32) 1
+  }
+  9 {
+    1 {
+      2: (f32) -0.272
+      3: (f32) 0.1
+    }
+    2 {
+      1: (f32) 1.7
+      2: (f32) 0.1
+      3: (f32) 4
+    }
+  }
+  10: "content\cars\ks_alfa_romeo_giulia_gtam\data\street_265-30-20.tyre"
+  11: "content\cars\ks_alfa_romeo_giulia_gtam\data\street_285-30-20.tyre"
+  12 {
+    3 {
+      2: "BODY"
+      3: (f32) 1
+      4: (f32) 2.31
+      6 {
+        2: (f32) 0.13
+        3: (f32) -0.3
+      }
+      7: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_body_AOA_CL.curve"
+      8: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_body_AOA_CD.curve"
+      11: (f32) 1
+      13: (f32) 1
+      15: <16 bytes>
+      16: <16 bytes>
+    }
+    3 {
+      2: "FRONT"
+      3: (f32) 1
+      4: (f32) 2.31
+      6 {
+        2: (f32) -0.34
+        3: (f32) 1.9
+      }
+      7: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_front_AOA_CL.curve"
+      8: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_front_AOA_CD.curve"
+      12: (f32) 1
+      14: (f32) -0.04
+      15: <16 bytes>
+      16: <16 bytes>
+      17 {
+        1: 1
+        2: 6
+        3: (f32) 0.998
+        4: (f32) 12
+        6: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_controller_speed.curve"
+      }
+    }
+    3 {
+      2: "REAR"
+      3: (f32) 1
+      4: (f32) 2.31
+      6 {
+        2: (f32) 0.53
+        3: (f32) -2.05
+      }
+      7: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_rear_AOA_CL.curve"
+      8: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_rear_AOA_CD.curve"
+      12: (f32) 0.5
+      14: (f32) -0.06
+      15: <16 bytes>
+      16: <16 bytes>
+    }
+    3 {
+      2: "DIFFUSER"
+      3: (f32) 1
+      4: (f32) 2.31
+      6 {
+        2: (f32) -0.31
+        3: (f32) -2.15
+      }
+      7: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_diffuser_AOA_CL.curve"
+      8: "content\cars\ks_alfa_romeo_giulia_gtam\data\wing_diffuser_AOA_CD.curve"
+      12: (f32) 0.5
+      13: (f32) 1
+      14: (f32) -0.04
+      15: <16 bytes>
+      16: <16 bytes>
+    }
+    10: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam0.wing"
+    10: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam1.wing"
+    10: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam2.wing"
+    10: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam3.wing"
+  }
+  14 {
+    3: ""
+    3: ""
+    3: ""
+    3: ""
+  }
+  18 {
+    1 {
+      2: (f32) -0.49
+      3: (f32) -0.06
+    }
+    2: ""
+    3 {
+      1: (f32) 1
+      2: (f32) 1
+      3: (f32) 1
+    }
+  }
+  20: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam.carengine"
+  21: "content\cars\ks_alfa_romeo_giulia_gtam\collider\alfa_romeo_giulia_gtam_collider.mesh"
+  22: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam.drivetrain"
+  23 {
+    1: 6
+    2 {
+      1: "R"
+      2: (f32) -3.678
+    }
+    2 {
+      1: "N"
+    }
+    2 {
+      1: "1"
+      2: (f32) 4.055
+    }
+    2 {
+      1: "2"
+      2: (f32) 2.396
+    }
+    2 {
+      1: "3"
+      2: (f32) 1.582
+    }
+    2 {
+      1: "4"
+      2: (f32) 1.192
+    }
+    2 {
+      1: "5"
+      2: (f32) 1
+    }
+    2 {
+      1: "6"
+      2: (f32) 0.872
+    }
+    3: (f32) 3.09
+    4: (f32) 250
+    5: (f32) 270
+    6: (f32) 250
+    7: 1
+    8: ""
+    9: (f32) 1000
+    10: (f32) 0.4
+    11: (f32) 0.017
+    12 {
+      1: "content\cars\ks_alfa_romeo_giulia_gtam\data\autoBlipProfile.curve"
+    }
+    13 {
+      1: 6950
+      2: 80
+      3: (f32) 0.95
+      4: (f32) 0.3
+    }
+  }
+  24: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam.gearbox"
+  25 {
+    1: (f32) 0.017
+    2: (f32) 750
+    3 {
+      2: "content\cars\ks_alfa_romeo_giulia_gtam\data\downShiftProfile.curve"
+      4: (f32) 1200
+      5: (f32) 1800
+    }
+  }
+  26: "content\cars\ks_alfa_romeo_giulia_gtam\data\ks_alfa_romeo_giulia_gtam.clutch"
+  17 {
+    1 {
+      2: (f32) -0.49
+      3: (f32) -0.06
+    }
+    2: ""
+    3 {
+      1: (f32) 1
+      2: (f32) 1
+      3: (f32) 1
+    }
+  }
+}
+26: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_1.clutch"
+27: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_1.brakesystem"
+29: "content\cars\hdc_bmw_e46_01\data\ks_bmw_m3_e46_1.aicardata"
+202: "Hina's Drift Club - BMW M3 CSL"
+30 {
+  11: "HDC Drift"
+  1 {
+    1: (f32) 0
+    2: (f32) 0
+    3: (f32) 1
+    6: (f32) 0
+  }
+}
+190: "content\cars\hdc_bmw_e46_01\data\setup\hdc_bmw_e46_01.carsetup"
+10: "content\cars\hdc_bmw_e46_01\data\tyres\hdc_235_35_19_front.tyre"
+11: "content\cars\hdc_bmw_e46_01\data\tyres\hdc_265_30_19_rear.tyre"

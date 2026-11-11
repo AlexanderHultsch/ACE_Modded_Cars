@@ -1,0 +1,8 @@
+2: "GT-Apex Sports Mudguard Single"
+3: 16
+4: 1
+5: "content\cars\ks_toyota_ae86_sprinter_trueno\meshes\sports\toyota_ae86_sprinter_trueno_ext_mudguard_single_sports.mesh"
+14: "GT-Apex Sports Mudguard Single"
+31: "content\cars\ks_ae86_beginner_h_01\presets\parts\ae86_mudguard_double_sports.carpart"
+53: ""
+105: "Toyota"

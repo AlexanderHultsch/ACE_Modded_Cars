@@ -1,0 +1,106 @@
+2: "RX7 FD Rim"
+3 {
+  1: "EXT_RIM"
+  2: "RIM"
+  3: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM.material"
+  6 {
+    1 {
+      1: 2
+      11: 1
+      12: 1
+      13: 1
+      14: 1
+      15: 1
+      16: 1
+    }
+    2: ""
+    3: ""
+    4: "content\cars\common_assets\customization\ks_mazda\colours\mazda_rim_silver.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_mazda\colours\mazda_rim_gunmetal.oemmultilayercolor"
+  }
+  4: "content\cars\ks_lamborghini_huracan_sto\skins\colouroem_sto.table"
+  5: "STO_Lock_Black"
+  5: "STO_Lock_Red"
+  5: "STO_Lock_Orange"
+  5: "STO_Lock_Blue"
+  5: "STO_Lock_Gold"
+}
+3 {
+  1: "EXT_RIM_BLUR_STATIC"
+  2: "RIM BLUR STATIC"
+  3: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM_BLUR_STATIC.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+    }
+    2 {
+      1: 3
+      20: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM.material"
+      21: 1
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+    }
+    3 {
+      1: 3
+      20: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM.material"
+      21: 2
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+    }
+  }
+  4: "content\cars\ks_lamborghini_huracan_sto\skins\colouroem_sto.table"
+  5: "STO_Lock_Black"
+  5: "STO_Lock_Red"
+  5: "STO_Lock_Orange"
+  5: "STO_Lock_Blue"
+  5: "STO_Lock_Gold"
+}
+3 {
+  1: "EXT_RIM_BLUR"
+  2: "RIM BLUR"
+  3: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM_BLUR.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+    }
+    2 {
+      1: 3
+      20: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM.material"
+      21: 1
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+    }
+    3 {
+      1: 3
+      20: "content\cars\hdc_rx7_fd_01\materials\EXT_RIM.material"
+      21: 2
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+    }
+  }
+}
+102: "BBS"

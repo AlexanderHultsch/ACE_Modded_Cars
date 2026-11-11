@@ -1,0 +1,26 @@
+1: "content\cars\ks_ae86_beginner_h_01\skins\rim_ae86_intra_6jx14.rimmesh"
+3: "content\cars\common_assets\parts\tyres\meshes\road\r14\185_60_r14\tyre_185_60_14.tyremesh"
+4: "content\cars\ks_ae86_beginner_h_01\skins\rim_ae86_intra_6jx14.rimmesh"
+6: "content\cars\common_assets\parts\tyres\meshes\road\r14\185_60_r14\tyre_185_60_14.tyremesh"
+7: "content\cars\ks_ae86_beginner_h_01\presets\tyres_ae86.compatibletyres"
+10 {
+  1: ""
+  2: ""
+  3 {
+    1: ""
+    2: ""
+  }
+  4 {
+    1: ""
+    2: ""
+  }
+  5 {
+    1: ""
+    2: ""
+  }
+  6 {
+    1: ""
+    2: ""
+  }
+  7: ""
+}

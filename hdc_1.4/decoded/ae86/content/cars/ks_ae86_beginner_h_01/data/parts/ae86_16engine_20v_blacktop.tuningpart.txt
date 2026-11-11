@@ -1,0 +1,4 @@
+2 {
+  1: "content\cars\ks_ae86_beginner_h_01\data\parts\ks_ae86_beginner_h_01_20v.carengine"
+}
+201: 505

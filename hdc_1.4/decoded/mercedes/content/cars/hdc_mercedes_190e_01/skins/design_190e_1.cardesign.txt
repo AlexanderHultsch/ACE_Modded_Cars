@@ -1,0 +1,2 @@
+1: "content\cars\hdc_mercedes_190e_01\skins\design_190e_1.design"
+2: "content\cars\hdc_mercedes_190e_01\skins\rim_190e.compatiblerim"

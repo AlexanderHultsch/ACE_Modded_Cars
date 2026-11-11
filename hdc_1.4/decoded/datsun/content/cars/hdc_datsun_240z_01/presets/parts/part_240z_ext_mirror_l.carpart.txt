@@ -1,0 +1,8 @@
+2: "240Z Mirror Left"
+3: 12
+4: 1
+5: "content\cars\ks_datsun_240z_fairlady\meshes\parts\datsun_240z_fairlady_ext_standard.mesh"
+14: "Door Trim"
+31: "content\cars\hdc_datsun_240z_01\presets\parts\part_240z_ext_gnose_body.carpart"
+53: ""
+105: "Nissan"

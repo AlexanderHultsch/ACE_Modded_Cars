@@ -1,0 +1,10 @@
+2: "AE86 Spool Differential"
+3: 504
+4: 1
+14: "AE86 Spool Differential"
+31: "content\cars\ks_ae86_beginner_h_01\presets\parts\physics\ae86_diff_lsd.carpart"
+53: ""
+102 {
+  1: "content\cars\ks_ae86_beginner_h_01\data\parts\ae86_diff_spool.tuningpart"
+}
+105: "Toyota"

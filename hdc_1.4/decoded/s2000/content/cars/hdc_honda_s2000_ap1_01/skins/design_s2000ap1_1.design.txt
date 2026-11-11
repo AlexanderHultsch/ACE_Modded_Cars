@@ -1,0 +1,282 @@
+2: "Design 1"
+3 {
+  1: "EXT_SKIN"
+  2: "EXT SKIN"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\EXT_SKIN.material"
+  6 {
+    1 {
+      1: 2
+      11: 1
+      12: 1
+      13: 1
+      14: 1
+      15: 1
+      16: 1
+    }
+    2: ""
+    3: ""
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_black_berlina.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_blue_montecarlo_pearl.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_red_new_formula.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_silverstone_met.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_white_grandprix.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_yellow_indy.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_green_lime_met.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_orange_new_imola_pearl.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_grey_moonrock_met.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_paint_red_monza_pearl.oemmultilayercolor"
+  }
+  4: "content\cars\ks_lamborghini_huracan_sto\skins\colouroem_sto.table"
+  5: "STO_Verde_Aries"
+  5: "STO_Bianco_Monocerus"
+  5: "STO_Grigio_Lynx"
+  5: "STO_Nero_Noctis"
+  5: "STO_Rosso_Mars"
+  5: "STO_Giallo_Belenus"
+  5: "STO_Arancio_Xanto"
+  5: "STO_Verde_Selvans"
+  5: "STO_Blu_Nila"
+}
+3 {
+  1: "EXT_MECH_BASE"
+  2: "EXT MECH INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\EXT_MECH_BASE.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\EXT_SKIN.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+      38: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "EXT_DECALS"
+  2: "EXT DECALS INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\EXT_DECALS.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\EXT_SKIN.material"
+      33: 1
+      34: 1
+      35: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_OCC_CARPAINT"
+  2: "INT OCC CARPAINT INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_CARPAINT.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\EXT_SKIN.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+      38: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_OCC_LEATHER"
+  2: "INT LEATHER CUSTOM"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+  6 {
+    1 {
+      1: 1
+    }
+    2: ""
+    3: ""
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_leather_black.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_honda\colours\honda_leather_red.oemmultilayercolor"
+  }
+}
+3 {
+  1: "INT_OCC_CARPET_LEATHER"
+  2: "INT CARPET LEATHER OPT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\skins\int_opt_carpet_leather\INT_OCC_CARPET_LEATHER_OPT.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+  9: 1
+}
+3 {
+  1: "INT_OCC_LEATHER_PERF"
+  2: "INT LEATHER PERF INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER_PERF.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_OCC_LEATHER_PERF_2"
+  2: "INT LEATHER PERF 2 INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER_PERF_2.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_OCC_PLASTIC_LEATHER"
+  2: "INT PLASTIC LEATHER INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_PLASTIC_LEATHER.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_OCC_CARPET_2"
+  2: "INT CARPET 2 INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_CARPET_2.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_OCC_CARPET_LEATHER"
+  2: "INT CARPET LEATHER INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_CARPET_LEATHER.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_ELEC_PLASTIC_BLACK_SOFT_CUSTOM"
+  2: "INT PLASTIC SOFT CUSTOM INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_ELEC_PLASTIC_BLACK_SOFT_CUSTOM.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_STITCHES"
+  2: "INT STITCHES INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_STITCHES.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_SPEAKER_2"
+  2: "INT SPEAKER 2 INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_SPEAKER_2.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_ELEC_PLASTIC_CUSTOM"
+  2: "INT ELEC PLASTIC INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_ELEC_PLASTIC_CUSTOM.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_HARDTOP_PLASTIC_LEATHER"
+  2: "INT HT PLASTIC LEATHER INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_HARDTOP_PLASTIC_LEATHER.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_OCC_LEATHER.material"
+      33: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_HARDTOP_CARPAINT"
+  2: "INT HT CARPAINT INHERIT"
+  3: "content\cars\hdc_honda_s2000_ap1_01\materials\INT_HARDTOP_CARPAINT.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\hdc_honda_s2000_ap1_01\materials\EXT_SKIN.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+      38: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+102: "Honda"

@@ -1,0 +1,7 @@
+2: "S2000 Rear Spoiler"
+3: 20
+4: 1
+5: "content\cars\ks_honda_s2000_ap1\meshes\parts\honda_s2000_ap1_ext_spoiler.mesh"
+14: "S2000 Rear Spoiler"
+53: ""
+105: "Honda"

@@ -1,0 +1,365 @@
+// out: "display.css"
+@import url(../../common_assets/displays/css/common.less);
+
+@mainFont: "ks_bmw_m3_e46_csl_Digital";
+@textFont: "ks_bmw_m3_e46_csl_Text";
+
+@font-face {
+    font-family: @mainFont;
+    src: url('../../common_assets/displays/fonts/digital-7_mono_italic_narrowpunctuation.ttf');
+}
+
+@font-face {
+    font-family: @textFont;
+    src: url('../../common_assets/displays/fonts/arialnarrow-mono.ttf');
+}
+
+
+body {
+    display: block;
+
+    
+
+
+    background-color: rgb(26, 3, 0);
+    color: #ff6a1a;
+    padding: 0;
+    font-family: @mainFont;
+    font-size: 120px;
+    transition: background-color 0.25s;
+
+    &.ignition-on {
+
+        .backlight {
+            background-image: radial-gradient(rgba(26, 3, 0, 1) 75%, rgba(0, 0, 0, 1));
+        }
+
+
+        &.lights-level1,
+        &.lights-level2 {
+            
+            transition: background-color 0.05s;
+
+            .backlight {
+                background-image: radial-gradient(rgba(31, 13, 4, 1) 50%, rgb(0, 0, 0));
+            }
+        }
+
+    }
+
+
+    #common,
+    .overlay,
+    .page {
+
+        opacity: 0;
+    }
+
+    #common {}
+}
+
+&.loaded {
+
+    #common {
+        opacity: 1;
+    }
+
+    .overlay,
+    .page {
+        opacity: 1;
+    }
+}
+
+#common {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 2;
+    .setBackground("bgr.texture");
+}
+
+.loading,
+.overlay,
+.page {
+    position: absolute;
+    background-position: top left;
+    background-size: contain;
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    right: 0px;
+    display: none;
+}
+
+.loading {
+    display: block;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.active {
+    display: block;
+}
+
+.loading {}
+
+&[data-page=startup] {
+    .loading {
+        opacity: 1;
+        transition: opacity 0s;
+    }
+
+    .page,
+    .overlay,
+    #common {
+        opacity: 0;
+    }
+}
+
+.icons {
+    >div {
+        position: absolute;
+        // background-image: url(images/icons.texture);
+    }
+}
+
+#perfmode {
+    .setBackground("bgr.texture");
+    background-position: -698px -318px;
+    width: 158px;
+    height: 45px;
+    left: 335px;
+    top: 318px;
+    transition: width 0.25s ease-in-out;
+    transition-timing-function: steps(3);
+
+}
+
+#reverseneutral {
+    .setBackground("bgr.texture");
+    display: none;
+}
+
+&[data-gear-int="0"] {
+    #reverseneutral {
+        display: simple;
+        background-position: -617px -322px;
+        left: 254px;
+        top: 322px;
+        width: 44px;
+        height: 61px;
+        z-index: 5;
+    }
+}
+
+&[data-gear-int="1"] {
+    #reverseneutral {
+        display: simple;
+        background-position: -679px -443px;
+        left: 316px;
+        top: 443px;
+        width: 39px;
+        height: 61px;
+        z-index: 5;
+    }
+}
+
+#gear {
+    top: 260px;
+    left: 20px;
+    font-size: 380px;
+}
+
+#odometer {
+    top: 20px;
+    left: 60px;
+}
+
+#trip {
+    top: 20px;
+    right: 60px;
+
+    .unit {
+        font-family: @textFont;
+        font-size: 50px;
+        .faux-bolder(#feb340);
+        top: 50px;
+        position: absolute;
+        left: -103px;
+    }
+}
+
+&[data-mode=mode2] {
+    #perfmode {
+        width: 81px;
+    }
+}
+
+
+.led {
+    width: 990px;
+    height: 359px;
+    left: 13px;
+    top: 21px;
+
+    .value {
+        position: absolute;
+        left: 0;
+        right: 0;
+        font-size: 210px;
+        text-align: center;
+    }
+
+    .unit {
+        font-family: @textFont;
+        position: absolute;
+        bottom: 0px;
+        right: 180px;
+        font-size: 88px;
+        .faux-black(#feb340);
+    }
+
+    .kmh {
+        bottom: 0px;
+        right: 10px;
+    }
+
+    .km {
+        bottom: 0px;
+        right: 180px;
+    }
+
+    .bar {
+        bottom: 160px;
+        right: 20px;
+        font-size: 96px;
+        transform: scaleX(1.25);
+    }
+
+    .celcius {
+        bottom: auto;
+        top: 20px;
+        right: 20px;
+        font-size: 102px;
+        transform: scaleX(1.25);
+    }
+
+
+}
+
+&[data-page=fuel] {
+    #fuel {
+        display: flex;
+    }
+}
+
+&[data-page=clock] {
+    #clock {
+        display: flex;
+    }
+}
+
+&[data-page=ambient] {
+    #ambient {
+        display: flex;
+    }
+}
+
+
+.main {
+    width: 997px;
+    height: 291px;
+    left: 10px;
+    top: 10px;
+}
+
+.main2 {
+    width: 567px;
+    height: 289px;
+    left: 9px;
+    top: 303px;
+}
+
+.climate {
+    width: 702px;
+    height: 120px;
+    top: 772px;
+}
+
+.radio1 {
+    width: 1019px;
+    height: 116px;
+    left:4px;
+    top: 897px;
+}
+
+.radio2 {
+    width: 319px;
+    height: 113px;
+    left: 703px;
+    top: 774px;
+}
+
+#fuel,
+#clock,
+#ambient {
+    top: 152px;
+    font-size: 150px;
+    left: 0px;
+    right: 0px;
+    justify-content: center;
+
+    .unit {
+        font-family: @textFont;
+        position: relative;
+        left: 60px;
+        font-size: 90px;
+        top: 32px;
+    }
+}
+
+#radio {
+    left: 234px;
+    top: 405px;
+    width: 555px;
+    height: 372px;
+    display: simple !important;
+
+    .freq {
+        font-size: 210px;
+        position: absolute;
+        top: 80px;
+        left: 100px;
+        right: 0;
+        text-align: center;
+    }
+
+    .fm {
+        font-family: @textFont;
+        position: absolute;
+        font-size: 80px;
+        top: 10px;
+        left: 10px;
+
+    }
+
+    .seek {
+        font-family: @textFont;
+        position: absolute;
+        font-size: 60px;
+        bottom: 40px;
+        left: 0;
+        right: 0;
+        text-align: center;
+    }
+}
+
+&.already-on {
+    * {
+        transition-delay: 0s !important;
+        transition-duration: 0s !important;
+    }
+
+}

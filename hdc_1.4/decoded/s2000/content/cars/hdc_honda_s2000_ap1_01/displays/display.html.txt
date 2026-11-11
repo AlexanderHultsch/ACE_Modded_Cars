@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script src='../../common_assets/displays/js/cohtml.js'></script>
+    <script src='../../common_assets/displays/js/displays.js'></script>
+
+    <link rel='stylesheet' type='text/css' href='../../common_assets/displays/css/common.css'>
+    <link rel='stylesheet' type='text/css' href='display.css'>
+
+    <script src='display.js'></script>
+</head>
+
+<body class="cardisplay"
+    data-mode="off"
+    data-bind-car="CarDisplay.process({{ModelCurrentCar}})">
+
+    <div id="common" class="pAbsolute">
+
+        <div id="speed" class="pAbsolute"></div>
+
+        <div id="odometer" class="pAbsolute" data-bind-value="{{ModelCurrentCar.total_km}}"></div>
+        <div id="trip" class="pAbsolute" data-bind-value="{{ModelCurrentCar}}.current_km.toFixed(1)">0.0</div>
+
+        <div id="rpm" class="bar"></div>
+        <div id="limiter" class="bar"></div>
+        <div id="temperature" class="bar"></div>
+        <div id="fuel" class="bar"></div>
+
+    </div>
+
+
+</body>
+
+</html>

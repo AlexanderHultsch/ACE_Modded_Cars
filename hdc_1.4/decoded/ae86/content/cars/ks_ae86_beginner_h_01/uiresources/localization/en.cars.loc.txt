@@ -1,0 +1,8 @@
+brand_hina_drift_club=Hina's Drift Club
+ks_ae86_beginner_h_01_hina_s_drift_club_na=Hina's Drift Club - NA
+ks_ae86_beginner_h_01_hina_s_drift_club=Hina's Drift Club
+ks_ae86_beginner_h_01_hdc_na=HDC - NA
+ks_ae86_beginner_h_01_hdc=HDC
+
+paper_cup=Paper Cup
+speed_chime=Speed Chime

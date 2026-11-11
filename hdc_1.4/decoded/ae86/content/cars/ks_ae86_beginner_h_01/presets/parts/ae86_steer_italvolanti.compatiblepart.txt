@@ -1,0 +1,55 @@
+1: "content\cars\common_assets\parts\steer\italvolanti_1\am_steer_italvolanti_1.carpart"
+3: "STEER_BASE"
+5 {
+  1: ""
+  2: ""
+  3 {
+    1: (f32) 1
+    2: (f32) 1
+    3: (f32) 1
+  }
+}
+6 {
+  1: ""
+  2: ""
+  3 {
+    1: ""
+    2: ""
+  }
+  4 {
+    1: ""
+    2: ""
+  }
+  5 {
+    1: ""
+    2: ""
+  }
+  6 {
+    1: ""
+    2: ""
+  }
+  7: ""
+}
+12 {
+  2 {
+    1 {
+      1: "content\cars\ks_toyota_ae86_sprinter_trueno\animations\driver_animations\toyota_trueno_ae86_driver_italvolanti_position.animation"
+    }
+  }
+}
+12 {
+  1: 1
+  2 {
+    1 {
+      1: "content\cars\ks_toyota_ae86_sprinter_trueno\animations\driver_animations\toyota_trueno_ae86_driver_italvolanti_steer.animation"
+    }
+  }
+}
+12 {
+  1: 9
+  2 {
+    1 {
+      1: "content\cars\ks_toyota_ae86_sprinter_trueno\animations\driver_animations\toyota_trueno_ae86_driver_italvolanti_idle.animation"
+    }
+  }
+}

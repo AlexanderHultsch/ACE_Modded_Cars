@@ -1,0 +1,5 @@
+1: "content\cars\hdc_mercedes_190e_01\skins\rim_190e_8.2jx17.rimmesh"
+3: "content\cars\common_assets\parts\tyres\meshes\road\r17\245_40_r17\tyre_245_40_17.tyremesh"
+4: "content\cars\hdc_mercedes_190e_01\skins\rim_190e_8.2jx17.rimmesh"
+6: "content\cars\common_assets\parts\tyres\meshes\road\r17\245_40_r17\tyre_245_40_17.tyremesh"
+7: "content\cars\hdc_mercedes_190e_01\presets\tyres_190e.compatibletyres"

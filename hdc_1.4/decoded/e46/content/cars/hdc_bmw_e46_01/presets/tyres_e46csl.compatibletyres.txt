@@ -1,0 +1,9 @@
+1: <3 bytes>
+2 {
+  1: 71
+  2: "content\cars\hdc_bmw_e46_01\data\tyres\hdc_235_35_19_front.tyre"
+  3: "content\cars\hdc_bmw_e46_01\data\tyres\hdc_265_30_19_rear.tyre"
+}
+3 {
+  1: 71
+}

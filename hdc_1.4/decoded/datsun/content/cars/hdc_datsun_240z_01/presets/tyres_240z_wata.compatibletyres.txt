@@ -1,0 +1,17 @@
+1: <3 bytes>
+2 {
+  1: 101
+  2: "content\cars\hdc_datsun_240z_01\data\tyres\hdc_225_50_15_front.tyre"
+  3: "content\cars\hdc_datsun_240z_01\data\tyres\hdc_225_50_15_rear.tyre"
+}
+2 {
+  1: 305
+  2: "content\cars\common_phsx\tyres\road\road_225_50_15.tyre"
+  3: "content\cars\common_phsx\tyres\road\road_225_50_15.tyre"
+}
+3 {
+  1: 101
+}
+3 {
+  1: 305
+}

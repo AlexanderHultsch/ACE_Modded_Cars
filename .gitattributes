@@ -1,0 +1,28 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.kspkg binary
+*.gz binary
+*.exe binary
+*.texture binary
+*.texturemips binary
+*.mesh binary
+*.rimmesh binary
+*.material binary
+*.scene binary
+*.actor binary
+*.car binary
+*.carengine binary
+*.drivetrain binary
+*.gearbox binary
+*.curve binary
+*.carsetup binary
+*.carsetuplimits binary
+*.row binary
+*.bank binary
+*.png binary
+*.ico binary
+*.webm binary
+*.ttf binary
+hdc_1.4/extracted/** binary
+hdc_1.4/payload/content/** binary

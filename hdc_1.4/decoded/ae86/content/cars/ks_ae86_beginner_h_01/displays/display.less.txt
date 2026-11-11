@@ -1,0 +1,178 @@
+// out: "display.css"
+@import url(../../common_assets/displays/css/common.less);
+
+@mainFont: "ks_toyota_ae86_sprinter_trueno_Digital";
+
+@font-face {
+    font-family: @mainFont;
+    src: url('../../common_assets/displays/fonts/digital-7_mono_italic_narrowpunctuation.ttf');
+}
+
+body {
+    display: block;
+
+    color: rgba(67, 250, 249, 0.5);
+    padding: 0;
+    font-family: @mainFont;
+    font-size: 120px;
+
+    &.debug {
+        #common>div {
+            background-color: blue;
+        }
+    }
+
+    &.ignition-on {
+        color: rgba(67, 250, 249, 0.25);
+        background-image: radial-gradient(#00000066 50%, #00000000) !important;
+        background-color: rgba(67, 250, 249, 0.01);
+
+        &.lights-level1,
+        &.lights-level2 {
+            color: rgba(67, 250, 249, 0.35);
+
+
+            #clock,
+            #ambient {}
+        }
+
+    }
+
+
+    &[data-car_visual=preset_ae86_visual_4] {
+        color: rgba(255, 120, 40, 0.5);
+
+        &.ignition-on {
+            color: rgba(255, 120, 40, 0.25);
+            background-image: radial-gradient(#00000066 50%, #00000000) !important;
+            background-color: rgba(255, 120, 40, 0.01);
+
+            &.lights-level1,
+            &.lights-level2 {
+                color: rgba(255, 120, 40, 0.35);
+
+
+                #clock,
+                #ambient {}
+            }
+
+        }
+    }
+
+
+    #common,
+    .overlay,
+    .page {
+
+        opacity: 0;
+    }
+
+    #common {}
+}
+
+&.loaded {
+
+    #common {
+        opacity: 1;
+    }
+
+    .overlay,
+    .page {
+        opacity: 1;
+    }
+}
+
+#common {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 100;
+
+    >div {
+        display: flex;
+        justify-content: center;
+        align-content: center;
+        align-items: center;
+    }
+
+}
+
+.loading,
+.overlay,
+.page {
+    position: absolute;
+    background-position: top left;
+    background-size: contain;
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    right: 0px;
+    display: none;
+}
+
+.loading {
+    display: block;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.active {
+    display: block;
+}
+
+.loading {}
+
+&[data-page=startup] {
+    .loading {
+        opacity: 1;
+        transition: opacity 0s;
+    }
+
+    .page,
+    .overlay,
+    #common {
+        opacity: 0;
+    }
+}
+
+.icons {
+    >div {
+        position: absolute;
+        // background-image: url(images/icons.texture);
+    }
+}
+
+#clock {
+    padding-top: 20px;
+    width: 256px;
+    padding-right: 30px;
+    text-align: right;
+    font-size: 90px;
+
+}
+
+
+
+&[data-page=clock] {
+    #clock {
+        display: block;
+    }
+}
+
+&[data-page=ambient] {
+    #ambient {
+        display: block;
+    }
+}
+
+
+
+&.already-on {
+    * {
+        transition-delay: 0s !important;
+        transition-duration: 0s !important;
+    }
+
+}

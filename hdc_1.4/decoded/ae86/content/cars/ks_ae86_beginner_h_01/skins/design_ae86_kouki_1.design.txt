@@ -1,0 +1,268 @@
+2: "GT-Apex "Kouki" Design 1"
+3 {
+  1: "EXT_SKIN"
+  2: "EXT SKIN"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_design_1\EXT_SKIN_KOUKI_1.material"
+  6 {
+    1 {
+      1: 2
+      11: 1
+      12: 1
+      13: 1
+      14: 1
+      15: 1
+      16: 1
+    }
+    2: ""
+    3: ""
+    4: "content\cars\common_assets\customization\ks_toyota\colours\toyota_paint_white.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_toyota\colours\toyota_paint_silver_met.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_toyota\colours\toyota_paint_red.oemmultilayercolor"
+  }
+  4: "content\cars\ks_lamborghini_huracan_sto\skins\colouroem_sto.table"
+  5: "STO_Verde_Aries"
+  5: "STO_Bianco_Monocerus"
+  5: "STO_Grigio_Lynx"
+  5: "STO_Nero_Noctis"
+  5: "STO_Rosso_Mars"
+  5: "STO_Giallo_Belenus"
+  5: "STO_Arancio_Xanto"
+  5: "STO_Verde_Selvans"
+  5: "STO_Blu_Nila"
+}
+3 {
+  1: "EXT_DECALS"
+  2: "EXT DECALS"
+  3: "content\cars\ks_ae86_beginner_h_01\materials\EXT_DECALS.material"
+  6 {
+    1 {
+      1: 1
+    }
+    2: ""
+    3: ""
+    4: "content\cars\common_assets\customization\ks_toyota\colours\toyota_decal_black.oemmultilayercolor"
+    4: "content\cars\common_assets\customization\ks_toyota\colours\toyota_decal_white.oemmultilayercolor"
+  }
+}
+3 {
+  1: "INT_OCC_CARPET"
+  2: "INT CARPET KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_CARPET_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_DOOR_TRIM"
+  2: "INT DOOR TRIM KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_DOOR_TRIM_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_DOOR_TRIM_2"
+  2: "INT DOOR TRIM 2 KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_DOOR_TRIM_2_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_FABRIC_COLOUR"
+  2: "INT FABRIC 1 KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_FABRIC_COLOUR_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_FABRIC_BLACK"
+  2: "INT FABRIC 2 KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_FABRIC_BLACK_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_LEATHER"
+  2: "INT LEATHER KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_LEATHER_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_LEATHER_SEATS"
+  2: "INT LEATHER SEATS KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_LEATHER_SEATS_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_PLASTIC_COLOUR"
+  2: "INT PLASTIC COLOUR KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_PLASTIC_COLOUR_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_PLASTIC_DASH"
+  2: "INT PLASTIC DASH KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_PLASTIC_DASH_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_PLASTIC_LEATHER"
+  2: "INT PLASTIC LEATHER KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_PLASTIC_LEATHER_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_STITCHING"
+  2: "INT STITCHING KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_STITCHING_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_OCC_GAUGE_TRIM"
+  2: "INT GAUGE TRIM KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_int_opt\INT_OCC_GAUGE_TRIM_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+  9: 1
+  13: 1
+}
+3 {
+  1: "INT_GAUGES"
+  2: "INT GAUGES KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_design_1\INT_GAUGES_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_NEEDLE"
+  2: "INT NEEDLE KOUKI"
+  3: "content\cars\ks_ae86_beginner_h_01\skins\kouki_design_1\INT_NEEDLE_KOUKI.material"
+  6 {
+    1: ""
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "EXT_MECH_BASE"
+  2: "EXT MECH INHERIT"
+  3: "content\cars\ks_ae86_beginner_h_01\materials\EXT_MECH_BASE.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\ks_ae86_beginner_h_01\skins\kouki_design_1\EXT_SKIN_KOUKI_1.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+      38: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "INT_OCC_CARPAINT"
+  2: "INT OCC CARPAINT INHERIT"
+  3: "content\cars\ks_ae86_beginner_h_01\materials\INT_OCC_CARPAINT.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\ks_ae86_beginner_h_01\skins\kouki_design_1\EXT_SKIN_KOUKI_1.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+      38: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+3 {
+  1: "EXT_ENGINE"
+  2: "EXT ENGINE INHERIT"
+  3: "content\cars\ks_ae86_beginner_h_01\materials\EXT_ENGINE.material"
+  6 {
+    1 {
+      1: 3
+      20: "content\cars\ks_ae86_beginner_h_01\skins\kouki_design_1\EXT_SKIN_KOUKI_1.material"
+      33: 1
+      34: 1
+      35: 1
+      36: 1
+      37: 1
+      38: 1
+    }
+    2: ""
+    3: ""
+  }
+}
+102: "Toyota"

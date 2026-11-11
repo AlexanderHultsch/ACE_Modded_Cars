@@ -1,0 +1,8 @@
+2: "S2000 Hard Top"
+3: 104
+4: 1
+5: "content\cars\ks_honda_s2000_ap1\meshes\parts\honda_s2000_ap1_ext_hardtop.mesh"
+14: "S2000 Hard Top"
+17: 1
+53: ""
+105: "Honda"

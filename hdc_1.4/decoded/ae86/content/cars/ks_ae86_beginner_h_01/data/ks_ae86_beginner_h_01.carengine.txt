@@ -1,0 +1,12 @@
+1: (f32) 0.13
+2: "content\cars\ks_ae86_beginner_h_01\data\HEADER_POWER.curve"
+3: "content\cars\ks_ae86_beginner_h_01\data\coast.curve"
+5: 500
+6: 7250
+7: 16
+14: "content\cars\ks_ae86_beginner_h_01\data\throttle.curve"
+15: (f32) 7500
+19: ""
+27: ""
+28: ""
+50: ""

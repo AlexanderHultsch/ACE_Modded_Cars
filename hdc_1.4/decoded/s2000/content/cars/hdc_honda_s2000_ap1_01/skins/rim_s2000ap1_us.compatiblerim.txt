@@ -1,0 +1,5 @@
+1: "content\cars\hdc_honda_s2000_ap1_01\skins\rim_s2000ap1_us_6.5jx16.rimmesh"
+3: "content\cars\common_assets\parts\tyres\meshes\road\r16\205_55_r16\tyre_205_55_16.tyremesh"
+4: "content\cars\hdc_honda_s2000_ap1_01\skins\rim_s2000ap1_us_7.5jx16.rimmesh"
+6: "content\cars\common_assets\parts\tyres\meshes\road\r16\225_50_r16\tyre_225_50_16.tyremesh"
+7: "content\cars\hdc_honda_s2000_ap1_01\presets\tyres_s2000ap1.compatibletyres"

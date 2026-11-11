@@ -1,0 +1,41 @@
+2: "RX7 FD Drift Engine"
+3: 505
+14: "RX7 FD Drift Engine"
+53: ""
+102 {
+  1: "content\cars\hdc_rx7_fd_01\data\parts\hdc_rx7_fd_01_engine_drift.tuningpart"
+  4 {
+    1: "event:/evo_cars/ks_mazda_rx7_tuned/engine_int"
+    5 {
+      1: ""
+      2: ""
+      3: ""
+    }
+    6: "content\sfx\ks_mazda_rx7_tuned.bank"
+  }
+  4 {
+    1: "event:/evo_cars/ks_mazda_rx7_tuned/engine_ext"
+    2: 1
+    5 {
+      1: ""
+      2: ""
+      3: ""
+    }
+    6: "content\sfx\ks_mazda_rx7_tuned.bank"
+  }
+  4 {
+    1: "event:/parts/turbos/turbo_rx7_tuned"
+    2: 8
+    5 {
+      1: ""
+      2: ""
+      3 {
+        1: (f32) 1
+        2: (f32) 1
+        3: (f32) 1
+      }
+    }
+    6: "content\sfx\turbo.bank"
+  }
+}
+105: "Mazda"

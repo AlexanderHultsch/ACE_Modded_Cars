@@ -1,0 +1,15 @@
+1: (f32) 0.11487
+2: "content\cars\ks_ae86_beginner_h_01\data\na_character_v1\power_na_friendly.curve"
+3: "content\cars\ks_ae86_beginner_h_01\data\na_character_v1\coast_second_compensated.curve"
+5: 1000
+6: 9000
+7: 18
+14: "content\cars\ks_ae86_beginner_h_01\data\na_character_v1\throttle_linear.curve"
+15: (f32) 9250
+19: ""
+20: (f32) 30
+27: ""
+28: ""
+40: (f32) 0.975
+41: (f32) 0.965
+50: ""

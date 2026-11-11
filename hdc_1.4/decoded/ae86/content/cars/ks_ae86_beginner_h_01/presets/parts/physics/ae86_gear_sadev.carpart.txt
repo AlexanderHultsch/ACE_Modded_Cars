@@ -1,0 +1,34 @@
+2: "AE86 Gearbox Sadev"
+3: 535
+4: 1
+14: "AE86 Gearbox Sadev"
+31: "content\cars\ks_ae86_beginner_h_01\presets\parts\physics\ae86_gear_stock.carpart"
+31: "content\cars\ks_ae86_beginner_h_01\presets\parts\physics\ae86_gear_35.carpart"
+53: ""
+102 {
+  1: "content\cars\ks_ae86_beginner_h_01\data\parts\ae86_gear_sadev.tuningpart"
+  4 {
+    1: "event:/parts/transmissions/transmission_sadev_scl8217"
+    2: 13
+    5 {
+      1: ""
+      2: ""
+      3: ""
+    }
+    6: "content\sfx\transmission.bank"
+  }
+  4 {
+    1: "event:/parts/gearboxes/gearbox_sequential_3"
+    2: 12
+    5 {
+      1: ""
+      2: ""
+      3: ""
+    }
+    6: "content\sfx\gearbox.bank"
+  }
+}
+102 {
+  1: "content\cars\ks_ae86_beginner_h_01\data\parts\ae86_clutch_sadev.tuningpart"
+}
+105: "Toyota"

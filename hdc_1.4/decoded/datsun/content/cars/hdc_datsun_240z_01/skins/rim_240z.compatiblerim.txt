@@ -1,0 +1,28 @@
+1: "content\cars\hdc_datsun_240z_01\skins\rim_240z_5jx14.rimmesh"
+2: (f32) 0.015
+3: "content\cars\common_assets\parts\tyres\meshes\road\r14\195_70_r14\tyre_195_70_14.tyremesh"
+4: "content\cars\hdc_datsun_240z_01\skins\rim_240z_5jx14.rimmesh"
+5: (f32) 0.01
+6: "content\cars\common_assets\parts\tyres\meshes\road\r14\195_70_r14\tyre_195_70_14.tyremesh"
+7: "content\cars\hdc_datsun_240z_01\presets\tyres_240z.compatibletyres"
+10 {
+  1: ""
+  2: ""
+  3 {
+    1: ""
+    2: ""
+  }
+  4 {
+    1: ""
+    2: ""
+  }
+  5 {
+    1: ""
+    2: ""
+  }
+  6 {
+    1: ""
+    2: ""
+  }
+  7: ""
+}

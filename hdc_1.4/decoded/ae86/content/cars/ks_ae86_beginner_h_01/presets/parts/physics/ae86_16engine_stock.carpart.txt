@@ -1,0 +1,11 @@
+2: "AE86 1.6 16V Stock Engine"
+3: 505
+4: 1
+14: "AE86 1.6 16V Stock Engine"
+31: "content\cars\ks_ae86_beginner_h_01\presets\parts\physics\ae86_16engine_16v_tuned.carpart"
+31: "content\cars\ks_ae86_beginner_h_01\presets\parts\physics\ae86_16engine_20v_blacktop.carpart"
+53: ""
+102 {
+  1: "content\cars\ks_ae86_beginner_h_01\data\parts\ae86_16engine_stock.tuningpart"
+}
+105: "Toyota"

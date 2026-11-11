@@ -1,0 +1,178 @@
+// out: "display.css"
+@import url(../../common_assets/displays/css/common.less);
+
+@mainFont: "ks_mazda_rx7_fd_Digital";
+@altFont: "ks_mazda_rx7_fd_Alt";
+
+@font-face {
+    font-family: @mainFont;
+    src: url('../../common_assets/displays/fonts/digital-7_mono_italic_narrowpunctuation.ttf');
+}
+
+@font-face {
+    font-family: @altFont;
+    src: url('../../common_assets/displays/fonts/robotocondensed-regular.ttf');
+}
+
+body {
+    display: block;
+    width: 1024px;
+    height: 512px;
+
+    color: black;
+    padding: 0;
+    font-family: @mainFont;
+    font-size: 132px;
+
+    &.debug {
+        #common>div {
+            background-color: blue;
+        }
+    }
+
+    &.ignition-on {
+        #dash {
+            background-color: rgba(28, 28, 25, 0.5);
+        }
+
+        #radio {
+            background-color: rgba(253, 102, 47, 0.25);
+            background-image: radial-gradient(rgba(253, 102, 47, 0.75) 30%, #ff000000) !important;
+        }
+
+        &.lights-level1,
+        &.lights-level2 {
+            #dash {
+                background-color: rgba(28, 28, 25, 0.85);
+            }
+
+            #radio {
+                background-color: rgba(253, 102, 47, 0.5);
+            }
+        }
+
+    }
+
+
+    #common,
+    .overlay,
+    .page {
+
+        opacity: 0;
+    }
+
+    #common {}
+}
+
+&.loaded {
+
+    #common {
+        opacity: 1;
+    }
+
+    .overlay,
+    .page {
+        opacity: 1;
+    }
+}
+
+#common {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 100;
+}
+
+.loading,
+.overlay,
+.page {
+    position: absolute;
+    background-position: top left;
+    background-size: contain;
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    right: 0px;
+    display: none;
+}
+
+.loading {
+    display: block;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.active {
+    display: block;
+}
+
+.loading {}
+
+&[data-page=startup] {
+    .loading {
+        opacity: 1;
+        transition: opacity 0s;
+    }
+
+    .page,
+    .overlay,
+    #common {
+        opacity: 0;
+    }
+}
+
+.icons {
+    >div {
+        position: absolute;
+        // background-image: url(images/icons.texture);
+    }
+}
+
+#dash {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    color: rgb(253,66,47);
+    left: 0px;
+    top: 150px;
+    width: 1024px;
+    height: 357px;
+    padding-right: 200px;
+    letter-spacing: 5px;
+}
+
+#trip {
+    display: flex;
+
+    &::after {
+        content: "km";
+        font-size: 70px;
+        font-family: @altFont;
+        letter-spacing: normal;
+        padding-top: 10px;
+        margin-left: 15px;
+    }
+}
+
+#radio {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding-right: 150px;
+    color: #111;
+    left: 49px;
+    top: 0px;
+    width: 922px;
+    height: 148px;
+}
+
+&.already-on {
+    * {
+        transition-delay: 0s !important;
+        transition-duration: 0s !important;
+    }
+
+}

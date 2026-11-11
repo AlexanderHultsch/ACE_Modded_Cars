@@ -1,0 +1,7 @@
+1: "240Z G-Nose Trim Kit"
+10: "content\cars\hdc_datsun_240z_01\presets\parts\part_240z_ext_gnose_body.carpart"
+10: "content\cars\hdc_datsun_240z_01\presets\parts\part_240z_ext_gnose_fbumper.carpart"
+10: "content\cars\hdc_datsun_240z_01\presets\parts\part_240z_ext_gnose_rbumper.carpart"
+10: "content\cars\hdc_datsun_240z_01\presets\parts\part_240z_ext_gnose_tailgate.carpart"
+10: "content\cars\hdc_datsun_240z_01\presets\parts\part_240z_ext_gnose_exhaust.carpart"
+105: "Nissan"
