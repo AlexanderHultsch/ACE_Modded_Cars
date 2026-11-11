@@ -1,0 +1,231 @@
+// out: "display.css"
+@import url(../../common_assets/displays/css/common.less);
+
+@mainFont: "ks_mercedes_190e_evo_ii_Digital";
+@altFont: "ks_mercedes_190e_evo_ii_Alt";
+
+@font-face {
+    font-family: @mainFont;
+    src: url('../../common_assets/displays/fonts/digital-7_mono_italic_narrowpunctuation.ttf');
+}
+
+@font-face {
+    font-family: @altFont;
+    src: url('../../common_assets/displays/fonts/robotocondensed-regular.ttf');
+}
+
+body {
+    display: block;
+
+    color: black;
+    padding: 0;
+    font-family: @mainFont;
+    font-size: 130px;
+
+    &.debug {
+        #common>div {
+            background-color: blue;
+        }
+    }
+
+    &.ignition-on {
+        background-color: rgba(123, 126, 117, 0.15);
+
+        &.lights-level1,
+        &.lights-level2 {
+            background-color: rgba(253, 149, 100, 0.45);
+        }
+
+    }
+
+
+    #common,
+    .overlay,
+    .page {
+
+        opacity: 0;
+    }
+
+    #common {}
+}
+
+&.loaded {
+
+    #common {
+        opacity: 1;
+    }
+
+    .overlay,
+    .page {
+        opacity: 1;
+    }
+}
+
+#common {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 100;
+
+    >div {
+        display: flex;
+        justify-content: center;
+        align-content: center;
+        align-items: center;
+        position: absolute;
+    }
+
+}
+
+.loading,
+.overlay,
+.page {
+    position: absolute;
+    background-position: top left;
+    background-size: contain;
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    right: 0px;
+    display: none;
+}
+
+.loading {
+    display: block;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.active {
+    display: block;
+}
+
+.loading {}
+
+&[data-page=startup] {
+    .loading {
+        opacity: 1;
+        transition: opacity 0s;
+    }
+
+    .page,
+    .overlay,
+    #common {
+        opacity: 0;
+    }
+}
+
+.icons {
+    >div {
+        position: absolute;
+        // background-image: url(images/icons.texture);
+    }
+}
+
+#clock,
+#radio,
+#ambient {
+
+    top: 0px;
+    width: 508px;
+    padding-right: 2px;
+    text-align: right;
+
+}
+
+#ambient {
+    display: flex;
+    justify-content: space-between !important;
+    padding: 0 10px;
+    height: 130px;
+
+    .value {
+        flex: 1;
+        justify-content: flex-end;
+        padding-right: 30px;
+        letter-spacing: 20px;
+        font-size: 120px;
+        .faux-bolder(#000);
+    }
+
+    .degrees {
+        font-family: @altFont;
+        font-size: 140px;
+        color: #101010 !important;
+
+        height: 141px;
+    }
+
+    .units {
+        font-family: @altFont;
+        color: #101010 !important;
+        font-size: 100px;
+
+    }
+}
+
+#radio {
+    left: 2px;
+    top: 122px;
+    width: 507px;
+    height: 140px;
+    padding: 0 20px;
+
+    justify-content: space-between !important;
+
+
+    .value {
+        padding-right: 20px;
+    }
+
+    .prefix {
+        font-family: @altFont;
+        font-size: 65px;
+        position: relative;
+        top: 20px;
+        letter-spacing: 20px;
+        transform: scaleY(0.8);
+        .faux-bolder(#000);
+    }
+
+}
+
+#clock {
+    left: 4px;
+    top: 264px;
+    width: 506px;
+    height: 186px;
+    font-size: 220px;
+
+
+    .unstretch {
+        transform: scaleY(0.75);
+    }
+
+}
+
+&.lights-level1,
+&.lights-level2 {
+
+    #ambient {
+        background-image: radial-gradient(#00000000 50%, #000000CC);
+    }
+
+    #radio {
+        background-image: radial-gradient(#00000000 50%, #00000066);
+    }
+
+    #clock {
+        background-image: radial-gradient(closest-corner, #00000000 50%, #00000055);
+    }
+}
+
+&.already-on {
+    * {
+        transition-delay: 0s !important;
+        transition-duration: 0s !important;
+    }
+
+}
