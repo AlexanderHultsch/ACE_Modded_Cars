@@ -1,0 +1,11 @@
+The Yard - local surroundings test
+Created by Hina
+
+Aerial imagery: Geospatial Information Authority of Japan (GSI), orthophotographs, ort tile layer.
+https://maps.gsi.go.jp/development/ichiran.html#ort
+Use conditions: https://www.gsi.go.jp/ENGLISH/page_e30286.html
+Japan Public Data Licence 1.0.
+
+Imagery assembled, resized and mapped by Hina onto fictional terrain for The Yard. This is an adapted fictional environment, not a geographic reconstruction. Downloaded 1 October 2026.
+
+Game scenery materials and prop dependencies reference installed Assetto Corsa EVO content.
