@@ -1,1 +1,0 @@
-internal static class PayloadIdentity { internal const string FileName="HDC.payload.zip", Sha256="1366acee58a9633ea4a32d3bb3a78f69526cd98ebe367432ca2f25af599cc4f9"; internal const int FileCount=1460; internal const long TotalBytes=1438145714L, MaxFileBytes=131072000L; }
