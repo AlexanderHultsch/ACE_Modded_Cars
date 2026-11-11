@@ -1,0 +1,7 @@
+{
+  "name": "test_limiter4000",
+  "description": "Rev limiter 8100 -> 4000 rpm. Test of which data copy the game reads; not a tune.",
+  "values": {
+    "rev_limiter_rpm": 4000
+  }
+}
