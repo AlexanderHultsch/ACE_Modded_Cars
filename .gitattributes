@@ -26,3 +26,6 @@
 *.ttf binary
 hdc_1.4/extracted/** binary
 hdc_1.4/payload/content/** binary
+hdc_1.4/original/** -text
+hdc_1.4/payload/** -text
+hdc_1.4/extracted/** -text
