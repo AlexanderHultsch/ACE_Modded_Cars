@@ -1,9 +1,9 @@
 """Local web server of the tuner: serves the settings table and runs Apply through tools/tune.py.
 
 usage:
-  python tools/tuner_server.py [--port N] [--work <dir>] [--mods <dir>]
+  python tools/tuner_server.py [--port N] [--work <dir>] [--mods <dir>] [--game <content.kspkg>]
 
-Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765) and a small JSON API:
+Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765, allowed 1024 to 65535) and a small JSON API:
   GET  /api/state       work folder, base car, game running, installed package, background job; every car of the game
                         (id, label, display_name, extracted, tested, new_id, installed) and the number of applicable and
                         hidden settings of the car (null while the base is missing or being extracted)
@@ -19,7 +19,7 @@ Every route takes an optional car id of the game (the list is cached in <work>/c
 and without the game package only the tested cars of tuner/cars.json): the query parameter ?car=<id> on GET, the field
 "car" in the JSON body on POST (any other id is a 400 error). Without it the default car of tuner/cars.json is used.
 
-Answers: JSON {"error": text} with 400 (bad input, unknown car), 403 (wrong Host, missing X-Tuner or Content-Type), 404 (unknown path), 409 (base car missing, another job running, game running), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200. Other HTTP methods get the standard 501 page.
+Answers: JSON {"error": text} with 400 (bad input, unknown car), 403 (wrong Host, missing X-Tuner or Content-Type), 404 (unknown path), 409 (base car missing, another job running, edit while a job runs, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200. Other HTTP methods get the standard 501 page.
 
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of that car; the old single-car layout of the work folder
@@ -27,7 +27,9 @@ is moved into the default car's folder when the server starts.
 Binds to 127.0.0.1 only and accepts only the Host headers 127.0.0.1:<port> and localhost:<port>. Every POST needs
 the header X-Tuner: 1 and Content-Type application/json. One background job at a time; its state is kept until the
 next job starts. Apply refuses to run while AssettoCorsaEVO.exe is running.
-<work> defaults to %USERPROFILE%\\ace_modded_cars_work, <mods> to %USERPROFILE%\\Saved Games\\ACE\\mods (see tune.py).
+<work> defaults to %USERPROFILE%\\ace_modded_cars_work, <mods> to %USERPROFILE%\\Saved Games\\ACE\\mods, <game> to the
+Steam default content.kspkg (see tune.py). Wrong arguments print the usage block and exit 2.
+Ctrl+C while a job runs waits for it; a second Ctrl+C aborts it.
 
 Stdlib only.
 """
@@ -36,9 +38,10 @@ import http.server
 import json
 import os
 import pathlib
-import subprocess
+import socket
 import sys
 import threading
+import time
 import traceback
 import urllib.parse
 
@@ -49,17 +52,19 @@ import tune  # noqa: E402
 
 INDEX = tune.REPO / "tuner" / "web" / "index.html"
 DEFAULT_PORT = 8765
-GAME_EXE = "AssettoCorsaEVO.exe"
+GAME_CHECK_SECONDS = 4.0
 MAX_BODY = 65536
 MODES = ("update", "new_copy")
 # routes that start a background job answer 202 instead of 200
 ACCEPTED = ("/api/init", "/api/apply")
 
-CONFIG = {"port": DEFAULT_PORT, "work": None, "mods": None}
-JOB = {"kind": None, "state": "idle", "log": [], "result": None, "error": None}
+CONFIG = {"port": DEFAULT_PORT, "work": None, "mods": None, "game": tune.DEFAULT_GAME}
+JOB = {"kind": None, "state": "idle", "log": [], "result": None, "error": None, "thread": None}
 JOB_LOCK = threading.Lock()
 # STATE_LOCK serializes tune_state.json edits and row builds; JOB_LOCK guards the JOB dict (the job thread does not take STATE_LOCK)
 STATE_LOCK = threading.Lock()
+# the poll path asks for the game at most every GAME_CHECK_SECONDS: [time of the last check, its result]
+GAME_CHECK = [float("-inf"), False]
 
 
 class ApiError(Exception):
@@ -70,7 +75,14 @@ class ApiError(Exception):
 
 
 def mods_dir():
-    return os.path.abspath(os.path.expandvars(CONFIG["mods"] or clone_car.DEFAULT_MODS))
+    return clone_car.expand(CONFIG["mods"] or clone_car.DEFAULT_MODS)
+
+
+def require_mods():
+    try:
+        return mods_dir()
+    except ValueError:
+        raise ApiError(409, "cannot expand the mods folder %r" % (CONFIG["mods"] or clone_car.DEFAULT_MODS)) from None
 
 
 def base_present(work, car):
@@ -83,13 +95,14 @@ def require_base(work, car):
         raise ApiError(409, "base car missing, run init")
 
 
-def game_running():
-    try:
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq " + GAME_EXE, "/NH", "/FO", "CSV"],
-                             capture_output=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return out.returncode == 0 and GAME_EXE.lower() in out.stdout.decode("ascii", "replace").lower()
+game_running = tune.game_running
+
+
+def game_running_cached():
+    now = time.monotonic()
+    if now - GAME_CHECK[0] > GAME_CHECK_SECONDS:
+        GAME_CHECK[:] = [now, game_running()]
+    return GAME_CHECK[1]
 
 
 def installed_info(car):
@@ -144,13 +157,21 @@ def job_thread(task):
 
 def run_job(kind, task):
     claim_job(kind)
-    threading.Thread(target=job_thread, args=(task,), daemon=True).start()
+    thread = threading.Thread(target=job_thread, args=(task,), daemon=True)
+    with JOB_LOCK:
+        JOB["thread"] = thread
+    thread.start()
+
+
+def refuse_while_job_runs():
+    if job_snapshot()["state"] == "running":
+        raise ApiError(409, "a job is running, wait until it has finished")
 
 
 def init_task(car):
     def task():
         log_line("extracting the stock car from the game package (about 20 s) ...")
-        res = tune.init(CONFIG["work"], car, tune.DEFAULT_GAME)
+        res = tune.init(CONFIG["work"], car, CONFIG["game"])
         log_line("base already present" if res["present"] else "extracted the stock car")
         log_line("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
         return res
@@ -172,7 +193,7 @@ def apply_lines(res):
 def apply_task(car, mode, new_id):
     def task():
         log_line("building %s (%s), this takes a while ..." % (new_id, mode))
-        res = tune.apply(CONFIG["work"], car, new_id, True, CONFIG["mods"])
+        res = tune.apply(CONFIG["work"], car, new_id, True, CONFIG["mods"], game=CONFIG["game"])
         for line in apply_lines(res):
             log_line(line)
         return dict(res, mode=mode)
@@ -194,7 +215,8 @@ def rows_json(work, car, cat):
 
 
 def row_of(work, car, cat, setting_id):
-    return next(r for r in rows_json(work, car, cat) if r["id"] == setting_id)
+    require_base(work, car)
+    return row_json(tune.effective_row(work, car, setting_id, cat), tune.find_setting(cat, setting_id))
 
 
 def settings_counts(work, car):
@@ -207,12 +229,13 @@ def settings_counts(work, car):
 
 
 def api_state(car):
+    require_mods()
     work, cars = CONFIG["work"], tune.load_cars()
     applicable, hidden = settings_counts(work, car)
     return {"work": work, "car": car, "default_car": cars["default"],
             "cars": [{k: c[k] for k in ("id", "label", "display_name", "extracted", "tested", "new_id", "installed")}
-                     for c in tune.list_cars(work, CONFIG["mods"])],
-            "base_present": base_present(work, car), "game_running": game_running(),
+                     for c in tune.list_cars(work, CONFIG["mods"], game=CONFIG["game"], sizes=False)],
+            "base_present": base_present(work, car), "game_running": game_running_cached(),
             "installed": installed_info(car), "stock_id_length": len(car),
             "default_new_id": tune.new_id_for(car), "settings_applicable": applicable, "settings_hidden": hidden,
             "job": job_snapshot()}
@@ -228,6 +251,7 @@ def api_set(car, body):
     setting_id, value = body.get("id"), body.get("value")
     if not isinstance(setting_id, str) or type(value) not in (str, int, float, bool):
         raise ApiError(400, "need id (text) and value (text, number or true/false)")
+    refuse_while_job_runs()
     require_base(work, car)
     with STATE_LOCK:
         try:
@@ -242,6 +266,7 @@ def api_unset(car, body):
     setting_id = body.get("id")
     if not isinstance(setting_id, str):
         raise ApiError(400, "need id (text)")
+    refuse_while_job_runs()
     require_base(work, car)
     with STATE_LOCK:
         try:
@@ -252,6 +277,8 @@ def api_unset(car, body):
 
 
 def api_reset_all(car, body):
+    refuse_while_job_runs()
+    require_base(CONFIG["work"], car)
     with STATE_LOCK:
         tune.save_state(CONFIG["work"], car, {})
     return {"ok": True}
@@ -281,8 +308,9 @@ def api_apply(car, body):
         raise ApiError(400, 'mode must be "update" or "new_copy"')
     new_id = tune.new_id_for(car) if mode == "update" else check_new_id(body.get("new_id"), car, work)
     require_base(work, car)
+    require_mods()
     if game_running():
-        raise ApiError(409, "close the game first, %s is running" % GAME_EXE)
+        raise ApiError(409, "close the game first, %s is running" % tune.GAME_EXE)
     run_job("apply", apply_task(car, mode, new_id))
     return {"job": "started"}
 
@@ -293,7 +321,7 @@ def request_car(value, query):
     if value is not None and not isinstance(value, str):
         raise ApiError(400, "car must be text")
     try:
-        return tune.pick_car(tune.load_cars(), value, tune.load_cars_index(CONFIG["work"]))
+        return tune.pick_car(tune.load_cars(), value, tune.load_cars_index(CONFIG["work"], CONFIG["game"]))
     except ValueError as e:
         raise ApiError(400, str(e)) from None
 
@@ -375,6 +403,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             status, payload = 500, {"error": "internal error: %s" % type(e).__name__}
         self.send_payload(status, payload)
 
+    def end_headers(self):
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        http.server.BaseHTTPRequestHandler.end_headers(self)
+
     def send_payload(self, status, payload):
         if isinstance(payload, bytes):
             data, ctype = payload, "text/html; charset=utf-8"
@@ -394,33 +427,64 @@ class Handler(http.server.BaseHTTPRequestHandler):
         http.server.BaseHTTPRequestHandler.log_request(self, code, size)
 
 
+class Server(http.server.ThreadingHTTPServer):
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        http.server.ThreadingHTTPServer.server_bind(self)
+
+
 def parse_port(text):
-    if not text.isdigit() or not 1 <= int(text) <= 65535:
-        raise ValueError("--port must be a number from 1 to 65535")
+    if not text.isdigit() or not 1024 <= int(text) <= 65535:
+        raise ValueError("--port must be a number from 1024 to 65535")
     return int(text)
+
+
+def usage():
+    print(__doc__.split("\n\n")[1])
+    sys.exit(2)
+
+
+def wait_for_job():
+    thread = JOB["thread"]
+    if job_snapshot()["state"] != "running" or thread is None:
+        return
+    print("a job is still running, wait for it or press Ctrl+C again to abort it ...", flush=True)
+    try:
+        while thread.is_alive():
+            thread.join(0.5)
+    except KeyboardInterrupt:
+        pass
 
 
 def main():
     try:
-        pos, opts = tune.parse_args(sys.argv[1:], ("port", "work", "mods"))
-        if pos:
-            sys.exit(__doc__.split("\n\n")[1])
+        pos, opts = kspkg.parse_args(sys.argv[1:], ("port", "work", "mods", "game"))
+    except ValueError:
+        usage()
+    if pos:
+        usage()
+    try:
         tune.load_catalogue()
         port = parse_port(opts.get("port", str(DEFAULT_PORT)))
-        CONFIG.update(port=port, work=tune.work_dir(opts.get("work")), mods=opts.get("mods"))
+        CONFIG.update(port=port, work=tune.work_dir(opts.get("work")), mods=opts.get("mods"),
+                      game=os.path.expandvars(opts.get("game", tune.DEFAULT_GAME)))
         default_car = tune.load_cars()["default"]
         moved = tune.migrate_old_layout(CONFIG["work"], default_car)
         if moved:
             print("moved the old single-car layout of %s into %s: %s" % (
                 CONFIG["work"], tune.car_work(CONFIG["work"], default_car), ", ".join(moved)))
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
-        tune.load_cars_index(CONFIG["work"])
+        server = Server(("127.0.0.1", port), Handler)
+        tune.load_cars_index(CONFIG["work"], CONFIG["game"])
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)
     print("tuner running on http://127.0.0.1:%d/" % port, flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        wait_for_job()
         print("stopped")
     finally:
         server.server_close()

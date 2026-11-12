@@ -7,6 +7,7 @@ import http.client
 import http.server
 import io
 import json
+import ntpath
 import os
 import re
 import sys
@@ -82,7 +83,8 @@ class Env(unittest.TestCase):
         self.game_up, self.gate, self.calls, self.errors = False, None, [], {}
         self.entered = threading.Event()
         self.patch(ts, "game_running", lambda: self.game_up)
-        self.patch(ts.subprocess, "run", mock.Mock(side_effect=AssertionError("a subprocess was started")))
+        self.patch_list(ts.GAME_CHECK, [float("-inf"), False])
+        self.patch(tune.subprocess, "run", mock.Mock(side_effect=AssertionError("a subprocess was started")))
         self.patch(tune, "init", gated(self, "init"))
         self.patch(tune, "apply", gated(self, "apply"))
         self.data = {"default": "ks_x", "cars": [{"id": "ks_x", "label": "Car X"}]}
@@ -95,6 +97,11 @@ class Env(unittest.TestCase):
         p.start()
         self.addCleanup(p.stop)
         return value
+
+    def patch_list(self, target, values):
+        saved = list(target)
+        target[:] = values
+        self.addCleanup(target.__setitem__, slice(None), saved)
 
     def patch_dict(self, target, values):
         p = mock.patch.dict(target, values)
@@ -603,13 +610,9 @@ class TestMissingBase(ServerCase):
     def test_init_needs_no_base(self):
         self.assertEqual(self.post("/api/init").status, 202)
 
-    # R4-010: reset_all is the only state-changing route without require_base; it must answer 409 like set and unset
-    @unittest.expectedFailure
     def test_reset_all_without_a_base_is_409(self):
         self.assertNoBase(self.post("/api/reset_all"))
 
-    # R4-010: reset_all without a base must not create <work>/<car>/tune_state.json
-    @unittest.expectedFailure
     def test_reset_all_without_a_base_creates_no_state_file(self):
         self.post("/api/reset_all")
         self.assertFalse(os.path.exists(self.state_file()), "tune_state.json was created for a car that was never extracted")
@@ -771,7 +774,7 @@ class TestApplyRoute(ServerCase):
         r = self.post("/api/apply", {"mode": "update"})
         self.assertEqual((r.status, r.json), (202, {"job": "started"}))
         snap = self.wait_job()
-        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_x", True, self.mods), {})])
+        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_x", True, self.mods), {"game": os.path.expandvars(tune.DEFAULT_GAME)})])
         self.assertEqual((snap["kind"], snap["state"], snap["error"]), ("apply", "done", None))
         self.assertEqual(snap["result"], dict(APPLY_RESULT, mode="update"))
 
@@ -779,7 +782,7 @@ class TestApplyRoute(ServerCase):
         r = self.post("/api/apply", {"mode": "new_copy", "new_id": "ax_y"})
         self.assertEqual(r.status, 202)
         snap = self.wait_job()
-        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_y", True, self.mods), {})])
+        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_y", True, self.mods), {"game": os.path.expandvars(tune.DEFAULT_GAME)})])
         self.assertEqual(snap["result"]["mode"], "new_copy")
 
     def test_update_ignores_a_new_id_in_the_body(self):
@@ -807,14 +810,18 @@ class TestApplyRoute(ServerCase):
         self.game_up = False
         self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
 
-    # R4-007: the game package of a build is always the Steam default of tune.py, CONFIG["game"] (from --game) should reach tune.apply
-    @unittest.expectedFailure
     def test_the_configured_game_package_reaches_tune_apply(self):
         ts.CONFIG["game"] = "other.kspkg"
         self.post("/api/apply", {"mode": "update"})
         self.wait_job()
         args, kw = self.calls[0][1:]
         self.assertIn("other.kspkg", list(args) + list(kw.values()))
+
+    def test_an_unexpandable_mods_folder_is_a_409_and_starts_no_job(self):
+        ts.CONFIG["mods"] = "%ACE_TEST_NO_SUCH_VAR%/m"
+        r = self.post("/api/apply", {"mode": "update"})
+        self.assertEqual((r.status, r.json), (409, {"error": "cannot expand the mods folder '%ACE_TEST_NO_SUCH_VAR%/m'"}))
+        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
 
     def test_a_failing_apply_ends_in_the_error_state(self):
         self.errors["apply"] = ValueError("no base car in x, run init first")
@@ -834,8 +841,6 @@ class TestInitRoute(ServerCase):
         self.assertEqual(snap["log"], ["extracting the stock car from the game package (about 20 s) ...", "extracted the stock car",
                                        "/w/ks_x/base/content/cars/ks_x: 3 files, 1 folders, 10 bytes"])
 
-    # R4-007: tune.init always gets the Steam default package, CONFIG["game"] (from --game) should reach it
-    @unittest.expectedFailure
     def test_the_configured_game_package_reaches_tune_init(self):
         ts.CONFIG["game"] = "other.kspkg"
         self.post("/api/init")
@@ -916,24 +921,18 @@ class TestJobs(ServerCase):
         self.game_up = True
         self.assertEqual(self.post("/api/init").status, 202)
 
-    # R4-001: edits are accepted while an Apply runs, they must be refused with 409 (the package does not contain them)
-    @unittest.expectedFailure
     def test_set_is_refused_while_a_job_runs(self):
         self.hold_jobs()
         self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
         r = self.post("/api/set", {"id": "limiter", "value": "8000"})
         self.assertEqual(r.status, 409, r.json)
 
-    # R4-001: same for unset
-    @unittest.expectedFailure
     def test_unset_is_refused_while_a_job_runs(self):
         self.hold_jobs()
         self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
         r = self.post("/api/unset", {"id": "limiter"})
         self.assertEqual(r.status, 409, r.json)
 
-    # R4-001: same for reset_all
-    @unittest.expectedFailure
     def test_reset_all_is_refused_while_a_job_runs(self):
         self.hold_jobs()
         self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
@@ -1063,8 +1062,6 @@ class TestFramingHeaders(ServerCase):
         super().setUp()
         self.make_car()
 
-    # R4-014: no response carries X-Frame-Options or a Content-Security-Policy with frame-ancestors, the page can be framed by any site
-    @unittest.expectedFailure
     def test_every_response_forbids_framing(self):
         replies = {"page": self.get("/"), "state": self.get("/api/state"), "404": self.get("/nothing"),
                    "403": self.get("/api/state", host="evil.example"), "400": self.post("/api/set", b"{bad"),
@@ -1081,11 +1078,11 @@ class TestFramingHeaders(ServerCase):
 class TestGameRunning(unittest.TestCase):
     def run_with(self, result=None, error=None):
         run = mock.Mock(return_value=result, side_effect=error)
-        with mock.patch.object(ts.subprocess, "run", run):
+        with mock.patch.object(tune.subprocess, "run", run):
             return REAL_GAME_RUNNING(), run
 
     def done(self, code, out):
-        return ts.subprocess.CompletedProcess(GAME_ARGV, code, stdout=out, stderr=b"")
+        return tune.subprocess.CompletedProcess(GAME_ARGV, code, stdout=out, stderr=b"")
 
     def test_it_asks_tasklist_with_a_fixed_argument_list(self):
         _, run = self.run_with(self.done(0, b""))
@@ -1104,7 +1101,7 @@ class TestGameRunning(unittest.TestCase):
 
     def test_a_missing_or_slow_tasklist_means_not_running(self):
         self.assertFalse(self.run_with(error=FileNotFoundError("tasklist"))[0])
-        self.assertFalse(self.run_with(error=ts.subprocess.TimeoutExpired("tasklist", 5))[0])
+        self.assertFalse(self.run_with(error=tune.subprocess.TimeoutExpired("tasklist", 5))[0])
 
     def test_non_ascii_output_does_not_raise(self):
         self.assertFalse(self.run_with(self.done(0, b"\xff\xfe\x00 nothing"))[0])
@@ -1115,20 +1112,34 @@ class TestStatePollCost(ServerCase):
         super().setUp()
         self.make_car()
 
-    # R4-005: every /api/state starts a tasklist process; the poll path should reuse a result of the last few seconds (<= 1 call, the cache may be warm)
-    @unittest.expectedFailure
     def test_three_quick_polls_start_at_most_one_tasklist(self):
-        run = mock.Mock(return_value=ts.subprocess.CompletedProcess(GAME_ARGV, 0, stdout=b"INFO: No tasks", stderr=b""))
+        run = mock.Mock(return_value=tune.subprocess.CompletedProcess(GAME_ARGV, 0, stdout=b"INFO: No tasks", stderr=b""))
         self.patch(ts, "game_running", REAL_GAME_RUNNING)
-        self.patch(ts.subprocess, "run", run)
+        self.patch(tune.subprocess, "run", run)
         statuses = [self.get("/api/state").status for _ in range(3)]
         self.assertEqual(statuses, [200, 200, 200])
         self.assertLessEqual(run.call_count, 1, "tasklist was started %d times for 3 polls" % run.call_count)
 
+    def test_the_poll_check_asks_again_after_the_cache_time(self):
+        calls = []
+        self.patch(ts, "game_running", lambda: calls.append(1) or True)
+        ts.GAME_CHECK[:] = [time.monotonic() - 10, False]
+        self.assertTrue(ts.game_running_cached())
+        self.assertTrue(ts.game_running_cached())
+        self.assertEqual(len(calls), 1)
+        ts.GAME_CHECK[0] -= 10
+        self.assertTrue(ts.game_running_cached())
+        self.assertEqual(len(calls), 2)
+
+    def test_an_unexpandable_mods_folder_is_a_409_for_the_state(self):
+        ts.CONFIG["mods"] = "%ACE_TEST_NO_SUCH_VAR%/m"
+        r = self.get("/api/state")
+        self.assertEqual((r.status, r.json), (409, {"error": "cannot expand the mods folder '%ACE_TEST_NO_SUCH_VAR%/m'"}))
+
     def test_apply_always_checks_the_game_itself(self):
-        run = mock.Mock(return_value=ts.subprocess.CompletedProcess(GAME_ARGV, 0, stdout=b"INFO: No tasks", stderr=b""))
+        run = mock.Mock(return_value=tune.subprocess.CompletedProcess(GAME_ARGV, 0, stdout=b"INFO: No tasks", stderr=b""))
         self.patch(ts, "game_running", REAL_GAME_RUNNING)
-        self.patch(ts.subprocess, "run", run)
+        self.patch(tune.subprocess, "run", run)
         self.get("/api/state")
         before = run.call_count
         self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
@@ -1189,8 +1200,6 @@ class TestHelpers(Env):
             with self.subTest(text), self.assertRaisesRegex(ValueError, r"^--port must be a number from \d+ to 65535$"):
                 ts.parse_port(text)
 
-    # R4-043: --port 80 is accepted although browsers send Host: 127.0.0.1 (no port) for it, so every request would be 403
-    @unittest.expectedFailure
     def test_parse_port_rejects_port_80(self):
         with self.assertRaisesRegex(ValueError, "--port"):
             ts.parse_port("80")
@@ -1202,9 +1211,15 @@ class TestHelpers(Env):
         ts.CONFIG["mods"] = "rel/mods"
         self.assertEqual(ts.mods_dir(), os.path.abspath("rel/mods"))
 
+    def test_mods_dir_refuses_a_variable_that_cannot_be_expanded(self):
+        ts.CONFIG["mods"] = "%ACE_TEST_NO_SUCH_VAR%/m"
+        with self.assertRaises(ValueError):
+            ts.mods_dir()
+
     def test_mods_dir_defaults_to_the_game_mods_folder(self):
         ts.CONFIG["mods"] = None
-        self.assertEqual(ts.mods_dir(), os.path.abspath(os.path.expandvars(clone_car.DEFAULT_MODS)))
+        with mock.patch.dict(os.environ, {"USERPROFILE": str(self.d)}), mock.patch.object(os.path, "expandvars", ntpath.expandvars):
+            self.assertEqual(ts.mods_dir(), os.path.abspath(os.path.expandvars(clone_car.DEFAULT_MODS)))
 
     def test_installed_info_without_a_package(self):
         self.assertEqual(ts.installed_info("ks_x"), {"path": os.path.join(self.mods, "ax_x.kspkg"), "exists": False, "bytes": None, "modified": None})
@@ -1344,11 +1359,33 @@ class StubServer:
         StubServer.log.append("close")
 
 
+class TestServerClass(unittest.TestCase):
+    def test_the_port_is_not_shared(self):
+        self.assertFalse(ts.Server.allow_reuse_address)
+        self.assertTrue(issubclass(ts.Server, http.server.ThreadingHTTPServer))
+
+    def bind(self, name):
+        server = ts.Server.__new__(ts.Server)
+        server.socket = mock.Mock()
+        with mock.patch.object(http.server.HTTPServer, "server_bind") as base, \
+                mock.patch.object(ts.os, "name", name), \
+                mock.patch.object(ts.socket, "SO_EXCLUSIVEADDRUSE", -5, create=True):
+            ts.Server.server_bind(server)
+        base.assert_called_once_with(server)
+        return server.socket.setsockopt
+
+    def test_windows_binds_exclusively_before_the_bind(self):
+        self.bind("nt").assert_called_once_with(ts.socket.SOL_SOCKET, -5, 1)
+
+    def test_other_systems_set_no_socket_option(self):
+        self.bind("posix").assert_not_called()
+
+
 class TestMain(Env):
     def setUp(self):
         super().setUp()
         StubServer.log, StubServer.serve_error, StubServer.bind_error = [], KeyboardInterrupt, None
-        self.patch(ts.http.server, "ThreadingHTTPServer", StubServer)
+        self.patch(ts, "Server", StubServer)
         self.patch(tune, "load_cars_index", lambda work, *a, **k: StubServer.log.append("index"))
         self.argv = ["--port", "8765", "--work", self.work, "--mods", self.mods]
 
@@ -1417,8 +1454,6 @@ class TestMain(Env):
         self.assertTrue({"port", "work", "mods"} <= set(flags), flags)
         self.assertIsNone(self.run_main(*[w for flag in flags for w in ("--" + flag, values[flag])]))
 
-    # R4-007: the game package is always the hard-coded Steam default, the server has no --game like tune.py
-    @unittest.expectedFailure
     def test_the_game_option_is_accepted_and_kept_in_the_config(self):
         self.assertIsNone(self.run_main(*self.argv, "--game", "game.kspkg"))
         self.assertEqual(ts.CONFIG.get("game"), os.path.expandvars("game.kspkg"))
@@ -1429,12 +1464,32 @@ class TestMain(Env):
         self.assertIn("index", StubServer.log)
         self.assertLess(StubServer.log.index("server"), StubServer.log.index("index"), StubServer.log)
 
+    def test_the_game_option_reaches_the_car_index(self):
+        seen = []
+        self.patch(tune, "load_cars_index", lambda work, *a, **k: seen.append(a))
+        self.run_main(*self.argv, "--game", "game.kspkg")
+        self.assertEqual(seen, [("game.kspkg",)])
+
+    def test_the_game_defaults_to_the_steam_package(self):
+        self.run_main(*self.argv)
+        self.assertEqual(ts.CONFIG["game"], os.path.expandvars(tune.DEFAULT_GAME))
+
+    def test_a_job_that_runs_at_ctrl_c_is_announced(self):
+        self.hold_jobs()
+        ts.run_job("apply", lambda: self.gate.wait(10))
+        self.addCleanup(self.gate.set)
+        main = threading.Thread(target=lambda: self.run_main(*self.argv), daemon=True)
+        main.start()
+        main.join(0.3)
+        self.assertIn("a job is still running", self.out.getvalue())
+        self.gate.set()
+        main.join(5)
+        self.assertTrue(self.out.getvalue().endswith("stopped\n"))
+
     def test_the_car_index_is_loaded_once_per_start(self):
         self.run_main(*self.argv)
         self.assertEqual(StubServer.log.count("index"), 1)
 
-    # R4-002: Ctrl+C returns at once although the daemon job thread is in the middle of an Apply
-    @unittest.expectedFailure
     def test_ctrl_c_waits_for_a_running_job(self):
         self.hold_jobs()
         ts.run_job("apply", lambda: self.gate.wait(10))
@@ -1459,8 +1514,6 @@ class TestMain(Env):
 
 # -------------------------------------------------------------------------------------------------- CLI conventions
 def usage_case(name, argv):
-    # D5: wrong or missing arguments print the usage block on stdout and exit 2, today it goes to stderr / "error: bad option" with exit 1
-    @unittest.expectedFailure
     def test(self):
         with tmp() as d:
             r = run_tool("tuner_server.py", *argv, cwd=d)
@@ -1474,7 +1527,7 @@ class TestCli(unittest.TestCase):
 
 
 for _name, _argv in (("positional", ["foo"]), ("positional_after_options", ["--port", "8765", "foo"]),
-                     ("unknown_option", ["--bogus", "1"]), ("port_without_value", ["--port"]),
+                     ("unknown_option", ["--bogus", "1"]), ("help", ["--help"]), ("port_without_value", ["--port"]),
                      ("work_without_value", ["--work"]), ("mods_without_value", ["--mods"])):
     setattr(TestCli, "test_usage_" + _name, usage_case(_name, _argv))
 
@@ -1483,6 +1536,10 @@ class TestCliRuntimeErrors(unittest.TestCase):
     def run_server(self, *argv):
         with tmp() as d:
             return run_tool("tuner_server.py", *argv, cwd=d)
+
+    def test_a_port_below_1024_is_an_error_line_on_stderr_with_exit_1(self):
+        r = self.run_server("--port", "80")
+        self.assertEqual((r.returncode, r.stdout, r.stderr), (1, "", "error: --port must be a number from 1024 to 65535\n"))
 
     def test_a_bad_port_is_an_error_line_on_stderr_with_exit_1(self):
         for port in ("abc", "0", "70000", "-1"):
