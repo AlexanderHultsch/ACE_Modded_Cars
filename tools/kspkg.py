@@ -149,7 +149,6 @@ def cmd_pack(indir, pkg):
                 dirs.append("\\".join(parts + [n]).lower())
         for n in fn:
             files.append(("\\".join(parts + [n]).lower(), os.path.join(dp, n)))
-    files.sort()
     dirs.sort()
     for rel, _ in files + [(d, None) for d in dirs]:
         if len(rel.encode()) > 0xE0:

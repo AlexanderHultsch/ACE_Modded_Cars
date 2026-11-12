@@ -88,13 +88,11 @@ def copy_renamed(src, dst, old_id, new_id):
 
     src, dst = kspkg.long_path(src), kspkg.long_path(dst)
     files, counts = 0, {}
-    for root, dirs, names in os.walk(src):
+    for root, _, names in os.walk(src):
         rel = root[len(src):].strip(os.sep)
         parts = [] if not rel else [rename(p) for p in rel.split(os.sep)]
         out = os.path.join(dst, *parts)
         os.makedirs(out, exist_ok=True)
-        for d in dirs:
-            os.makedirs(os.path.join(out, rename(d)), exist_ok=True)
         for n in names:
             with open(os.path.join(root, n), "rb") as f:
                 data, hits = pat.subn(repl, f.read())
@@ -123,22 +121,22 @@ def stock_lines(stock_loc, old_id):
     with open(kspkg.long_path(stock_loc), "rb") as f:
         text = f.read().decode("utf-8")
     prefix = old_id.lower() + "_"
-    return [l for l in re.split(r"\r?\n", text) if l.lower().startswith(prefix) and "=" in l]
+    return [line for line in re.split(r"\r?\n", text) if line.lower().startswith(prefix) and "=" in line]
 
 
 def stock_variant(stock_loc, old_id):
     """Stock text of the one line whose key ends with _preset_base, "" when there is not exactly one."""
-    texts = [l.split("=", 1)[1] for l in stock_lines(stock_loc, old_id) if l.split("=", 1)[0].endswith(VARIANT_SUFFIX)]
+    texts = [line.split("=", 1)[1] for line in stock_lines(stock_loc, old_id) if line.split("=", 1)[0].endswith(VARIANT_SUFFIX)]
     return texts[0] if len(texts) == 1 else ""
 
 
 def write_localization(car_root, old_id, new_id, stock_loc, variant):
     """Copy the stock lines of the car under the new id; returns (path or None, notes)."""
-    lines = [new_id + "_" + l[len(old_id) + 1:] for l in stock_lines(stock_loc, old_id)]
+    lines = [new_id + "_" + line[len(old_id) + 1:] for line in stock_lines(stock_loc, old_id)]
     if not lines:
         return None, ["note: %s has no line for %s, no en.cars.loc written" % (stock_loc, old_id)]
     notes = []
-    base = [i for i, l in enumerate(lines) if l.split("=", 1)[0].endswith(VARIANT_SUFFIX)]
+    base = [i for i, line in enumerate(lines) if line.split("=", 1)[0].endswith(VARIANT_SUFFIX)]
     if len(base) == 1:
         if variant is not None:
             lines[base[0]] = lines[base[0]].split("=", 1)[0] + "=" + variant
@@ -148,7 +146,7 @@ def write_localization(car_root, old_id, new_id, stock_loc, variant):
     os.makedirs(kspkg.long_path(folder), exist_ok=True)
     path = os.path.join(folder, LOC_PATH[-1])
     with open(kspkg.long_path(path), "wb") as f:
-        f.write("".join(l + "\r\n" for l in lines).encode("utf-8"))
+        f.write("".join(line + "\r\n" for line in lines).encode("utf-8"))
     return path, notes
 
 
@@ -242,7 +240,7 @@ def main():
             try:
                 year = int(opts.get("year", 2003))
             except ValueError:
-                raise ValueError("--year must be an integer")
+                raise ValueError("--year must be an integer") from None
             props = {"property_%d" % i: opts.get("property%d" % i) for i in (1, 2, 3)}
             build(pos[0], pos[1], pos[2], opts.get("name", pos[1] + "_MY"), year,
                   opts.get("brand", "BMW"), opts.get("variant"), opts.get("loc"), props, len(rest) == len(sys.argv[2:]))

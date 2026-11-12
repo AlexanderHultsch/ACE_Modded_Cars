@@ -348,15 +348,11 @@ class Scan(unittest.TestCase):
             self.assertEqual(ep.scan(data), ref_scan(data))
             self.assertEqual([o for o, _ in ep.scan(data)], offsets)
 
-    # R1-001: a false-positive candidate whose parse raises TypeError must be skipped, today it aborts scan()
-    @unittest.expectedFailure
     def test_candidate_with_a_varint_where_a_message_is_expected_is_skipped(self):
         bad = pb_str(1, "a_bad.proto") + pb_bytes(4, pb_str(1, "M") + pb_int(2, 1))
         good = simple_file("good.proto")
         self.assertEqual([b for _, b in ep.scan(b"\x00\x00" + bad + b"\x00\x00" + good + b"\x00")], [good])
 
-    # R1-001: an enum value number sent as bytes is the same crash class (shift on bytes)
-    @unittest.expectedFailure
     def test_candidate_with_bytes_where_an_enum_number_is_expected_is_skipped(self):
         bad = pb_str(1, "e_bad.proto") + pb_bytes(5, pb_str(1, "E") + pb_bytes(2, pb_str(1, "A") + pb_bytes(2, b"xy")))
         self.assertEqual(ep.scan(b"\x00\x00" + bad + b"\x00\x00"), [])

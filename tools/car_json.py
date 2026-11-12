@@ -81,9 +81,11 @@ RESERVED = ("_order", "_packed", "_unknown")
 
 class F32(float):
     """float32 value carrying its shortest decimal text."""
+    __slots__ = ("text",)
 
 
 def load_schema(path=DESC):
+    path = pathlib.Path(path)
     if not path.is_file():
         raise ValueError("missing schema file %s (run tools/extract_protos.py)" % path)
     sch = {"msgs": {}, "enums": {}}
@@ -190,7 +192,7 @@ def dec_scalar(sch, f, raw):
     return sgn(raw, bits) if signed else raw
 
 
-def dec_value(sch, f, wt, raw):
+def dec_value(sch, f, raw):
     t = f["type"]
     if t == 11:
         return decode_msg(sch, type_name(f), raw)
@@ -198,7 +200,7 @@ def dec_value(sch, f, wt, raw):
         try:
             return raw.decode("utf-8")
         except UnicodeDecodeError:
-            raise ValueError("string is not valid UTF-8")
+            raise ValueError("string is not valid UTF-8") from None
     if t == 12:
         return "hex:" + raw.hex()
     return dec_scalar(sch, f, raw)
@@ -251,13 +253,13 @@ def decode_msg(sch, name, b):
             elif f["label"] == 3:
                 if key in packed:
                     raise ValueError("repeated field mixes packed and unpacked")
-                out.setdefault(key, []).append(dec_value(sch, f, wt, raw))
+                out.setdefault(key, []).append(dec_value(sch, f, raw))
             elif key in out:
                 raise ValueError("singular field occurs more than once")
             else:
-                out[key] = dec_value(sch, f, wt, raw)
+                out[key] = dec_value(sch, f, raw)
         except ValueError as e:
-            raise ValueError("%s: %s" % (key, e))
+            raise ValueError("%s: %s" % (key, e)) from None
     if any(a > b or (a == b and x != y) for a, b, x, y in zip(nums, nums[1:], order, order[1:])):
         out["_order"] = order
     if packed:
@@ -296,7 +298,7 @@ def enc_scalar(sch, f, v):
         try:
             return struct.pack("<f", flt(v))
         except OverflowError:
-            raise ValueError("float out of range: %r" % (v,))
+            raise ValueError("float out of range: %r" % (v,)) from None
     if t == 8:
         if type(v) is not bool:
             raise ValueError("expected true/false, got %r" % (v,))
@@ -370,7 +372,7 @@ def encode_msg(sch, name, obj):
             else:
                 occ[key] = [(f["number"], occurrence(f, wt, enc_value(sch, f, val)))]
         except ValueError as e:
-            raise ValueError("%s: %s" % (key, e))
+            raise ValueError("%s: %s" % (key, e)) from None
     for fn, wt, v, *_ in obj.get("_unknown", []):
         if wt == 0:
             body = ep.varint_bytes(v)

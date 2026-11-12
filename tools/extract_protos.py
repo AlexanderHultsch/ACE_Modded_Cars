@@ -153,7 +153,7 @@ def parse_message(b):
         elif fn == 7:
             m["map_entry"] = any(f == 7 and v2 for f, _, v2 in fields(v))
         elif fn == 8:
-            m["oneofs"].append(text(next((x for f, w, x in fields(v) if f == 1), b""), 2))
+            m["oneofs"].append(text(next((x for f, _, x in fields(v) if f == 1), b""), 2))
     if not m["name"]:
         raise ValueError("message without name")
     return m
@@ -210,7 +210,7 @@ def scan(d):
         end = file_end(d, start)
         try:
             parse_file(d[start:end])
-        except (ValueError, UnicodeDecodeError):
+        except (ValueError, UnicodeDecodeError, TypeError):
             continue
         found.append((start, d[start:end]))
     return found
