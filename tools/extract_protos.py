@@ -14,7 +14,7 @@ import re
 import struct
 import sys
 
-NAME_RE = re.compile(rb"(?=\x0a[\x07-\x7f][A-Za-z_])")
+NAME_RE = re.compile(rb"\x0a[\x07-\x7f][A-Za-z_]")
 FILE_FIELDS = {1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 0, 11: 0, 12: 2}
 TYPES = {1: "double", 2: "float", 3: "int64", 4: "uint64", 5: "int32", 6: "fixed64",
          7: "fixed32", 8: "bool", 9: "string", 12: "bytes", 13: "uint32", 15: "sfixed32",
@@ -201,8 +201,13 @@ def parse_file(b):
 def scan(d):
     """Return [(offset, bytes)] for every strictly parsing FileDescriptorProto, in file order."""
     found = []
-    for mt in NAME_RE.finditer(d):
-        start = mt.start()
+    pos = 0
+    while True:
+        mt = NAME_RE.search(d, pos)
+        if mt is None:
+            break
+        start = pos = mt.start()
+        pos += 1
         n = d[start + 1]
         name = d[start + 2:start + 2 + n]
         if len(name) != n or not name.endswith(b".proto") or b"\x0a" in name:
@@ -333,8 +338,14 @@ def split_set(data):
 
 
 def main():
+    if len(sys.argv) != 3:
+        print(__doc__.split("\n\n")[1])
+        sys.exit(2)
     exe, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-    d = exe.read_bytes()
+    try:
+        d = exe.read_bytes()
+    except OSError as e:
+        sys.exit("error: %s" % e)
     blobs, dups = {}, []
     for off, b in scan(d):
         name = parse_file(b)["name"]
@@ -347,13 +358,18 @@ def main():
     for name, off, same in dups:
         print(f"  duplicate {name} at 0x{off:08x} ({'identical' if same else 'DIFFERENT'})")
     order = sort_deps(blobs)
+    for n in order:
+        if pathlib.PurePosixPath(n).is_absolute() or ".." in pathlib.PurePosixPath(n).parts:
+            sys.exit("error: unsafe descriptor name %r" % n)
     out.mkdir(parents=True, exist_ok=True)
     desc = bytearray()
+    written = set()
     for n in order:
         desc += b"\x0a" + varint_bytes(len(blobs[n])) + blobs[n]
         p = out / n
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(render(parse_file(blobs[n])), encoding="utf-8")
+        p.write_bytes(render(parse_file(blobs[n])).encode("utf-8"))
+        written.add(p)
     (out / "acevo.desc").write_bytes(bytes(desc))
     print(f"wrote {out / 'acevo.desc'} ({len(desc)} bytes) and {len(order)} .proto files")
 
@@ -361,7 +377,7 @@ def main():
     parsed = [parse_file(r) for r in recs]
     names = {f["name"] for f in parsed}
     missing = sorted({dep for f in parsed for dep in f["deps"] if dep not in names})
-    nproto = len(list(out.rglob("*.proto")))
+    nproto = len(written)
     seen, misordered = set(), 0
     for f in parsed:
         misordered += any(dep not in seen for dep in f["deps"] if dep in names)

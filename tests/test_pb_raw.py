@@ -74,7 +74,7 @@ class Varint(unittest.TestCase):
         self.assertEqual(pb_raw.varint(b"\xaa\xac\x02", 1), (300, 3))
 
     def test_truncated_varint_raises_index_error(self):
-        with self.assertRaises(IndexError):
+        with self.assertRaises(ValueError):
             pb_raw.varint(b"\x80\x80", 0)
 
 
@@ -182,15 +182,15 @@ class Errors(unittest.TestCase):
             lines_of(pb_key(1, 2) + pb_varint(5) + b"abc")
 
     def test_truncated_key_raises_index_error(self):
-        with self.assertRaises(IndexError):
+        with self.assertRaises(ValueError):
             lines_of(b"\x80")
 
     def test_truncated_varint_value_raises_index_error(self):
-        with self.assertRaises(IndexError):
+        with self.assertRaises(ValueError):
             lines_of(pb_key(1, 0) + b"\x80")
 
     def test_missing_length_raises_index_error(self):
-        with self.assertRaises(IndexError):
+        with self.assertRaises(ValueError):
             lines_of(pb_key(1, 2))
 
     def test_truncated_fixed32_raises_struct_error(self):
@@ -229,8 +229,6 @@ class LooksLikeMsg(unittest.TestCase):
 
 
 class CommandLine(unittest.TestCase):
-    # R1-018: no arguments is a usage error (rc 2, usage on stdout), today an IndexError traceback with rc 1
-    @unittest.expectedFailure
     def test_no_arguments_exits_2_with_usage_on_stdout(self):
         r = run_tool("pb_raw.py")
         self.assertEqual(r.returncode, 2, r.stderr)

@@ -493,8 +493,6 @@ class Main(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(tree(d / "out"), tree(self.out1))
 
-    # R1-002: the self-check counts .proto files left over from an earlier run, today a correct re-run exits 1 with "self-check FAILED"
-    @unittest.expectedFailure
     def test_rerun_into_an_existing_folder_with_fewer_descriptors_passes_the_self_check(self):
         with tmp() as d:
             first = build_exe([simple_file("aaaaaaa.proto"), simple_file("bbbbbbb.proto")], seed=4)[0]
@@ -507,8 +505,6 @@ class Main(unittest.TestCase):
             self.assertEqual((d / "out" / "acevo.desc").read_bytes(), b"\x0a" + ep.varint_bytes(len(simple_file("aaaaaaa.proto"))) +
                              simple_file("aaaaaaa.proto"))
 
-    # R1-003: a descriptor name with ".." must be refused, today it is written above the out folder
-    @unittest.expectedFailure
     def test_descriptor_name_with_parent_references_is_refused_and_nothing_is_written_outside(self):
         with tmp() as d:
             work = d / "work"
@@ -523,22 +519,16 @@ class Main(unittest.TestCase):
 
 
 class CommandLine(unittest.TestCase):
-    # D5: no arguments is a usage error (rc 2, usage block on stdout), today an IndexError traceback with rc 1
-    @unittest.expectedFailure
     def test_no_arguments_exits_2_with_usage_on_stdout(self):
         r = run_tool("extract_protos.py")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # D5: a missing outdir is a usage error (rc 2, usage block on stdout), today an IndexError traceback with rc 1
-    @unittest.expectedFailure
     def test_one_argument_exits_2_with_usage_on_stdout(self):
         r = run_tool("extract_protos.py", "only-the-exe.exe")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # D5: too many arguments is a usage error (rc 2, usage block on stdout), today the extra operand is ignored
-    @unittest.expectedFailure
     def test_three_arguments_exit_2_with_usage_on_stdout(self):
         with tmp() as d:
             (d / "x.exe").write_bytes(b"")
@@ -546,8 +536,6 @@ class CommandLine(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # D5: a missing exe is "error: ..." on stderr with rc 1, today a FileNotFoundError traceback
-    @unittest.expectedFailure
     def test_missing_exe_prints_error_on_stderr_and_exits_1(self):
         with tmp() as d:
             r = run_tool("extract_protos.py", d / "missing.exe", d / "out")

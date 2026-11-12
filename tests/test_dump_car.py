@@ -109,16 +109,12 @@ class DumpCar(unittest.TestCase):
             self.assertEqual(r.stdout, f"{src}: decoded 5, failed 1\n")
             self.assertEqual(produced(dst), self.files)
 
-    # R1-018: a missing source folder is "error: ..." on stderr with rc 1, today "decoded 0, failed 0" and rc 0
-    @unittest.expectedFailure
     def test_nonexistent_source_folder_is_an_error(self):
         with tmp() as d:
             r = run_tool("dump_car.py", d / "does-not-exist", d / "out")
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertTrue(r.stderr.startswith("error:"), r.stderr)
 
-    # R1-018: no arguments is a usage error (rc 2, usage block on stdout), today an IndexError traceback with rc 1
-    @unittest.expectedFailure
     def test_no_arguments_exits_2_with_usage_on_stdout(self):
         r = run_tool("dump_car.py")
         self.assertEqual(r.returncode, 2, r.stderr)

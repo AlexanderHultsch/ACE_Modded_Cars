@@ -1,15 +1,12 @@
-"""Schema-less protobuf dump: prints field numbers, wire types and guessed values."""
+"""Schema-less protobuf dump: prints field numbers, wire types and guessed values.
+
+usage: python tools/pb_raw.py <file>"""
+import pathlib
 import struct
 import sys
 
-
-def varint(b, i):
-    r = s = 0
-    while True:
-        c = b[i]; i += 1
-        r |= (c & 0x7F) << s; s += 7
-        if c < 0x80:
-            return r, i
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from extract_protos import varint  # noqa: E402
 
 
 def looks_like_msg(b):
@@ -50,11 +47,19 @@ def dump(b, depth, out=print):
                     txt = t
             except UnicodeDecodeError:
                 pass
-            if txt is not None and not (n > 2 and looks_like_msg(sub) and not txt.isascii()):
+            nested = None
+            if txt is None or (n > 2 and not txt.isascii()):
+                nested = []
+                try:
+                    dump(sub, depth + 1, nested.append)
+                except Exception:
+                    nested = None
+            if nested is None and txt is not None:
                 out and out(f'{pad}{fn}: "{txt}"')
-            elif looks_like_msg(sub):
+            elif nested is not None:
                 out and out(f"{pad}{fn} {{")
-                dump(sub, depth + 1, out)
+                for line in nested:
+                    out and out(line)
                 out and out(f"{pad}}}")
             else:
                 out and out(f"{pad}{fn}: <{n} bytes>")
@@ -63,4 +68,7 @@ def dump(b, depth, out=print):
 
 
 if __name__ == "__main__":
-    dump(open(sys.argv[1], "rb").read(), 0)
+    if len(sys.argv) != 2:
+        print(__doc__.split("\n\n")[1])
+        sys.exit(2)
+    dump(pathlib.Path(sys.argv[1]).read_bytes(), 0)

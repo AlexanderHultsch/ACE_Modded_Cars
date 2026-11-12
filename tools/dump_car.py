@@ -10,6 +10,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import kspkg  # noqa: E402
 import pb_raw  # noqa: E402
 
 SKIP = {".mesh", ".rimmesh", ".texture", ".texturemips", ".material", ".scene",
@@ -19,7 +20,12 @@ TEXT = {".loc", ".json", ".txt", ".lut", ".ini", ".css", ".less", ".html", ".dat
 
 
 def main():
-    src, dst = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+    if len(sys.argv) != 3:
+        print(__doc__.split("\n\n")[1])
+        sys.exit(2)
+    src, dst = pathlib.Path(kspkg.long_path(sys.argv[1])), pathlib.Path(kspkg.long_path(sys.argv[2]))
+    if not src.is_dir():
+        sys.exit("error: %s is not a directory" % kspkg.plain_path(src))
     ok = fail = 0
     for f in sorted(src.rglob("*")):
         if not f.is_file() or f.suffix.lower() in SKIP:
@@ -29,7 +35,7 @@ def main():
         out.parent.mkdir(parents=True, exist_ok=True)
         data = f.read_bytes()
         if f.suffix.lower() in TEXT:
-            out.write_text(data.decode("utf-8", "replace"), encoding="utf-8")
+            out.write_bytes(data.decode("utf-8", "replace").encode("utf-8"))
             ok += 1
             continue
         lines = []
@@ -39,8 +45,8 @@ def main():
         except Exception as e:  # not protobuf or unknown layout
             lines = [f"# DECODE FAILED: {e}", f"# size={len(data)} first bytes={data[:32].hex(' ')}"]
             fail += 1
-        out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"{src}: decoded {ok}, failed {fail}")
+        out.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
+    print(f"{kspkg.plain_path(src)}: decoded {ok}, failed {fail}")
 
 
 if __name__ == "__main__":
