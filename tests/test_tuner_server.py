@@ -288,13 +288,23 @@ class TestRoutes(ServerCase):
                 self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
                 self.assertNotIn(b"root:", r.data)
 
-    def test_other_methods_are_501_with_the_stdlib_page(self):
-        for method in ("PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"):
+    def test_other_methods_are_405_with_a_json_error_and_the_allow_header(self):
+        for method in ("PUT", "DELETE", "PATCH"):
             with self.subTest(method):
                 r = self.request(method, "/api/set")
-                self.assertEqual(r.status, 501)
-                self.assertTrue(r.headers.get("Content-Type", "").startswith("text/html"))
+                self.assertEqual((r.status, r.json), (405, {"error": "method not allowed"}))
+                self.assertEqual((r.headers.get("Allow"), r.headers.get("Content-Type")), ("GET, POST", "application/json; charset=utf-8"))
         self.assertEqual(self.request("PUT", "/api/set").headers.get("Access-Control-Allow-Origin"), None)
+
+    def test_head_and_options_are_405_with_the_allow_header_and_the_framing_headers(self):
+        for method in ("HEAD", "OPTIONS"):
+            with self.subTest(method):
+                r = self.request(method, "/")
+                self.assertEqual(r.status, 405)
+                self.assertEqual((r.headers.get("Allow"), r.headers.get("X-Frame-Options")), ("GET, POST", "DENY"))
+                self.assertIn("frame-ancestors", r.headers.get("Content-Security-Policy", ""))
+                self.assertEqual(r.headers.get("Access-Control-Allow-Origin"), None)
+        self.assertEqual(self.request("HEAD", "/").data, b"")
 
     def test_an_unexpected_exception_is_a_500_with_only_the_class_name(self):
         def boom(car):
@@ -351,11 +361,11 @@ class TestHostAndHeaders(ServerCase):
             with self.subTest(repr(value)):
                 self.assertEqual(self.post("/api/reset_all", headers={"X-Tuner": value}).status, 403)
 
-    def test_a_post_with_another_content_type_is_403(self):
+    def test_a_post_with_another_content_type_is_415(self):
         for ctype in ("text/plain", "application/x-www-form-urlencoded", "multipart/form-data", "application/jsonx", None):
             with self.subTest(ctype):
                 r = self.post("/api/set", {"id": "limiter", "value": "8000"}, headers={"Content-Type": ctype})
-                self.assertEqual((r.status, r.json), (403, {"error": "Content-Type must be application/json"}))
+                self.assertEqual((r.status, r.json), (415, {"error": "Content-Type must be application/json"}))
         self.assertFalse(os.path.exists(self.state_file()))
 
     def test_content_type_parameters_and_case_are_accepted(self):
@@ -428,11 +438,11 @@ class TestBodies(ServerCase):
         r = self.set_raw(raw)
         self.assertEqual((r.status, r.json["row"]["value"]), (200, 8000))
 
-    def test_a_longer_body_is_400_before_it_is_read(self):
+    def test_a_longer_body_is_413_before_it_is_read(self):
         r = self.request("POST", "/api/set", None, headers={"Content-Length": str(ts.MAX_BODY + 1)})
-        self.assertEqual((r.status, r.json), (400, {"error": "request body too large"}))
+        self.assertEqual((r.status, r.json), (413, {"error": "request body too large"}))
         big = self.request("POST", "/api/set", None, headers={"Content-Length": "100000000"})
-        self.assertEqual(big.status, 400)
+        self.assertEqual(big.status, 413)
         self.assertFalse(os.path.exists(self.state_file()))
 
     def test_a_bad_content_length_is_400(self):
@@ -1189,7 +1199,7 @@ class TestHelpers(Env):
                   self.headers(X_Tuner="1", Content_Type="json")):
             with self.assertRaises(ts.ApiError) as cm:
                 ts.check_post_headers(h)
-            self.assertEqual((cm.exception.status, cm.exception.message), (403, "Content-Type must be application/json"))
+            self.assertEqual((cm.exception.status, cm.exception.message), (415, "Content-Type must be application/json"))
 
     def test_parse_port_accepts_ports_of_a_user_server(self):
         for text, port in (("8765", 8765), ("1024", 1024), ("5000", 5000), ("65535", 65535)):

@@ -19,7 +19,7 @@ Every route takes an optional car id of the game (the list is cached in <work>/c
 and without the game package only the tested cars of tuner/cars.json): the query parameter ?car=<id> on GET, the field
 "car" in the JSON body on POST (any other id is a 400 error). Without it the default car of tuner/cars.json is used.
 
-Answers: JSON {"error": text} with 400 (bad input, unknown car), 403 (wrong Host, missing X-Tuner or Content-Type), 404 (unknown path), 409 (base car missing, another job running, edit while a job runs, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200. Other HTTP methods get the standard 501 page.
+Answers: JSON {"error": text} with 400 (bad input, unknown car, malformed JSON), 403 (wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit while a job runs, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
 
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of that car; the old single-car layout of the work folder
@@ -343,7 +343,7 @@ def check_post_headers(headers):
     if headers.get("X-Tuner") != "1":
         raise ApiError(403, "missing header X-Tuner: 1")
     if headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
-        raise ApiError(403, "Content-Type must be application/json")
+        raise ApiError(415, "Content-Type must be application/json")
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -355,13 +355,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         self.handle_request("POST")
 
+    def method_not_allowed(self):
+        self.send_payload(405, {"error": "method not allowed"}, {"Allow": "GET, POST"})
+
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = method_not_allowed
+
     def read_body(self):
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             raise ApiError(400, "bad Content-Length") from None
-        if length < 0 or length > MAX_BODY:
-            raise ApiError(400, "request body too large")
+        if length < 0:
+            raise ApiError(400, "bad Content-Length")
+        if length > MAX_BODY:
+            raise ApiError(413, "request body too large")
         raw = self.rfile.read(length)
         if not raw.strip():
             return {}
@@ -408,7 +415,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
         http.server.BaseHTTPRequestHandler.end_headers(self)
 
-    def send_payload(self, status, payload):
+    def send_payload(self, status, payload, headers=None):
         if isinstance(payload, bytes):
             data, ctype = payload, "text/html; charset=utf-8"
         else:
@@ -417,8 +424,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(data)
+        if self.command != "HEAD":
+            self.wfile.write(data)
 
     # the page polls /api/state every few seconds; keep that out of the console
     def log_request(self, code="-", size="-"):
