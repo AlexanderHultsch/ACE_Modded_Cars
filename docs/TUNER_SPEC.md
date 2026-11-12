@@ -68,6 +68,6 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 ## 7. Next steps
 
 1. Test in the game on the gaming PC: load each of the five cars, drive, confirm that edits take effect, test Spool, the limits, numbered copies.
-2. Tyres next (most important for drifting), then aero and electronics, then more turbo settings.
+2. Close the gaps found by the analyses ([settings/coverage.md](settings/coverage.md): about 85 % of the game's data values are not in the table; [drift-setup-comparison.md](drift-setup-comparison.md): what Hina changed for drifting). In order of value for drifting: tyres (grip, load sensitivity, thermal window; shared game files, a changed tyre needs its own file), steering rod ratio (`controls.linearSteerRodRatio`), electronics (TC / ESC levels and performance modes), the hardware differential (preload, torque bias), ride height targets and bump stops, the physical coilover spring / damper values and anti-roll bar stiffness (which layer wins over the setup values is open), caster, brake bias in the brake file, clutch maximum torque; then aero and more turbo settings.
 3. Polish: live build log in the page, job state per car, a guard against very long custom work paths; hide combustion settings for electric cars.
 4. More tested cars: add an id to `tuner/cars.json`; run the per-car checks (defaults, unchanged build, edit test) before trusting it.
