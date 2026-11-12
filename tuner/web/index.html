@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACE - Simple Car Tuner</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4f6f9;
+  --panel: #ffffff;
+  --text: #1c2430;
+  --muted: #667085;
+  --border: #d9dee7;
+  --head-bg: #eef1f6;
+  --accent: #1f6feb;
+  --accent-text: #ffffff;
+  --changed-bg: #fff6dc;
+  --ok-bg: #e7f6ec;
+  --ok-text: #14532d;
+  --err-bg: #fdecec;
+  --err-text: #8a1c1c;
+  --warn-text: #b45309;
+  --badge-bg: #e4e7ec;
+  --amber-bg: #fde9b8;
+  --amber-text: #7a4a03;
+  --focus: #1f6feb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151b;
+    --panel: #1a2029;
+    --text: #e6eaf0;
+    --muted: #98a2b3;
+    --border: #2d3643;
+    --head-bg: #232b37;
+    --accent: #3b82f6;
+    --accent-text: #ffffff;
+    --changed-bg: #3a3115;
+    --ok-bg: #12301f;
+    --ok-text: #9be3b4;
+    --err-bg: #3b1a1a;
+    --err-text: #f5a3a3;
+    --warn-text: #f0b429;
+    --badge-bg: #2d3643;
+    --amber-bg: #4a3a12;
+    --amber-text: #f0c35c;
+    --focus: #7db0ff;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; }
+.page { max-width: 1280px; margin: 0 auto; padding: 0 20px 40px; }
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 0 8px;
+}
+.bar h1 { margin: 0; font-size: 22px; }
+.title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.carpick { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.carpick select {
+  font: inherit; padding: 6px 8px; max-width: 100%; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text);
+}
+.untested { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.namerow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 10px; padding: 4px 0;
+  border-radius: 6px;
+}
+.namerow.changed { background: var(--changed-bg); padding: 4px 8px; }
+.namerow .label { font-size: 13px; color: var(--muted); }
+.namefield { display: inline-flex; align-items: center; gap: 2px; }
+.stockname { font-weight: 600; white-space: pre; }
+.namefield input {
+  font: inherit; width: 9em; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text);
+}
+.namerow .msg { flex: 1 0 100%; margin-top: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 1px;
+}
+.strip {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 8px 12px; margin-bottom: 12px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+}
+.strip .label { color: var(--muted); margin-right: 6px; }
+.strip .ok { color: var(--ok-text); }
+.strip .bad { color: var(--err-text); }
+.strip .warn { color: var(--warn-text); }
+.strip .note { flex: 1 0 100%; color: var(--muted); }
+.panel {
+  margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel);
+}
+.panel h2 { margin: 0 0 6px; font-size: 15px; }
+.panel pre {
+  margin: 6px 0 0; padding: 8px 10px; max-height: 220px; overflow: auto; white-space: pre-wrap;
+  background: var(--head-bg); border-radius: 6px; font-size: 12.5px;
+}
+.panel.ok { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-text); }
+.panel.err { background: var(--err-bg); color: var(--err-text); border-color: var(--err-text); }
+.panel ul { margin: 4px 0 8px; padding-left: 20px; }
+.panel p { margin: 6px 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
+.toolbar input[type="search"] {
+  font: inherit; padding: 7px 10px; min-width: 260px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--panel); color: var(--text);
+}
+.toolbar label { display: flex; align-items: center; gap: 6px; }
+.toolbar .spacer { flex: 1; }
+.tablewrap { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+thead th {
+  position: sticky; top: 0; z-index: 2; text-align: left; font-size: 13px; padding: 9px 12px;
+  background: var(--head-bg); border-bottom: 1px solid var(--border);
+}
+thead th:first-child { border-top-left-radius: 8px; }
+thead th:last-child { border-top-right-radius: 8px; }
+col.c-name { width: 22%; }
+col.c-value { width: 23%; }
+col.c-default { width: 17%; }
+col.c-desc { width: 38%; }
+td { padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+tr.group th {
+  text-align: left; padding: 8px 12px; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--muted); background: var(--head-bg); border-bottom: 1px solid var(--border);
+}
+tr.changed td { background: var(--changed-bg); }
+.name b { display: block; }
+.name .id { display: block; font-size: 12px; color: var(--muted); }
+.valuewrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.valuewrap input, .valuewrap select {
+  font: inherit; width: 8.5em; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text);
+}
+.valuewrap select { width: auto; max-width: 100%; }
+.valuewrap label.flag { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.valuewrap input[type="checkbox"] { width: auto; padding: 0; margin: 0; }
+.unit { color: var(--muted); font-size: 13px; }
+button.reset { padding: 2px 8px; font-size: 12px; }
+.msg { margin-top: 4px; font-size: 12.5px; }
+.msg.warn { color: var(--warn-text); }
+.msg.err { color: var(--err-text); }
+.badge {
+  display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 10px; font-size: 11.5px;
+  background: var(--badge-bg); color: var(--muted); cursor: help; white-space: nowrap;
+}
+.badge.amber { display: block; width: fit-content; margin: 4px 0 0; white-space: normal; background: var(--amber-bg); color: var(--amber-text); }
+.default { font-size: 13.5px; }
+.empty { padding: 18px 14px; color: var(--muted); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); border: 0;
+}
+@media (max-width: 1000px) {
+  .page { padding: 0 12px 30px; }
+  td, thead th, tr.group th { padding-left: 8px; padding-right: 8px; }
+  .valuewrap input { width: 7em; }
+  .toolbar input[type="search"] { min-width: 180px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="bar">
+    <div class="title">
+      <h1 id="title">ACE - Simple Car Tuner</h1>
+      <label class="carpick">Car
+        <select id="car-select" aria-label="Car" disabled></select>
+      </label>
+    </div>
+    <div class="actions">
+      <button id="btn-apply" class="primary" type="button" disabled>Apply (update my car)</button>
+      <button id="btn-copy" type="button" disabled>Save as new copy&hellip;</button>
+    </div>
+  </header>
+
+  <div id="name-host" hidden></div>
+
+  <p id="untested" class="untested" hidden></p>
+
+  <div id="status" class="strip" role="status" aria-live="polite"></div>
+
+  <section id="progress" class="panel" hidden aria-live="polite"></section>
+
+  <section id="init-panel" class="panel" hidden>
+    <h2>Stock car not extracted yet</h2>
+    <p id="init-text">The tuner needs the stock car from the game files as its starting point. This is done once.</p>
+    <button id="btn-init" class="primary" type="button">Extract stock car (one time, ~20 s)</button>
+  </section>
+
+  <section id="tuner" hidden>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
+      <label><input id="changed-only" type="checkbox"> changed only</label>
+      <span class="spacer"></span>
+      <button id="btn-reset-all" type="button">Reset all</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <caption id="caption" class="sr-only">Settings of the selected car</caption>
+        <colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-desc"></colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Variable name</th>
+            <th scope="col">Value</th>
+            <th scope="col">Default (for the selected car)</th>
+            <th scope="col">Description</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="empty" hidden>No settings match.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+const DEBOUNCE_MS = 700;
+const POLL_BUSY_MS = 1500;
+const POLL_IDLE_MS = 5000;
+const CAR_KEY = "tuner.car";
+
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+let info = null;
+let serverError = "";
+let localError = "";
+let rows = [];
+let groups = [];
+let headerRow = null;
+let tableLoaded = false;
+let queue = Promise.resolve();
+let pollTimer = null;
+let jobSig = "";
+let carsSig = "";
+let carId = storedCar();
+let carConfirmed = false;
+
+function storedCar() {
+  try {
+    return window.localStorage.getItem(CAR_KEY) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function storeCar(id) {
+  try {
+    window.localStorage.setItem(CAR_KEY, id);
+  } catch (e) {
+    /* the page works without it */
+  }
+}
+
+function carEntry() {
+  return info && info.cars ? info.cars.find((c) => c.id === carId) || null : null;
+}
+
+function carName() {
+  const c = carEntry();
+  return c ? c.display_name || c.label : "the car";
+}
+
+async function api(path, body, car) {
+  if (car && body === undefined) path += "?car=" + encodeURIComponent(car);
+  const opts = body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tuner": "1" },
+    body: JSON.stringify(car ? Object.assign({}, body, { car: car }) : body)
+  };
+  let res;
+  try {
+    res = await fetch(path, opts);
+  } catch (e) {
+    throw new Error("server not reachable");
+  }
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    data = null;
+  }
+  if (!res.ok) throw new Error((data && data.error) || ("HTTP " + res.status));
+  return data;
+}
+
+function fmtBytes(n) {
+  if (n === null || n === undefined) return "-";
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+  if (n >= 1024) return (n / 1024).toFixed(1) + " kB";
+  return n + " bytes";
+}
+
+function fmtTime(iso) {
+  return iso ? iso.replace("T", " ") : "-";
+}
+
+function fmtVal(type, v) {
+  if (v === null || v === undefined) return "-";
+  if (typeof v === "boolean") return v ? "on" : "off";
+  if (type === "float" && typeof v === "number" && Number.isInteger(v)) return v.toFixed(1);
+  return String(v);
+}
+
+/* ---------- status strip, buttons, panels ---------- */
+
+function addStat(box, label, value, cls, mono) {
+  const s = el("span");
+  s.appendChild(el("span", "label", label));
+  s.appendChild(el("span", (cls || "") + (mono ? " mono" : ""), value));
+  box.appendChild(s);
+}
+
+function renderStatus() {
+  const box = $("status");
+  box.replaceChildren();
+  if (!info) {
+    addStat(box, "Server", serverError || "not reachable", "bad");
+    return;
+  }
+  addStat(box, "Work folder", info.work, "", true);
+  addStat(box, "Base car present", info.base_present ? "yes" : "no", info.base_present ? "ok" : "bad");
+  addStat(box, "Game running", info.game_running ? "yes" : "no", info.game_running ? "warn" : "");
+  const inst = info.installed;
+  addStat(box, "Installed package", info.default_new_id + ": " +
+    (inst.exists ? fmtBytes(inst.bytes) + ", " + fmtTime(inst.modified) : "not installed"), "", true);
+  if (info.settings_hidden > 0) {
+    box.appendChild(el("span", "note", info.settings_hidden + (info.settings_hidden === 1 ? " setting is" : " settings are") +
+      " not available for this car (hidden)"));
+  }
+}
+
+function optionText(c) {
+  const flags = [];
+  if (!c.extracted) flags.push("not extracted");
+  if (c.installed) flags.push("installed");
+  const name = c.display_name || c.label;
+  return flags.length ? name + " (" + flags.join(", ") + ")" : name;
+}
+
+function renderCars() {
+  const sel = $("car-select");
+  const list = info && info.cars ? info.cars : [];
+  const byName = (a, b) => (a.display_name || a.label).localeCompare(b.display_name || b.label);
+  const groupsOf = [
+    ["Tested cars", list.filter((c) => c.tested).sort(byName)],
+    ["Other cars (not tested)", list.filter((c) => !c.tested).sort(byName)]
+  ].map(([title, cars]) => [title, cars.map((c) => [c.id, optionText(c)])]);
+  const sig = JSON.stringify([groupsOf, carId]);
+  if (sig === carsSig) return;
+  carsSig = sig;
+  sel.replaceChildren();
+  for (const [title, options] of groupsOf) {
+    if (!options.length) continue;
+    const g = el("optgroup");
+    g.label = title;
+    for (const [id, text] of options) {
+      const o = el("option", "", text);
+      o.value = id;
+      g.appendChild(o);
+    }
+    sel.appendChild(g);
+  }
+  sel.value = carId || "";
+  sel.disabled = list.length === 0;
+  const entry = carEntry();
+  $("untested").hidden = !entry || entry.tested;
+  $("untested").textContent = entry && !entry.tested ?
+    "This car has not been tested with the tuner yet; check the results before you trust them." : "";
+  if (entry) {
+    const name = carName();
+    $("caption").textContent = "Settings of " + name;
+    $("init-text").textContent = "The tuner needs the stock " + name +
+      " from the game files as its starting point. This is done once.";
+  }
+}
+
+function renderButtons() {
+  const running = !!info && info.job.state === "running";
+  let why = "";
+  if (!info) why = "server not reachable";
+  else if (running) why = "a job is running";
+  else if (info.game_running) why = "close the game first";
+  else if (!info.base_present) why = "extract the stock car first";
+  for (const id of ["btn-apply", "btn-copy"]) {
+    $(id).disabled = why !== "";
+    $(id).title = why;
+  }
+  $("btn-init").disabled = !info || running;
+  const baseOk = !!info && info.base_present;
+  $("init-panel").hidden = !info || baseOk;
+  $("tuner").hidden = !baseOk || !tableLoaded;
+  $("name-host").hidden = !baseOk || !tableLoaded || !headerRow;
+}
+
+function addLine(box, text, cls) {
+  box.appendChild(el("p", cls, text));
+}
+
+function summaryApply(box, res) {
+  addLine(box, res.applied.length ? "Settings applied:" : "No setting was changed, the stock values were built.");
+  if (res.applied.length) {
+    const ul = el("ul");
+    for (const a of res.applied) {
+      ul.appendChild(el("li", "", a.id + ": " + fmtVal("", a.old) + " -> " + fmtVal("", a.new)));
+    }
+    box.appendChild(ul);
+  }
+  addLine(box, "Package: " + res.package + " (" + fmtBytes(res.size) + ")");
+  addLine(box, "Installed to: " + (res.installed || "-"));
+  addLine(box, "Backup of the previous install: " + (res.backup || "none (first install)"));
+  addLine(box, "Close the game before applying again. Start the game and look for the car.");
+}
+
+function renderProgress() {
+  const box = $("progress");
+  const job = info ? info.job : { state: "idle", log: [], result: null, error: null, kind: null };
+  const sig = JSON.stringify([job, localError]);
+  if (sig === jobSig) return;
+  jobSig = sig;
+  box.replaceChildren();
+  box.className = "panel";
+  const show = job.state !== "idle" || localError !== "";
+  box.hidden = !show;
+  if (!show) return;
+  const title = job.kind === "init" ? "Extract stock car" : "Apply";
+  if (localError) {
+    box.classList.add("err");
+    box.appendChild(el("h2", "", "Error"));
+    addLine(box, localError);
+    if (job.state === "idle") return;
+    box.appendChild(el("h2", "", "Previous job: " + title));
+  }
+  if (job.state === "running") {
+    box.appendChild(el("h2", "", title + ": running ..."));
+  } else if (job.state === "done") {
+    if (!localError) box.classList.add("ok");
+    box.appendChild(el("h2", "", title + ": finished"));
+    if (job.kind === "apply" && job.result) summaryApply(box, job.result);
+    if (job.kind === "init") addLine(box, "The stock car is ready, the table is available.");
+  } else if (job.state === "error") {
+    if (!localError) box.classList.add("err");
+    box.appendChild(el("h2", "", title + ": failed"));
+    addLine(box, job.error || "unknown error");
+  }
+  if (job.log.length) {
+    const pre = el("pre", "mono", job.log.join("\n"));
+    box.appendChild(pre);
+    pre.scrollTop = pre.scrollHeight;
+  }
+}
+
+async function refresh() {
+  clearTimeout(pollTimer);
+  const want = carId;
+  try {
+    info = await api("/api/state", undefined, want);
+    serverError = "";
+  } catch (e) {
+    if (want && !carConfirmed && e.message !== "server not reachable") {
+      carId = null;
+      return refresh();
+    }
+    info = null;
+    serverError = e.message;
+  }
+  if (want !== carId) return;
+  if (info && !carConfirmed) {
+    carId = info.car;
+    carConfirmed = true;
+  }
+  const extracting = !!info && info.job.kind === "init" && info.job.state === "running";
+  if (info && info.base_present && !tableLoaded && !extracting) await loadSettings();
+  renderCars();
+  renderStatus();
+  renderButtons();
+  renderProgress();
+  const busy = info && info.job.state === "running";
+  pollTimer = setTimeout(refresh, busy ? POLL_BUSY_MS : POLL_IDLE_MS);
+}
+
+/* ---------- table ---------- */
+
+function setMsg(r, text, kind) {
+  clearTimeout(r.msgTimer);
+  r.msg.textContent = text;
+  r.msg.className = "msg" + (text ? " " + kind : "");
+  r.msg.hidden = !text;
+  if (text && kind === "err") r.msgTimer = setTimeout(() => setMsg(r, "", ""), 8000);
+}
+
+function setField(r) {
+  if (r.data.type === "bool") {
+    r.field.checked = r.data.value === true;
+    if (r.state) r.state.textContent = fmtVal(r.data.type, r.data.value);
+  } else {
+    r.field.value = r.shown;
+  }
+}
+
+function showRow(r, data) {
+  r.data = data;
+  r.shown = fmtVal(data.type, data.value);
+  setField(r);
+  r.tr.classList.toggle("changed", data.changed);
+  r.reset.hidden = !data.changed;
+  applyFilter();
+}
+
+async function sendSet(r, text) {
+  try {
+    const res = await api("/api/set", { id: r.data.id, value: text }, r.car);
+    showRow(r, res.row);
+    setMsg(r, res.warnings.join(" "), "warn");
+  } catch (e) {
+    setField(r);
+    setMsg(r, e.message, "err");
+  }
+}
+
+async function sendUnset(r) {
+  try {
+    const res = await api("/api/unset", { id: r.data.id }, r.car);
+    showRow(r, res.row);
+    setMsg(r, "", "");
+  } catch (e) {
+    setMsg(r, e.message, "err");
+  }
+}
+
+function commit(r) {
+  clearTimeout(r.timer);
+  if (r.data.type === "bool") {
+    if (r.field.checked === (r.data.value === true)) return;
+    const on = r.field.checked;
+    setMsg(r, "", "");
+    queue = queue.then(() => sendSet(r, on));
+    return;
+  }
+  const text = r.data.id === "name_suffix" ? r.field.value : r.field.value.trim();
+  if (text === r.shown) return;
+  setMsg(r, "", "");
+  queue = queue.then(() => sendSet(r, text));
+}
+
+function buildField(r) {
+  const d = r.data;
+  let f;
+  if (d.type === "bool") {
+    f = el("input");
+    f.type = "checkbox";
+  } else if (Array.isArray(d.choices) && d.choices.length) {
+    f = el("select");
+    for (const c of d.choices) {
+      const o = el("option", "", c);
+      o.value = c;
+      f.appendChild(o);
+    }
+  } else {
+    f = el("input");
+    if (d.type === "int" || d.type === "float") {
+      f.type = "number";
+      f.step = "any";
+    } else {
+      f.type = "text";
+    }
+  }
+  f.setAttribute("aria-label", "Value of " + d.label);
+  if (d.min !== undefined || d.max !== undefined) {
+    f.title = "Suggested range: " + (d.min !== undefined ? d.min : "-") + " to " + (d.max !== undefined ? d.max : "-");
+  }
+  f.addEventListener("input", () => {
+    clearTimeout(r.timer);
+    r.timer = setTimeout(() => commit(r), DEBOUNCE_MS);
+  });
+  f.addEventListener("change", () => commit(r));
+  f.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      commit(r);
+    } else if (ev.key === "Escape") {
+      clearTimeout(r.timer);
+      setField(r);
+    }
+  });
+  return f;
+}
+
+function copiesTip(data) {
+  const lines = ["The stock data holds this value in several places and the copies differ:"];
+  for (const c of data.copy_values || []) lines.push(c.target + " = " + fmtVal(data.type, c.value));
+  lines.push("Applying a value writes the same value to all copies.");
+  return lines.join("\n");
+}
+
+function buildReset(r) {
+  const b = el("button", "reset", "reset");
+  b.type = "button";
+  b.title = "Back to the default";
+  b.addEventListener("click", () => {
+    clearTimeout(r.timer);
+    queue = queue.then(() => sendUnset(r));
+  });
+  return b;
+}
+
+function buildHeaderRow(data, car) {
+  const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
+  r.tr = el("div", "namerow");
+  r.tr.appendChild(el("span", "label", "Name in the game's car list:"));
+  const joined = el("span", "namefield");
+  joined.appendChild(el("span", "stockname", carName()));
+  r.field = buildField(r);
+  r.field.title = data.description;
+  joined.appendChild(r.field);
+  r.tr.appendChild(joined);
+  r.reset = buildReset(r);
+  r.tr.appendChild(r.reset);
+  r.msg = el("div", "msg");
+  r.msg.hidden = true;
+  r.msg.setAttribute("role", "alert");
+  r.tr.appendChild(r.msg);
+  $("name-host").replaceChildren(r.tr);
+  showRow(r, data);
+  return r;
+}
+
+function buildRow(data, car) {
+  const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
+  r.tr = el("tr");
+
+  const nameCell = el("td", "name");
+  nameCell.appendChild(el("b", "", data.label));
+  nameCell.appendChild(el("span", "id mono", data.id));
+
+  const valueCell = el("td");
+  const wrap = el("div", "valuewrap");
+  r.field = buildField(r);
+  if (data.type === "bool") {
+    const box = el("label", "flag");
+    r.state = el("span");
+    box.append(r.field, r.state);
+    wrap.appendChild(box);
+  } else {
+    wrap.appendChild(r.field);
+  }
+  if (data.unit) wrap.appendChild(el("span", "unit", data.unit));
+  r.reset = buildReset(r);
+  wrap.appendChild(r.reset);
+  valueCell.appendChild(wrap);
+  r.msg = el("div", "msg");
+  r.msg.hidden = true;
+  r.msg.setAttribute("role", "alert");
+  valueCell.appendChild(r.msg);
+
+  const descCell = el("td");
+  descCell.appendChild(document.createTextNode(data.description));
+  if (!data.verified) {
+    const b = el("span", "badge", "unverified");
+    b.title = "meaning guessed from the field name, not confirmed";
+    descCell.appendChild(b);
+  }
+
+  const defCell = el("td", "default mono", fmtVal(data.type, data.default) + (data.unit ? " " + data.unit : ""));
+  if (data.copies_differ) {
+    const b = el("span", "badge amber", "copies differ in stock");
+    b.title = copiesTip(data);
+    defCell.appendChild(b);
+  }
+
+  r.tr.append(nameCell, valueCell, defCell, descCell);
+  r.hay = (data.id + " " + data.label + " " + data.description).toLowerCase();
+  showRow(r, data);
+  return r;
+}
+
+function buildTable(list, car) {
+  const body = $("rows");
+  body.replaceChildren();
+  rows = [];
+  groups = [];
+  headerRow = null;
+  $("name-host").replaceChildren();
+  let current = null;
+  for (const data of list) {
+    if (data.ui === "header") {
+      headerRow = buildHeaderRow(data, car);
+      continue;
+    }
+    if (!current || current.name !== data.group) {
+      current = groups.find((g) => g.name === data.group);
+      if (!current) {
+        const tr = el("tr", "group");
+        const th = el("th", "", data.group);
+        th.colSpan = 4;
+        th.scope = "colgroup";
+        tr.appendChild(th);
+        body.appendChild(tr);
+        current = { name: data.group, tr: tr, rows: [] };
+        groups.push(current);
+      }
+    }
+    const r = buildRow(data, car);
+    current.rows.push(r);
+    rows.push(r);
+    const after = current.rows.length > 1 ? current.rows[current.rows.length - 2].tr : current.tr;
+    body.insertBefore(r.tr, after.nextSibling);
+  }
+  applyFilter();
+}
+
+function applyFilter() {
+  const q = $("search").value.trim().toLowerCase();
+  const changedOnly = $("changed-only").checked;
+  let visible = 0;
+  for (const g of groups) {
+    let any = false;
+    for (const r of g.rows) {
+      const show = (!q || r.hay.includes(q)) && (!changedOnly || r.data.changed);
+      r.tr.hidden = !show;
+      if (show) any = true;
+    }
+    g.tr.hidden = !any;
+    if (any) visible += 1;
+  }
+  $("empty").hidden = visible > 0 || rows.length === 0;
+}
+
+async function loadSettings() {
+  const car = carId;
+  try {
+    const list = await api("/api/settings", undefined, car);
+    if (car !== carId) return;
+    buildTable(list, car);
+    tableLoaded = true;
+  } catch (e) {
+    localError = e.message;
+  }
+}
+
+/* ---------- actions ---------- */
+
+async function startJob(path, body) {
+  localError = "";
+  try {
+    await api(path, body, carId);
+  } catch (e) {
+    localError = e.message;
+  }
+  await refresh();
+}
+
+function askNewCopy() {
+  const n = info ? info.stock_id_length : 17;
+  const text = "Save a new copy of " + carName() + ".\n" +
+    "New car id: exactly " + n + " characters, only lowercase a-z, 0-9 and _.\n" +
+    "It must differ from " + (info ? info.default_new_id : "the default id") + " (used by Apply).";
+  const id = window.prompt(text, "");
+  if (id === null) return;
+  startJob("/api/apply", { mode: "new_copy", new_id: id.trim() });
+}
+
+async function resetAll() {
+  if (!window.confirm("Reset all settings of " + carName() + " to their defaults?")) return;
+  const car = carId;
+  queue = queue.then(async () => {
+    try {
+      await api("/api/reset_all", {}, car);
+      await loadSettings();
+    } catch (e) {
+      localError = e.message;
+    }
+    await refresh();
+  });
+}
+
+function switchCar(id) {
+  if (!id || id === carId) return;
+  carId = id;
+  storeCar(id);
+  tableLoaded = false;
+  rows = [];
+  groups = [];
+  headerRow = null;
+  localError = "";
+  $("name-host").replaceChildren();
+  $("rows").replaceChildren();
+  $("tuner").hidden = true;
+  $("init-panel").hidden = true;
+  refresh();
+}
+
+$("car-select").addEventListener("change", () => switchCar($("car-select").value));
+$("btn-apply").addEventListener("click", () => startJob("/api/apply", { mode: "update" }));
+$("btn-copy").addEventListener("click", askNewCopy);
+$("btn-init").addEventListener("click", () => startJob("/api/init", {}));
+$("btn-reset-all").addEventListener("click", resetAll);
+$("search").addEventListener("input", applyFilter);
+$("changed-only").addEventListener("change", applyFilter);
+
+refresh();
+</script>
+</body>
+</html>

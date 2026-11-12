@@ -1,7 +1,0 @@
-{
-  "name": "test_torque_half",
-  "description": "Engine torque curve x0.5. Test that edited curve files are used; not a tune.",
-  "scale": {
-    "engine_torque_scale": 0.5
-  }
-}

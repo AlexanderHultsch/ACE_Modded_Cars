@@ -1,3 +1,0 @@
-1: "content\cars\hdc_honda_s2000_ap1_01\skins\design_s2000ap1_2.design"
-2: "content\cars\hdc_honda_s2000_ap1_01\skins\rim_s2000ap1_eu.compatiblerim"
-2: "content\cars\hdc_honda_s2000_ap1_01\skins\rim_s2000ap1_us.compatiblerim"
