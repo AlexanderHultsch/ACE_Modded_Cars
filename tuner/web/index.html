@@ -178,7 +178,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 <div class="page">
   <header class="bar">
     <div class="title">
-      <h1 id="title">ACE - Simple Car Tuner</h1>
+      <h1>ACE - Simple Car Tuner</h1>
       <label class="carpick">Car
         <select id="car-select" aria-label="Car" disabled></select>
       </label>
@@ -403,7 +403,7 @@ function renderCars() {
 function renderButtons() {
   const running = !!info && info.job.state === "running";
   let why = "";
-  if (!info) why = "server not reachable";
+  if (!info) why = serverError || "server not reachable";
   else if (running) why = "a job is running";
   else if (info.game_running) why = "close the game first";
   else if (!info.base_present) why = "extract the stock car first";
@@ -525,13 +525,13 @@ function setField(r) {
   }
 }
 
-function showRow(r, data) {
+function showRow(r, data, refilter = true) {
   r.data = data;
   r.shown = fmtVal(data.type, data.value);
   setField(r);
   r.tr.classList.toggle("changed", data.changed);
   r.reset.hidden = !data.changed;
-  applyFilter();
+  if (refilter) applyFilter();
 }
 
 async function sendSet(r, text) {
@@ -625,6 +625,7 @@ function buildReset(r) {
   const b = el("button", "reset", "reset");
   b.type = "button";
   b.title = "Back to the default";
+  b.setAttribute("aria-label", "Reset " + r.data.label);
   b.addEventListener("click", () => {
     clearTimeout(r.timer);
     queue = queue.then(() => sendUnset(r));
@@ -649,7 +650,7 @@ function buildHeaderRow(data, car) {
   r.msg.setAttribute("role", "alert");
   r.tr.appendChild(r.msg);
   $("name-host").replaceChildren(r.tr);
-  showRow(r, data);
+  showRow(r, data, false);
   return r;
 }
 
@@ -698,7 +699,7 @@ function buildRow(data, car) {
 
   r.tr.append(nameCell, valueCell, defCell, descCell);
   r.hay = (data.id + " " + data.label + " " + data.description).toLowerCase();
-  showRow(r, data);
+  showRow(r, data, false);
   return r;
 }
 
@@ -721,7 +722,7 @@ function buildTable(list, car) {
         const tr = el("tr", "group");
         const th = el("th", "", data.group);
         th.colSpan = 4;
-        th.scope = "colgroup";
+        th.scope = "rowgroup";
         tr.appendChild(th);
         body.appendChild(tr);
         current = { name: data.group, tr: tr, rows: [] };
@@ -779,10 +780,10 @@ async function startJob(path, body) {
 }
 
 function askNewCopy() {
-  const n = info ? info.stock_id_length : 17;
+  const n = info.stock_id_length;
   const text = "Save a new copy of " + carName() + ".\n" +
     "New car id: exactly " + n + " characters, only lowercase a-z, 0-9 and _.\n" +
-    "It must differ from " + (info ? info.default_new_id : "the default id") + " (used by Apply).";
+    "It must differ from " + info.default_new_id + " (used by Apply).";
   const id = window.prompt(text, "");
   if (id === null) return;
   startJob("/api/apply", { mode: "new_copy", new_id: id.trim() });

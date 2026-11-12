@@ -3,3 +3,9 @@ __pycache__/
 *.pyc
 *.kspkg
 schemas/
+tune_state*.json
+stock_info.json
+cars_index.json
+backups/
+*.kspkg.gz
+*.exe

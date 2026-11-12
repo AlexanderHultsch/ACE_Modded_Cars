@@ -355,7 +355,7 @@ class TestStartBat(unittest.TestCase):
         self.assertNotRegex(BAT, r"(?i)\b[a-z]:\\users\\")
 
     def test_python_runs_isolated_with_the_documented_port_flag(self):
-        self.assertRegex(BAT, r'"%PY%" -I tools\\tuner_server\.py --port \d+')
+        self.assertRegex(BAT, r'"%PY%" -I tools\\tuner_server\.py --port (?:\d+|%PORT%)')
         self.assertIn("--port", ts.__doc__)
 
     def test_the_port_is_the_default_port_of_the_server_and_the_readme(self):
@@ -374,7 +374,7 @@ class TestStartBat(unittest.TestCase):
 
     # R4-006: the browser is opened after a fixed delay (ping -n 3 is about 2 s), not when the server listens
     def test_the_browser_is_opened_after_a_fixed_two_second_delay(self):
-        self.assertRegex(BAT, r'start "" /min cmd /c "ping -n 3 127\.0\.0\.1 >nul & start http://127\.0\.0\.1:\d+/"')
+        self.assertRegex(BAT, r'start "" /min cmd /c "ping -n 3 127\.0\.0\.1 >nul & start http://127\.0\.0\.1:(?:\d+|%PORT%)/"')
 
     def test_the_file_is_plain_ascii_without_a_byte_order_mark(self):
         raw = (ROOT / "tuner" / "start_tuner.bat").read_bytes()
