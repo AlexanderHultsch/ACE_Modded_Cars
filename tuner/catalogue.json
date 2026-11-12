@@ -3,7 +3,7 @@
   "settings": [
     {
       "id": "variant_name", "group": "Meta", "label": "Variant name", "kind": "meta", "type": "string", "unit": "",
-      "description": "Name of the car's preset/variant (value of the line whose key ends with _preset_base in en.cars.loc written by the build). The default is the stock car's own text for that line (the stock car's name when it has none), you can change it. Cars without such a line get no variant line. Where exactly the game shows it is not confirmed.",
+      "description": "Name of the car's preset/variant (value of the line whose key ends with _preset_base in en.cars.loc written by the build). The default is the stock car's own text for that line, you can change it. Shown only for cars whose stock text has such a line (cars without one get no variant line). Where exactly the game shows it is not confirmed.",
       "verified": false, "default_template": "{stock_variant_name}", "handler": "variant_name", "targets": []
     },
     {
@@ -135,7 +135,7 @@
     },
     {
       "id": "max_turbo_boost", "group": "Turbo", "label": "Engine max boost", "kind": "value", "type": "float", "unit": "bar",
-      "description": "Engine-level cap of the turbo boost pressure in bar (EngineData.max_turbo_boost), written to the engine file and the car's inline copy. On the Mazda RX-7 FD this seems to be the real cap, because its individual turbo objects carry no max_boost. The effect in the game is not confirmed. Only shown for cars whose engine lists a turbo file.",
+      "description": "Engine-level cap of the turbo boost pressure in bar (EngineData.max_turbo_boost), written to the engine file and the car's inline copy. On a car whose individual turbo objects carry no max_boost this seems to be the real cap. The effect in the game is not confirmed. Only shown for cars whose engine lists a turbo file.",
       "verified": false, "min": 0, "max": 3, "hide_if_absent": true,
       "needs": [
         {"file": "@turbo[0]", "path": "max_boost"}
@@ -201,7 +201,7 @@
     },
     {
       "id": "gear_6", "group": "Gearing", "label": "Gear 6 ratio", "kind": "value", "type": "float", "unit": ":1",
-      "description": "Gear ratio of 6th gear. A higher number gives shorter gearing.",
+      "description": "Gear ratio of 6th gear. A higher number gives shorter gearing. Only shown for cars with at least 6 gears.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
         {"file": "@gearbox", "path": "gears[7].ratio"},
@@ -330,7 +330,7 @@
     },
     {
       "id": "diff_hw_bias_power", "group": "Differential (hardware)", "label": "Diff torque bias power", "kind": "value", "type": "float", "unit": "",
-      "description": "Torque bias ratio under power of the differential model (DifferentialData.torque_bias_ratio_power); assumed: a higher ratio locks the axle harder under power. Stock: BMW 2.3, GR86 4.1, RX-7 4, not stored by the Giulia and the Porsche (shown as absent). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Torque bias ratio under power of the differential model (DifferentialData.torque_bias_ratio_power); assumed: a higher ratio locks the axle harder under power. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 1, "max": 10,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_power"},
@@ -339,7 +339,7 @@
     },
     {
       "id": "diff_hw_bias_coast", "group": "Differential (hardware)", "label": "Diff torque bias coast", "kind": "value", "type": "float", "unit": "",
-      "description": "Torque bias ratio on coast of the differential model (DifferentialData.torque_bias_ratio_coast); assumed: a higher ratio locks the axle harder off throttle. Stock: BMW 0.5, GR86 4.1, RX-7 4, not stored by the Giulia and the Porsche (shown as absent). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Torque bias ratio on coast of the differential model (DifferentialData.torque_bias_ratio_coast); assumed: a higher ratio locks the axle harder off throttle. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 10,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_coast"},
@@ -348,7 +348,7 @@
     },
     {
       "id": "diff_hw_power", "group": "Differential (hardware)", "label": "Diff lock power (hardware)", "kind": "value", "type": "float", "unit": "",
-      "description": "Lock factor under power of the differential model (DifferentialData.power), assumed 0 (open) to 1 (locked). The BMW and the RX-7 do not store it (shown as absent, created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Lock factor under power of the differential model (DifferentialData.power), assumed 0 (open) to 1 (locked). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 1, "create_missing": true,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.power"},
@@ -357,7 +357,7 @@
     },
     {
       "id": "diff_hw_coast", "group": "Differential (hardware)", "label": "Diff lock coast (hardware)", "kind": "value", "type": "float", "unit": "",
-      "description": "Lock factor on coast of the differential model (DifferentialData.coast), assumed 0 (open) to 1 (locked). The BMW and the RX-7 do not store it (shown as absent, created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Lock factor on coast of the differential model (DifferentialData.coast), assumed 0 (open) to 1 (locked). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 1, "create_missing": true,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.coast"},
@@ -365,15 +365,15 @@
       ]
     },
     {
-      "id": "steer_ratio", "group": "Steering & brakes", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "steer_ratio", "group": "Steering & brakes (setup)", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle.",
-      "verified": true, "min": 5, "max": 30,
+      "verified": true, "min": -30, "max": 30,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.steer_ratio"}
       ]
     },
     {
-      "id": "steer_ratio_min", "group": "Steering & brakes", "label": "Steering ratio min", "kind": "value", "type": "float", "unit": ":1",
+      "id": "steer_ratio_min", "group": "Steering & brakes (setup)", "label": "Steering ratio min", "kind": "value", "type": "float", "unit": ":1",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest steering ratio allowed (quickest steering).",
       "verified": false, "min": 5, "max": 30,
       "targets": [
@@ -381,7 +381,7 @@
       ]
     },
     {
-      "id": "steer_ratio_max", "group": "Steering & brakes", "label": "Steering ratio max", "kind": "value", "type": "float", "unit": ":1",
+      "id": "steer_ratio_max", "group": "Steering & brakes (setup)", "label": "Steering ratio max", "kind": "value", "type": "float", "unit": ":1",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest steering ratio allowed (slowest steering).",
       "verified": false, "min": 5, "max": 30,
       "targets": [
@@ -389,7 +389,7 @@
       ]
     },
     {
-      "id": "steer_rod_ratio", "group": "Steering & brakes", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
+      "id": "steer_rod_ratio", "group": "Steering & brakes (setup)", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
       "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022; Hina's drift E46 uses 0.0025). Effect in the game not confirmed.",
       "verified": false, "min": 0.0005, "max": 0.005,
       "targets": [
@@ -397,7 +397,7 @@
       ]
     },
     {
-      "id": "caster_front", "group": "Steering & brakes", "label": "Front caster", "kind": "value", "type": "float", "unit": "deg",
+      "id": "caster_front", "group": "Steering & brakes (setup)", "label": "Front caster", "kind": "value", "type": "float", "unit": "deg",
       "description": "Default setup: caster angle of the front wheels (both wheels). The stock values are small negative numbers and the unit is assumed to be degrees, not confirmed; the effect on the steering in the game is not confirmed.",
       "verified": false, "min": -2, "max": 2,
       "targets": [
@@ -406,7 +406,7 @@
       ]
     },
     {
-      "id": "brake_bias", "group": "Steering & brakes", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
+      "id": "brake_bias", "group": "Steering & brakes (setup)", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
       "description": "Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner.",
       "verified": true, "min": 0, "max": 100,
       "targets": [
@@ -414,7 +414,7 @@
       ]
     },
     {
-      "id": "brake_bias_min", "group": "Steering & brakes", "label": "Brake bias min", "kind": "value", "type": "float", "unit": "%",
+      "id": "brake_bias_min", "group": "Steering & brakes (setup)", "label": "Brake bias min", "kind": "value", "type": "float", "unit": "%",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front brake bias allowed. The stock file does not store this field, so it reads as 0.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
@@ -422,7 +422,7 @@
       ]
     },
     {
-      "id": "brake_bias_max", "group": "Steering & brakes", "label": "Brake bias max", "kind": "value", "type": "float", "unit": "%",
+      "id": "brake_bias_max", "group": "Steering & brakes (setup)", "label": "Brake bias max", "kind": "value", "type": "float", "unit": "%",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front brake bias allowed.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
@@ -430,8 +430,8 @@
       ]
     },
     {
-      "id": "brake_bias_hw", "group": "Steering & brakes", "label": "Brake bias front (brake file)", "kind": "value", "type": "float", "unit": "%",
-      "description": "Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Most cars store a percentage (BMW 68), the Alfa Romeo Giulia stores a fraction (0.75); which of the two the game reads is not confirmed.",
+      "id": "brake_bias_hw", "group": "Steering & brakes (setup)", "label": "Brake bias front (brake file)", "kind": "value", "type": "float", "unit": "%",
+      "description": "Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Most cars store a percentage (for example 68), some store a fraction (for example 0.75); which of the two the game reads is not confirmed.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@brakes", "path": "frontBias"},
@@ -439,7 +439,7 @@
       ]
     },
     {
-      "id": "clutch_max_torque", "group": "Steering & brakes", "label": "Clutch max torque", "kind": "value", "type": "float", "unit": "Nm",
+      "id": "clutch_max_torque", "group": "Brakes & steering (hardware)", "label": "Clutch max torque", "kind": "value", "type": "float", "unit": "Nm",
       "description": "Maximum torque the clutch transmits before it slips (ClutchData.clutch_max_torque), written to the clutch file and the car's inline copy. A lower value should let the clutch slip earlier, a higher one hold more torque; effect in the game not confirmed.",
       "verified": false, "min": 50, "max": 5000,
       "targets": [
@@ -470,15 +470,15 @@
       "description": "Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed whether per side or lock to lock. Raising it allows more wheel rotation, and with it more front wheel angle.",
       "verified": false, "min": 90, "max": 1440,
       "targets": [
-        {"file": "@car", "path": "controls.steer_lock", "optional": true}
+        {"file": "@car", "path": "controls.steer_lock"}
       ]
     },
     {
-      "id": "car_mass", "group": "Brakes & steering (hardware)", "label": "Car mass", "kind": "value", "type": "float", "unit": "kg",
+      "id": "car_mass", "group": "Vehicle (hardware)", "label": "Car mass", "kind": "value", "type": "float", "unit": "kg",
       "description": "Physics mass of the car (GeneralCarData.totalMass, stored in the .car only). The displayed weight on the spec sheet is separate text. Raising it makes the car heavier to accelerate, brake and turn.",
       "verified": true, "min": 500, "max": 3000,
       "targets": [
-        {"file": "@car", "path": "general.totalMass", "optional": true}
+        {"file": "@car", "path": "general.totalMass"}
       ]
     },
     {
@@ -532,7 +532,7 @@
     {
       "id": "spring_front", "group": "Springs & anti-roll", "label": "Front spring rate", "kind": "value", "type": "float", "unit": "N/m",
       "description": "Default setup: wheel rate of the front springs (both wheels). Stiffer means less body roll and dive at the front and more understeer.",
-      "verified": true, "min": 5000, "max": 300000,
+      "verified": true, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].wheel_rate"},
         {"file": "@setup", "path": "suspensions[1].wheel_rate"}
@@ -541,7 +541,7 @@
     {
       "id": "spring_rear", "group": "Springs & anti-roll", "label": "Rear spring rate", "kind": "value", "type": "float", "unit": "N/m",
       "description": "Default setup: wheel rate of the rear springs (both wheels). Stiffer means less body roll and squat at the rear and more oversteer.",
-      "verified": true, "min": 5000, "max": 300000,
+      "verified": true, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].wheel_rate"},
         {"file": "@setup", "path": "suspensions[3].wheel_rate"}
@@ -550,7 +550,7 @@
     {
       "id": "spring_min_front", "group": "Springs & anti-roll", "label": "Front spring rate min", "kind": "value", "type": "float", "unit": "N/m",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front wheel rate allowed (both wheels).",
-      "verified": false, "min": 5000, "max": 300000,
+      "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[0].wheel_rate.min"},
         {"file": "@limits", "path": "suspensions[1].wheel_rate.min"}
@@ -559,7 +559,7 @@
     {
       "id": "spring_max_front", "group": "Springs & anti-roll", "label": "Front spring rate max", "kind": "value", "type": "float", "unit": "N/m",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front wheel rate allowed (both wheels).",
-      "verified": false, "min": 5000, "max": 300000,
+      "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[0].wheel_rate.max"},
         {"file": "@limits", "path": "suspensions[1].wheel_rate.max"}
@@ -568,7 +568,7 @@
     {
       "id": "spring_min_rear", "group": "Springs & anti-roll", "label": "Rear spring rate min", "kind": "value", "type": "float", "unit": "N/m",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear wheel rate allowed (both wheels).",
-      "verified": false, "min": 5000, "max": 300000,
+      "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[2].wheel_rate.min"},
         {"file": "@limits", "path": "suspensions[3].wheel_rate.min"}
@@ -577,7 +577,7 @@
     {
       "id": "spring_max_rear", "group": "Springs & anti-roll", "label": "Rear spring rate max", "kind": "value", "type": "float", "unit": "N/m",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear wheel rate allowed (both wheels).",
-      "verified": false, "min": 5000, "max": 300000,
+      "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[2].wheel_rate.max"},
         {"file": "@limits", "path": "suspensions[3].wheel_rate.max"}
@@ -853,7 +853,7 @@
     },
     {
       "id": "arb_stiffness_front", "group": "Suspension (physical)", "label": "Front anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Physical stiffness of the front anti-roll bar (suspensions.arbFront.stiffness, stored in the .car only); the stock BMW does not store it (shown as absent, created when you set it). This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical stiffness of the front anti-roll bar (suspensions.arbFront.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
       "verified": false, "min": 0, "max": 200000, "create_missing": true,
       "targets": [
         {"file": "@car", "path": "suspensions.arbFront.stiffness"}
@@ -861,7 +861,7 @@
     },
     {
       "id": "arb_stiffness_rear", "group": "Suspension (physical)", "label": "Rear anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Physical stiffness of the rear anti-roll bar (suspensions.arbRear.stiffness, stored in the .car only); the stock BMW does not store it (shown as absent, created when you set it). This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical stiffness of the rear anti-roll bar (suspensions.arbRear.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
       "verified": false, "min": 0, "max": 200000, "create_missing": true,
       "targets": [
         {"file": "@car", "path": "suspensions.arbRear.stiffness"}
@@ -1003,7 +1003,7 @@
     },
     {
       "id": "tyre_grip_lateral_front", "group": "Tyres", "label": "Front tyre lateral grip", "kind": "value", "type": "float", "unit": "mu",
-      "description": "Peak lateral (sideways) friction coefficient of the front tyre (TyresCompoundData.modelData.Dy0, a unitless mu; the stock road tyres of the BMW have about 1.2, the supercar tyres about 1.27). Assumed from the field name: a higher value gives the front axle more sideways grip; the real grip also depends on load, temperature, pressure and wear. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Peak lateral (sideways) friction coefficient of the front tyre (TyresCompoundData.modelData.Dy0, a unitless mu; for example the stock road tyres of the BMW have about 1.2, the supercar tyres about 1.27). Assumed from the field name: a higher value gives the front axle more sideways grip; the real grip also depends on load, temperature, pressure and wear. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0.5, "max": 2.5,
       "targets": [
         {"file": "@tyre_front", "path": "modelData.Dy0"}
@@ -1019,7 +1019,7 @@
     },
     {
       "id": "tyre_peak_slip_angle_front", "group": "Tyres", "label": "Front tyre peak slip angle", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Slip angle at which the front tyre reaches its friction limit (modelData.friction_limit_angle, degrees, about 8 on the stock tyres of the BMW). Assumed from the field name: a larger angle lets the front axle keep gripping at bigger slip angles, so a slide builds up more progressively. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Slip angle at which the front tyre reaches its friction limit (modelData.friction_limit_angle, degrees, for example about 8 on the stock tyres of the BMW). Assumed from the field name: a larger angle lets the front axle keep gripping at bigger slip angles, so a slide builds up more progressively. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 3, "max": 15,
       "targets": [
         {"file": "@tyre_front", "path": "modelData.friction_limit_angle"}
@@ -1027,15 +1027,15 @@
     },
     {
       "id": "tyre_load_reference_front", "group": "Tyres", "label": "Front tyre load reference", "kind": "value", "type": "float", "unit": "N",
-      "description": "Reference vertical load of the front tyre model (modelData.Fz0, newtons; 3930 front and 4320 rear on the stock tyres of the BMW). Assumed from the field name: the grip coefficients are valid at this load and the grip changes with the load around it, so a different value moves the load at which the front tyre works best. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Reference vertical load of the front tyre model (modelData.Fz0, newtons; for example 3930 front and 4320 rear on the stock tyres of the BMW). Assumed from the field name: the grip coefficients are valid at this load and the grip changes with the load around it, so a different value moves the load at which the front tyre works best. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 1000, "max": 10000,
       "targets": [
         {"file": "@tyre_front", "path": "modelData.Fz0"}
       ]
     },
     {
-      "id": "tyre_pressure_ref_front", "group": "Tyres", "label": "Front tyre inflation pressure in the tyre file", "kind": "value", "type": "float", "unit": "psi",
-      "description": "Inflation pressure stored in the front tyre file (TyresCompoundData.pressure, 30 psi on the stock tyres of the BMW, between 23 and 30 on the other tested cars). The pressure you run is the setup value (tyre_pressure_front); how the two interact in the game is not confirmed. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "id": "tyre_pressure_ref_front", "group": "Tyres", "label": "Front tyre inflation pressure (tyre file)", "kind": "value", "type": "float", "unit": "psi",
+      "description": "Inflation pressure stored in the front tyre file (TyresCompoundData.pressure, for example 30 psi on the stock tyres of the BMW, between 23 and 30 on the other tested cars). The pressure you run is the setup value (tyre_pressure_front); how the two interact in the game is not confirmed. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 15, "max": 50,
       "targets": [
         {"file": "@tyre_front", "path": "pressure"}
@@ -1043,7 +1043,7 @@
     },
     {
       "id": "tyre_flex_lateral_front", "group": "Tyres", "label": "Front tyre lateral flex stiffness", "kind": "value", "type": "float", "unit": "",
-      "description": "Lateral flex stiffness of the front tyre (tyreData.lateralFlexK; the unit is not known, the stock tyres of the BMW have 30000 road and 38000 supercar). Assumed from the field name: a higher value makes the sidewall stiffer sideways, so the front tyre gives less. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Lateral flex stiffness of the front tyre (tyreData.lateralFlexK; the unit is not known; for example the stock tyres of the BMW have 30000 road and 38000 supercar). Assumed from the field name: a higher value makes the sidewall stiffer sideways, so the front tyre gives less. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 5000, "max": 100000,
       "targets": [
         {"file": "@tyre_front", "path": "tyreData.lateralFlexK"}
@@ -1051,7 +1051,7 @@
     },
     {
       "id": "tyre_flex_longitudinal_front", "group": "Tyres", "label": "Front tyre longitudinal flex stiffness", "kind": "value", "type": "float", "unit": "",
-      "description": "Longitudinal flex stiffness of the front tyre (tyreData.longitudinalFlexK; the unit is not known, the stock tyres of the BMW have 18000 road and 20000 supercar). Assumed from the field name: a higher value makes the tyre stiffer in the driving direction, so the front tyre gives less under power and braking. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Longitudinal flex stiffness of the front tyre (tyreData.longitudinalFlexK; the unit is not known; for example the stock tyres of the BMW have 18000 road and 20000 supercar). Assumed from the field name: a higher value makes the tyre stiffer in the driving direction, so the front tyre gives less under power and braking. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 5000, "max": 100000,
       "targets": [
         {"file": "@tyre_front", "path": "tyreData.longitudinalFlexK"}
@@ -1059,7 +1059,7 @@
     },
     {
       "id": "tyre_stiffness_rate_front", "group": "Tyres", "label": "Front tyre vertical stiffness", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Vertical stiffness of the front tyre (tyreData.rate; the unit is assumed to be N/m, the stock road tyres of the BMW have 282100 front and 322400 rear). Assumed from the field name: a higher value is a stiffer tyre that compresses less under load, which also changes the ride of the front axle. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Vertical stiffness of the front tyre (tyreData.rate; the unit is assumed to be N/m; for example the stock road tyres of the BMW have 282100 front and 322400 rear). Assumed from the field name: a higher value is a stiffer tyre that compresses less under load, which also changes the ride of the front axle. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 100000, "max": 600000,
       "targets": [
         {"file": "@tyre_front", "path": "tyreData.rate"}
@@ -1067,7 +1067,7 @@
     },
     {
       "id": "tyre_heat_partition_front", "group": "Tyres", "label": "Front tyre heat partition", "kind": "value", "type": "float", "unit": "",
-      "description": "Heat partition coefficient of the front tyre (thermalData.heat_partition_coeff; 0.7 on the stock road tyres and 0.9 on the supercar tyres of the BMW, 1.4 on the Porsche slicks, so it is not a plain fraction). Assumed from the field name: it sets how much of the friction heat goes into the tyre, so a higher value heats the front tyre faster when it slides. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Heat partition coefficient of the front tyre (thermalData.heat_partition_coeff; for example 0.7 on the stock road tyres and 0.9 on the supercar tyres of the BMW, 1.4 on the Porsche slicks, so it is not a plain fraction). Assumed from the field name: it sets how much of the friction heat goes into the tyre, so a higher value heats the front tyre faster when it slides. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0, "max": 2,
       "targets": [
         {"file": "@tyre_front", "path": "thermalData.heat_partition_coeff"}
@@ -1075,7 +1075,7 @@
     },
     {
       "id": "tyre_grain_gain_front", "group": "Tyres", "label": "Front tyre graining gain", "kind": "value", "type": "float", "unit": "",
-      "description": "Strength of the graining (rubber balling on the surface) of the front tyre. Written to both thermalData.grainGain and thermalData.grainGamma, which are equal in every tyre of the game (0.27 on the stock road tyres of the BMW, 0.47 on the supercar tyres). Assumed from the field names: a higher value makes the front tyre grain up more when it slides. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Strength of the graining (rubber balling on the surface) of the front tyre. Written to both thermalData.grainGain and thermalData.grainGamma, which are equal in every tyre of the game (for example 0.27 on the stock road tyres of the BMW, 0.47 on the supercar tyres). Assumed from the field names: a higher value makes the front tyre grain up more when it slides. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0, "max": 2,
       "targets": [
         {"file": "@tyre_front", "path": "thermalData.grainGain"},
@@ -1084,7 +1084,7 @@
     },
     {
       "id": "tyre_grain_slip_angle_gain_front", "group": "Tyres", "label": "Front tyre graining slip angle gain", "kind": "value", "type": "float", "unit": "",
-      "description": "Graining caused by slip angle on the front tyre (thermalData.grainSlipAngleGain, 0.265 on the stock road tyres of the BMW, 0.565 on the supercar tyres). Assumed from the field name: a higher value makes sliding sideways grain the front tyre more. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Graining caused by slip angle on the front tyre (thermalData.grainSlipAngleGain, for example 0.265 on the stock road tyres of the BMW, 0.565 on the supercar tyres). Assumed from the field name: a higher value makes sliding sideways grain the front tyre more. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0, "max": 2,
       "targets": [
         {"file": "@tyre_front", "path": "thermalData.grainSlipAngleGain"}
@@ -1092,7 +1092,7 @@
     },
     {
       "id": "tyre_grip_lateral_rear", "group": "Tyres", "label": "Rear tyre lateral grip", "kind": "value", "type": "float", "unit": "mu",
-      "description": "Peak lateral (sideways) friction coefficient of the rear tyre (TyresCompoundData.modelData.Dy0, a unitless mu; the stock road tyres of the BMW have about 1.2, the supercar tyres about 1.27). Assumed from the field name: a higher value gives the rear axle more sideways grip; the real grip also depends on load, temperature, pressure and wear. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Peak lateral (sideways) friction coefficient of the rear tyre (TyresCompoundData.modelData.Dy0, a unitless mu; for example the stock road tyres of the BMW have about 1.2, the supercar tyres about 1.27). Assumed from the field name: a higher value gives the rear axle more sideways grip; the real grip also depends on load, temperature, pressure and wear. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0.5, "max": 2.5,
       "targets": [
         {"file": "@tyre_rear", "path": "modelData.Dy0"}
@@ -1108,7 +1108,7 @@
     },
     {
       "id": "tyre_peak_slip_angle_rear", "group": "Tyres", "label": "Rear tyre peak slip angle", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Slip angle at which the rear tyre reaches its friction limit (modelData.friction_limit_angle, degrees, about 8 on the stock tyres of the BMW). Assumed from the field name: a larger angle lets the rear axle keep gripping at bigger slip angles, so a slide builds up more progressively. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Slip angle at which the rear tyre reaches its friction limit (modelData.friction_limit_angle, degrees, for example about 8 on the stock tyres of the BMW). Assumed from the field name: a larger angle lets the rear axle keep gripping at bigger slip angles, so a slide builds up more progressively. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 3, "max": 15,
       "targets": [
         {"file": "@tyre_rear", "path": "modelData.friction_limit_angle"}
@@ -1116,7 +1116,7 @@
     },
     {
       "id": "tyre_load_reference_rear", "group": "Tyres", "label": "Rear tyre load reference", "kind": "value", "type": "float", "unit": "N",
-      "description": "Reference vertical load of the rear tyre model (modelData.Fz0, newtons; 3930 front and 4320 rear on the stock tyres of the BMW). Assumed from the field name: the grip coefficients are valid at this load and the grip changes with the load around it, so a different value moves the load at which the rear tyre works best. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Reference vertical load of the rear tyre model (modelData.Fz0, newtons; for example 3930 front and 4320 rear on the stock tyres of the BMW). Assumed from the field name: the grip coefficients are valid at this load and the grip changes with the load around it, so a different value moves the load at which the rear tyre works best. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 1000, "max": 10000,
       "targets": [
         {"file": "@tyre_rear", "path": "modelData.Fz0"}
@@ -1124,7 +1124,7 @@
     },
     {
       "id": "tyre_pressure_ref_rear", "group": "Tyres", "label": "Rear tyre inflation pressure in the tyre file", "kind": "value", "type": "float", "unit": "psi",
-      "description": "Inflation pressure stored in the rear tyre file (TyresCompoundData.pressure, 30 psi on the stock tyres of the BMW, between 23 and 30 on the other tested cars). The pressure you run is the setup value (tyre_pressure_rear); how the two interact in the game is not confirmed. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Inflation pressure stored in the rear tyre file (TyresCompoundData.pressure, for example 30 psi on the stock tyres of the BMW, between 23 and 30 on the other tested cars). The pressure you run is the setup value (tyre_pressure_rear); how the two interact in the game is not confirmed. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 15, "max": 50,
       "targets": [
         {"file": "@tyre_rear", "path": "pressure"}
@@ -1132,7 +1132,7 @@
     },
     {
       "id": "tyre_flex_lateral_rear", "group": "Tyres", "label": "Rear tyre lateral flex stiffness", "kind": "value", "type": "float", "unit": "",
-      "description": "Lateral flex stiffness of the rear tyre (tyreData.lateralFlexK; the unit is not known, the stock tyres of the BMW have 30000 road and 38000 supercar). Assumed from the field name: a higher value makes the sidewall stiffer sideways, so the rear tyre gives less. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Lateral flex stiffness of the rear tyre (tyreData.lateralFlexK; the unit is not known; for example the stock tyres of the BMW have 30000 road and 38000 supercar). Assumed from the field name: a higher value makes the sidewall stiffer sideways, so the rear tyre gives less. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 5000, "max": 100000,
       "targets": [
         {"file": "@tyre_rear", "path": "tyreData.lateralFlexK"}
@@ -1140,7 +1140,7 @@
     },
     {
       "id": "tyre_flex_longitudinal_rear", "group": "Tyres", "label": "Rear tyre longitudinal flex stiffness", "kind": "value", "type": "float", "unit": "",
-      "description": "Longitudinal flex stiffness of the rear tyre (tyreData.longitudinalFlexK; the unit is not known, the stock tyres of the BMW have 18000 road and 20000 supercar). Assumed from the field name: a higher value makes the tyre stiffer in the driving direction, so the rear tyre gives less under power and braking. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Longitudinal flex stiffness of the rear tyre (tyreData.longitudinalFlexK; the unit is not known; for example the stock tyres of the BMW have 18000 road and 20000 supercar). Assumed from the field name: a higher value makes the tyre stiffer in the driving direction, so the rear tyre gives less under power and braking. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 5000, "max": 100000,
       "targets": [
         {"file": "@tyre_rear", "path": "tyreData.longitudinalFlexK"}
@@ -1148,7 +1148,7 @@
     },
     {
       "id": "tyre_stiffness_rate_rear", "group": "Tyres", "label": "Rear tyre vertical stiffness", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Vertical stiffness of the rear tyre (tyreData.rate; the unit is assumed to be N/m, the stock road tyres of the BMW have 282100 front and 322400 rear). Assumed from the field name: a higher value is a stiffer tyre that compresses less under load, which also changes the ride of the rear axle. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Vertical stiffness of the rear tyre (tyreData.rate; the unit is assumed to be N/m; for example the stock road tyres of the BMW have 282100 front and 322400 rear). Assumed from the field name: a higher value is a stiffer tyre that compresses less under load, which also changes the ride of the rear axle. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 100000, "max": 600000,
       "targets": [
         {"file": "@tyre_rear", "path": "tyreData.rate"}
@@ -1156,7 +1156,7 @@
     },
     {
       "id": "tyre_heat_partition_rear", "group": "Tyres", "label": "Rear tyre heat partition", "kind": "value", "type": "float", "unit": "",
-      "description": "Heat partition coefficient of the rear tyre (thermalData.heat_partition_coeff; 0.7 on the stock road tyres and 0.9 on the supercar tyres of the BMW, 1.4 on the Porsche slicks, so it is not a plain fraction). Assumed from the field name: it sets how much of the friction heat goes into the tyre, so a higher value heats the rear tyre faster when it slides. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Heat partition coefficient of the rear tyre (thermalData.heat_partition_coeff; for example 0.7 on the stock road tyres and 0.9 on the supercar tyres of the BMW, 1.4 on the Porsche slicks, so it is not a plain fraction). Assumed from the field name: it sets how much of the friction heat goes into the tyre, so a higher value heats the rear tyre faster when it slides. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0, "max": 2,
       "targets": [
         {"file": "@tyre_rear", "path": "thermalData.heat_partition_coeff"}
@@ -1164,7 +1164,7 @@
     },
     {
       "id": "tyre_grain_gain_rear", "group": "Tyres", "label": "Rear tyre graining gain", "kind": "value", "type": "float", "unit": "",
-      "description": "Strength of the graining (rubber balling on the surface) of the rear tyre. Written to both thermalData.grainGain and thermalData.grainGamma, which are equal in every tyre of the game (0.27 on the stock road tyres of the BMW, 0.47 on the supercar tyres). Assumed from the field names: a higher value makes the rear tyre grain up more when it slides. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Strength of the graining (rubber balling on the surface) of the rear tyre. Written to both thermalData.grainGain and thermalData.grainGamma, which are equal in every tyre of the game (for example 0.27 on the stock road tyres of the BMW, 0.47 on the supercar tyres). Assumed from the field names: a higher value makes the rear tyre grain up more when it slides. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0, "max": 2,
       "targets": [
         {"file": "@tyre_rear", "path": "thermalData.grainGain"},
@@ -1173,7 +1173,7 @@
     },
     {
       "id": "tyre_grain_slip_angle_gain_rear", "group": "Tyres", "label": "Rear tyre graining slip angle gain", "kind": "value", "type": "float", "unit": "",
-      "description": "Graining caused by slip angle on the rear tyre (thermalData.grainSlipAngleGain, 0.265 on the stock road tyres of the BMW, 0.565 on the supercar tyres). Assumed from the field name: a higher value makes sliding sideways grain the rear tyre more. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "description": "Graining caused by slip angle on the rear tyre (thermalData.grainSlipAngleGain, for example 0.265 on the stock road tyres of the BMW, 0.565 on the supercar tyres). Assumed from the field name: a higher value makes sliding sideways grain the rear tyre more. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
       "verified": false, "min": 0, "max": 2,
       "targets": [
         {"file": "@tyre_rear", "path": "thermalData.grainSlipAngleGain"}

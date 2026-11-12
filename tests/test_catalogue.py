@@ -569,9 +569,9 @@ class TestOnlyOptionalTargets(unittest.TestCase):
         return {r["id"]: r for r in tune.resolve_defaults(self.work, "ks_x", dict(CAT, settings=[BY_ID[i] for i in ids]),
                                                           hidden=True)}
 
-    def test_both_settings_have_a_single_optional_target_today(self):
+    def test_both_settings_have_a_single_required_target(self):
         for sid in ("steer_lock_deg", "car_mass"):
-            self.assertEqual([t.get("optional") for t in BY_ID[sid]["targets"]], [True])
+            self.assertEqual([t.get("optional") for t in BY_ID[sid]["targets"]], [None])
 
     def test_stored_values_are_read_when_the_car_has_the_objects(self):
         self.fc.add("data/x.car", {"controls": {"steer_lock": 540.0}, "general": {"totalMass": 1495.0}})
@@ -584,20 +584,14 @@ class TestOnlyOptionalTargets(unittest.TestCase):
         self.assertEqual([(r["applicable"], r["default"], r["absent"]) for r in rows.values()],
                          [(True, 0.0, True), (True, 0.0, True)])
 
-    # R3-004: a setting whose only target is optional must not count as applicable when the object is missing
-    @unittest.expectedFailure
     def test_steer_lock_is_not_applicable_without_a_controls_object(self):
         self.fc.add("data/x.car", {"engine_path": "e"})
         self.assertFalse(self.rows(["steer_lock_deg"])["steer_lock_deg"]["applicable"])
 
-    # R3-004
-    @unittest.expectedFailure
     def test_car_mass_is_not_applicable_without_a_general_object(self):
         self.fc.add("data/x.car", {"engine_path": "e"})
         self.assertFalse(self.rows(["car_mass"])["car_mass"]["applicable"])
 
-    # R3-004: and set refuses it instead of accepting a value that apply cannot write anywhere
-    @unittest.expectedFailure
     def test_set_refuses_car_mass_without_a_general_object(self):
         self.fc.add("data/x.car", {"engine_path": "e"})
         with self.assertRaisesRegex(ValueError, "not applicable"):
