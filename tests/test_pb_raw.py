@@ -73,7 +73,7 @@ class Varint(unittest.TestCase):
     def test_reads_from_an_offset(self):
         self.assertEqual(pb_raw.varint(b"\xaa\xac\x02", 1), (300, 3))
 
-    def test_truncated_varint_raises_index_error(self):
+    def test_truncated_varint_raises_value_error(self):
         with self.assertRaises(ValueError):
             pb_raw.varint(b"\x80\x80", 0)
 
@@ -181,15 +181,15 @@ class Errors(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "truncated"):
             lines_of(pb_key(1, 2) + pb_varint(5) + b"abc")
 
-    def test_truncated_key_raises_index_error(self):
+    def test_truncated_key_raises_value_error(self):
         with self.assertRaises(ValueError):
             lines_of(b"\x80")
 
-    def test_truncated_varint_value_raises_index_error(self):
+    def test_truncated_varint_value_raises_value_error(self):
         with self.assertRaises(ValueError):
             lines_of(pb_key(1, 0) + b"\x80")
 
-    def test_missing_length_raises_index_error(self):
+    def test_missing_length_raises_value_error(self):
         with self.assertRaises(ValueError):
             lines_of(pb_key(1, 2))
 

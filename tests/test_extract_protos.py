@@ -1,6 +1,10 @@
 """Tests for tools/extract_protos.py on synthetic descriptors: varint/fields, parse_*, render, scan(), sort_deps, main() on a fake exe, CLI conventions."""
+import contextlib
+import io
 import random
+import sys
 import unittest
+from unittest import mock
 
 from support import (desc_enum, desc_field, desc_file, desc_message, pb_bytes, pb_f32, pb_f64, pb_int, pb_str,
                      pb_varint, run_tool, tmp)
@@ -516,6 +520,17 @@ class Main(unittest.TestCase):
             self.assertTrue(r.stderr.startswith("error:"), r.stderr)
             self.assertLessEqual({p.name for p in work.iterdir()}, {"out", "x.exe"})
             self.assertFalse((d / "esc_out.proto").exists())
+
+    # R1-013: every descriptor used to be parsed 5 times per run (scan, dedupe, sort_deps, render, self-check)
+    def test_each_descriptor_blob_is_parsed_once_per_run(self):
+        blobs = [simple_file(f"f{i}.proto", deps=[f"f{i - 1}.proto"] if i else []) for i in range(8)]
+        with tmp() as d:
+            (d / "x.exe").write_bytes(build_exe(blobs, seed=3)[0])
+            argv = ["extract_protos.py", str(d / "x.exe"), str(d / "out")]
+            with mock.patch.object(ep, "parse_file", wraps=ep.parse_file) as parse, \
+                    mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+                ep.main()
+        self.assertEqual(parse.call_count, len(blobs))
 
 
 class CommandLine(unittest.TestCase):

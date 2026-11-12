@@ -198,6 +198,17 @@ def parse_file(b):
     return f
 
 
+PARSED = {}
+
+
+def parsed_file(b):
+    """parse_file memoized on the blob bytes for the current run (main() clears it), so each descriptor is parsed once."""
+    r = PARSED.get(b)
+    if r is None:
+        r = PARSED[b] = parse_file(b)
+    return r
+
+
 def scan(d):
     """Return [(offset, bytes)] for every strictly parsing FileDescriptorProto, in file order."""
     found = []
@@ -214,7 +225,7 @@ def scan(d):
             continue
         end = file_end(d, start)
         try:
-            parse_file(d[start:end])
+            parsed_file(d[start:end])
         except (ValueError, UnicodeDecodeError, TypeError):
             continue
         found.append((start, d[start:end]))
@@ -312,7 +323,7 @@ def render(f):
 
 def sort_deps(blobs):
     """Order {name: bytes} so dependencies come first; unresolved cycles keep discovery order."""
-    deps = {n: parse_file(b)["deps"] for n, b in blobs.items()}
+    deps = {n: parsed_file(b)["deps"] for n, b in blobs.items()}
     order, done = [], set()
 
     def visit(n, stack):
@@ -346,9 +357,10 @@ def main():
         d = exe.read_bytes()
     except OSError as e:
         sys.exit("error: %s" % e)
+    PARSED.clear()
     blobs, dups = {}, []
     for off, b in scan(d):
-        name = parse_file(b)["name"]
+        name = parsed_file(b)["name"]
         if name in blobs:
             dups.append((name, off, b == blobs[name]))
         else:
@@ -368,13 +380,13 @@ def main():
         desc += b"\x0a" + varint_bytes(len(blobs[n])) + blobs[n]
         p = out / n
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(render(parse_file(blobs[n])).encode("utf-8"))
+        p.write_bytes(render(parsed_file(blobs[n])).encode("utf-8"))
         written.add(p)
     (out / "acevo.desc").write_bytes(bytes(desc))
     print(f"wrote {out / 'acevo.desc'} ({len(desc)} bytes) and {len(order)} .proto files")
 
     recs = split_set((out / "acevo.desc").read_bytes())
-    parsed = [parse_file(r) for r in recs]
+    parsed = [parsed_file(r) for r in recs]
     names = {f["name"] for f in parsed}
     missing = sorted({dep for f in parsed for dep in f["deps"] if dep not in names})
     nproto = len(written)
