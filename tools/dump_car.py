@@ -3,9 +3,8 @@
 usage: python tools/dump_car.py <extracted_car_root> <out_dir>
   e.g. python tools/dump_car.py work/car/content/cars/<car_id> work/decoded/<car_id>
 
-Skips meshes, textures, materials and other heavy render assets. Field names are
-NOT available (numbers only) until the .proto schemas are extracted from the
-game executable (see docs/HANDOVER.md).
+Skips meshes, textures, materials and other heavy render assets.
+Numbers only, no field names: this is the schema-less fallback. For named, editable output use tools/car_json.py decode (needs schemas/, see tools/extract_protos.py).
 """
 import pathlib
 import sys

@@ -7,7 +7,7 @@ usage:
 
 build:   copies <car_dir> (basename = old car id) to <out_dir>/content/cars/<new_id>/, replaces the old id by
          <new_id> in every file name, folder name and file content (case-insensitive, all-upper matches stay upper),
-         writes <new_id>.moddedcarcontent (default --name <new id> + "_MY"; --property1/2/3 are enum names such as
+         writes <new_id>.moddedcarcontent (default --name <new id> + "_MY"; --year defaults to 2003 and --brand to BMW (the values of the BMW M3 E46 CSL, not read from the car; tune.py passes the real ones); --property1/2/3 are enum names such as
          Property1_Road, default Property1_Road / Property2_YoungTimer / Property3_ICE) and, when --loc is given,
          uiresources/localization/en.cars.loc (UTF-8 without BOM, CRLF; <car_dir> must not contain that file):
          every line of the stock file whose key starts with <old id>_ with that prefix renamed to <new_id>; the

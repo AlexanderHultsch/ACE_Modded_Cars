@@ -251,6 +251,7 @@ def render_message(m, pkg, proto3, ind, lines):
             entries[n["name"]] = (ft(kv[1]), ft(kv[2]))
     lines.append(f"{ind}message {m['name']} {{")
     inner = ind + "  "
+    # proto3 "optional" is stored as a synthetic oneof with a single proto3_optional field: render it as a plain optional field, not a oneof
     synth = {i for i, _ in enumerate(m["oneofs"])
              if all(f["proto3_optional"] for f in m["fields"] if f["oneof"] == i)}
     for f in m["fields"]:

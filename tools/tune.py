@@ -12,8 +12,8 @@ usage:
 
 --car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
 rejected with the closest matches. The game's cars come from system/cars.table, read once and cached in
-<work>/cars_index.json (id, display_name, brand, year of every car). When there is no cache and the game package is not
-reachable, the tested cars of tuner/cars.json (a default car, a "note" and a list of {id, label}) are the only cars.
+<work>/cars_index.json (id, display_name, brand, year of every car), never refreshed by the tool: delete the file after a game update to rebuild it. When there is no cache and the game package is not
+reachable, the tested cars of tuner/cars.json (a default car, a free-text "note" that no code reads, and a list of {id, label}) are the only cars.
 Cars outside that list are untested: init, apply and doc print "note: <id> is not in the tested list; results are
 unverified". <car> below is the chosen stock car id, <new_id> its tuned copy (default: ax_ plus the stock id without
 its ks_, e.g. ks_bmw_m3_e46_csl -> ax_bmw_m3_e46_csl; other prefixes: ax plus the id without its first two
@@ -37,7 +37,7 @@ init:    extracts the stock car from the game package into <work>/<car>/base (sk
           set, show and apply do that on first need for bases extracted earlier. Without the game package the tyre
           settings are hidden ("shared tyre files not extracted").
 defaults: reads every applicable setting of tuner/catalogue.json from <work>/<car>/base, prints the table and writes
-          <work>/<car>/defaults.json. A setting is applicable when all its required targets resolve for the car; the
+          <work>/<car>/defaults.json (for inspection, nothing reads it back). A setting is applicable when all its required targets resolve for the car; the
           others are hidden: their number is printed, --hidden lists each with its reason. When the copies of a value of
           an applicable setting disagree in the stock data, they are listed in the section "copies differ in the stock
           data" (the default shown is the value of the first required target); that is not an error.
@@ -59,8 +59,10 @@ doc:      writes a Markdown reference of the settings applicable to the car with
           <work>/<car>/base to <file> (default docs/settings/<car>.md in the repository); the car must be extracted.
           --all writes that file for every tested car of tuner/cars.json, extracting the cars that are not extracted
           yet first (--car and --out cannot be combined with --all).
-<work> defaults to %USERPROFILE%\\ace_modded_cars_work. Writes nothing outside <work> and the mods folder. File
+<work> defaults to %USERPROFILE%\\ace_modded_cars_work. --game is accepted by cars and init only; the other commands use the default Steam path of the game package for what they extract on first need. Writes nothing outside <work>, the mods folder and, for doc, the Markdown file (default docs/settings/ in the repository, or --out). File
 operations on car trees use extended-length paths (kspkg.long_path), so deep Windows paths work.
+
+Catalogue settings: id, group, label, kind (value, curve_scale, meta, flag), type (int, float, string, enum, bool), unit, description and verified are required. min/max are a suggested range (a value outside it only gives a warning). Kind value writes the value into all its targets; the default is read from the first required target. Kind curve_scale has a default factor and curve_from (file role and path of a curve file name); apply multiplies the value of every point of that curve by the factor. Kind meta needs a handler (variant_name, name_suffix) and a default or a default_template (text with {stock_variant_name}). An enum lists its choices.
 
 Catalogue field paths (inside the JSON that car_json decodes): dot-separated names, name[3] = list element by index,
 name[key=VALUE] = the list element whose field key equals VALUE, name[*] = every element of the list (all existing
@@ -137,6 +139,7 @@ DOC_NOT_COVERED = (
 CARS_TABLE = "system\\cars.table"
 STOCK_LOC = "uiresources\\localization\\en.cars.loc"
 STOCK_PROPERTIES = ("property_1", "property_2", "property_3")
+# apply fallback for the default car when stock_info.json is missing and the game is not reachable: the values of the BMW M3 E46 CSL
 CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
 NAME_SUFFIX_MAX = 30
 KINDS = ("value", "curve_scale", "meta", "flag")
@@ -352,6 +355,7 @@ def to_f32(x):
     return v
 
 
+# the float32's shortest decimal as a double (0.1, not 0.10000000149011612), for display and for comparing with the typed value
 def plain(v):
     return float(v.text) if isinstance(v, car_json.F32) else v
 
@@ -416,6 +420,7 @@ def range_warning(s, v):
     return None
 
 
+# float copies from different files may differ in the last float32 digit; 1e-5 relative is well above float32 resolution (about 1.2e-7)
 def same(s, a, b):
     if s["type"] == "float" and a is not None and b is not None:
         a, b = to_f32(a), to_f32(b)
@@ -680,6 +685,7 @@ def write_stock_info(work, car_id, game=DEFAULT_GAME):
             "year": rows[0].get("year")}
     if not valid_stock_info(info, car_id):
         raise ValueError("%s: the row of %s lacks display_name, brand or year" % (CARS_TABLE, car_id))
+    # proto3 leaves an enum at value 0 off the wire: absent property = the enum's value 0 name
     for i, key in enumerate(STOCK_PROPERTIES, 1):
         info[key] = rows[0].get(key) or schema()["enums"]["CarContentData.Property%d" % i][1][0]
     info["variant_name"] = clone_car.stock_variant(stock_loc_path(work), car_id)
@@ -689,6 +695,7 @@ def write_stock_info(work, car_id, game=DEFAULT_GAME):
     return "written"
 
 
+# best effort: when the game or the schemas are unavailable the car keeps whatever stock_info.json it has (or none) and callers fall back to the preset name
 def stock_info_or_none(work, car_id, game=DEFAULT_GAME):
     info = load_stock_info(work, car_id)
     if not complete_stock_info(info):
@@ -761,6 +768,7 @@ def init(work, car_id, game=DEFAULT_GAME):
     else:
         if not os.path.isfile(game):
             raise ValueError("game package not found: %s" % game)
+        # extract next to base and rename, so an interrupted extraction never leaves a half-filled base that count_tree would accept
         part = base + ".partial"
         os.makedirs(kspkg.long_path(car_work(work, car_id)), exist_ok=True)
         if os.path.exists(kspkg.long_path(part)):
@@ -785,6 +793,7 @@ def init(work, car_id, game=DEFAULT_GAME):
 
 
 def read_file(car_root, rel, cache):
+    """Decoded file below car_root (rel as returned by resolve_file), cached by rel; the same dict also holds the ("role", file) entries of resolve_file."""
     if rel not in cache:
         cache[rel] = load_msg(car_path(car_root, rel))[0]
     return cache[rel]
@@ -943,6 +952,7 @@ def ensure_tyre_files(work, car_id, game=DEFAULT_GAME, cache=None):
         if not os.path.isfile(game):
             raise ValueError("game package not found: %s" % game)
         for p in missing:
+            # kspkg and clone_car print their progress: keep it out of this command's output
             with contextlib.redirect_stdout(io.StringIO()):
                 kspkg.cmd_extract(game, root, p)
         gone = [p for p in missing if not tyre_present(root, p)]
@@ -1137,6 +1147,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     root = base_dir(work, car_id)
     if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
         raise ValueError("no base car in %s, run init first" % root)
+    # ids only: the "unused" folder never exists, an old build of the same id is replaced below
     clone_car.validate(car_id, new_id, os.path.join(build_dir(work, car_id), "unused"))
     rows = effective_rows(work, car_id, cat, hidden=True)
     changed = [(s, r) for s, r in zip(cat["settings"], rows) if r["changed"]]
@@ -1148,6 +1159,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         raise ValueError("stock info missing, run init with the game installed")
     info = info or {}
     out_dir = os.path.join(build_dir(work, car_id), new_id)
+    # the build always starts from the pristine base, a leftover build of this id is replaced
     if os.path.exists(kspkg.long_path(out_dir)):
         remove_tree(work, out_dir)
     meta = {s["handler"]: r["value"] for s, r in zip(cat["settings"], rows) if s["kind"] == "meta"}
@@ -1159,6 +1171,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     car_name = (info.get("display_name") or preset_display_name(car_root_of(root, car_id))) + meta["name_suffix"]
     log = io.StringIO()
     try:
+        # kspkg and clone_car print their progress: keep it out of this command's output
         with contextlib.redirect_stdout(log):
             notes = clone_car.build(car_root_of(root, car_id), new_id, out_dir, car_name,
                                     info.get("year", CLONE_YEAR), info.get("brand", CLONE_BRAND),
@@ -1168,6 +1181,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip())
     car_root = car_root_of(out_dir, new_id)
     edits, tyre_edits, applied = {}, {}, []
+    # flags last: a flag wins over a value on the same field
     for s, r in sorted(changed, key=lambda sr: sr[0]["kind"] == "flag"):
         item = {"id": s["id"], "old": r["default"], "new": r["value"], "files": []}
         applied.append(item)
@@ -1207,6 +1221,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     for role, items in tyre_edits.items():
         notes.append(build_tyre(root, car_id, new_id, car_root, role, items, cache))
     pkg = os.path.join(out_dir, new_id + ".kspkg")
+    # kspkg and clone_car print their progress: keep it out of this command's output
     with contextlib.redirect_stdout(io.StringIO()):
         kspkg.cmd_pack(out_dir, pkg)
     result = {"new_id": new_id, "build_dir": out_dir, "package": pkg, "size": os.path.getsize(pkg),
@@ -1214,7 +1229,9 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     if install:
         mods = os.path.abspath(os.path.expandvars(mods_dir or clone_car.DEFAULT_MODS))
         backups = os.path.join(work, "backups")
+        # clone_car.install only prints the backup name, so find it as the new file in the backups folder
         before = listing(backups)
+        # kspkg and clone_car print their progress: keep it out of this command's output
         with contextlib.redirect_stdout(io.StringIO()):
             clone_car.install(pkg, mods, backups)
         new = sorted(listing(backups) - before)
@@ -1314,6 +1331,7 @@ def note_untested(car_id):
 
 
 def doc_text(car_id, display_name, rows):
+    """Markdown reference of one car: one table per group, the copies-differ section when needed, the fixed "Not covered yet" list."""
     def cell(text):
         return str(text).replace("|", "\\|")
 
@@ -1359,7 +1377,7 @@ def start(opts):
 
 
 def main():
-    cmd =sys.argv[1] if len(sys.argv) > 1 else ""
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
         if cmd == "cars":
             pos, opts = parse_args(sys.argv[2:], ("game", "mods", "work"), ("tested",))

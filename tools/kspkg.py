@@ -75,13 +75,13 @@ def read_table(f):
     size = f.tell()
     f.seek(size - TBL)
     raw = f.read(TBL)
-    key = raw[-8:]           # table tail is zero padding -> equals key
+    key = raw[-8:]           # tail is zero padding; 0 ^ key = key, and the length (64 MiB) is a multiple of 8, so the phase matches
     entries = []
     for i in range(0, TBL, ENTRY):
         e = xor(raw[i:i + ENTRY], key)
         flags, plen = struct.unpack_from("<hh", e, 0xE4)
         h, fsize, foff = struct.unpack_from("<Qqq", e, 0xE8)
-        if h == 0:
+        if h == 0:  # entries are packed from the start, the rest of the table is zero
             break
         entries.append(dict(path=e[:plen].decode("utf-8", "replace"), flags=flags,
                             hash=h, size=fsize, off=foff))

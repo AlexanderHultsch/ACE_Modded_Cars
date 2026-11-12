@@ -18,6 +18,9 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765) and 
 Every route takes an optional car id of the game (the list is cached in <work>/cars_index.json, see tune.py; without it
 and without the game package only the tested cars of tuner/cars.json): the query parameter ?car=<id> on GET, the field
 "car" in the JSON body on POST (any other id is a 400 error). Without it the default car of tuner/cars.json is used.
+
+Answers: JSON {"error": text} with 400 (bad input, unknown car), 403 (wrong Host, missing X-Tuner or Content-Type), 404 (unknown path), 409 (base car missing, another job running, game running), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200. Other HTTP methods get the standard 501 page.
+
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of that car; the old single-car layout of the work folder
 is moved into the default car's folder when the server starts.
@@ -49,11 +52,13 @@ DEFAULT_PORT = 8765
 GAME_EXE = "AssettoCorsaEVO.exe"
 MAX_BODY = 65536
 MODES = ("update", "new_copy")
+# routes that start a background job answer 202 instead of 200
 ACCEPTED = ("/api/init", "/api/apply")
 
 CONFIG = {"port": DEFAULT_PORT, "work": None, "mods": None}
 JOB = {"kind": None, "state": "idle", "log": [], "result": None, "error": None}
 JOB_LOCK = threading.Lock()
+# STATE_LOCK serializes tune_state.json edits and row builds; JOB_LOCK guards the JOB dict (the job thread does not take STATE_LOCK)
 STATE_LOCK = threading.Lock()
 
 
@@ -298,12 +303,14 @@ POST_ROUTES = {"/api/set": api_set, "/api/unset": api_unset, "/api/reset_all": a
                "/api/init": api_init, "/api/apply": api_apply}
 
 
+# DNS rebinding: a hostile site resolving to 127.0.0.1 sends its own Host header
 def check_host(host):
     port = CONFIG["port"]
     if (host or "").lower() not in ("127.0.0.1:%d" % port, "localhost:%d" % port):
         raise ApiError(403, "forbidden host")
 
 
+# a cross-site form or no-cors fetch cannot send X-Tuner or application/json without a preflight, and no CORS is answered
 def check_post_headers(headers):
     if headers.get("X-Tuner") != "1":
         raise ApiError(403, "missing header X-Tuner: 1")
@@ -380,6 +387,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    # the page polls /api/state every few seconds; keep that out of the console
     def log_message(self, fmt, *args):
         if "/api/state" not in getattr(self, "path", ""):
             http.server.BaseHTTPRequestHandler.log_message(self, fmt, *args)

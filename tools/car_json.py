@@ -13,7 +13,7 @@ printed paths stay normal.
 JSON model (one object per message, keys = schema field names in wire order):
   - a key is present only if the field was on the wire; the encoder never invents defaults
   - repeated fields are arrays; nested messages are objects ({} when present but empty)
-  - enum = value name (int if unknown), bytes = "hex:..", nan/inf = "nan"/"inf"/"-inf"
+  - enum = value name (int if unknown), bytes = "hex:..", nan/inf = "nan"/"inf"/"-inf" (NaN keeps neither sign nor payload: a file with a NaN other than 0x7FC00000 / 0x7FF8000000000000 does not round-trip and is reported)
   - float = shortest decimal that parses back to the same float32 bits
 Reserved keys (start with "_", only present when needed for an exact round trip):
   _order    [field names, one per wire occurrence] when the wire order is not ascending field number
@@ -36,8 +36,8 @@ import kspkg  # noqa: E402
 
 DESC = pathlib.Path(__file__).resolve().parent.parent / "schemas" / "acevo.desc"
 
-# Only extensions where exactly one candidate message decoded every sample file strictly
-# (no wire-type mismatch, no unknown fields, exact round trip).
+# Only extensions where exactly one candidate message decoded every sample file with an exact round trip. Wire-type mismatches and unknown fields
+# (e.g. the legacy tail of .drivetrain) do not exclude a type: they are kept in _unknown. Unmapped on purpose: .actor, .cardisplaysystem, .carwipersystem, .tyremesh.
 TYPES = {
     "aicardata": "AiCarData",
     "brakesystem": "BrakesData",
@@ -468,6 +468,7 @@ def check(root):
             continue
         with open(p, "rb") as f:
             obj, err = roundtrip(sch, TYPES[ext], f.read())
+        # per extension: [files, ok, failed, unknown entries, of which wire-type mismatches]
         s = stats.setdefault(ext, [0, 0, 0, 0, 0])
         s[0] += 1
         if err:
