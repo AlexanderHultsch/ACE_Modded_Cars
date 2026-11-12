@@ -4,7 +4,7 @@ Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of 
 
 ## 1. The project in short
 
-A local table page to tune the Assetto Corsa EVO BMW M3 E46 CSL for drifting: read the car's data with real field names, change values, build an own copy of the car (`ax_bmw_m3_e46_csl`, shown as "Alex E46 Drift"), install it in the game's mods folder, drive, repeat. Driving settings only, no cosmetics. Version 1 is built (71 settings). Open: confirm in the game that edits take effect and tune the feel on the gaming PC.
+A local table page to tune the Assetto Corsa EVO BMW M3 E46 CSL for drifting: read the car's data with real field names, change values, build an own copy of the car (`ax_bmw_m3_e46_csl`, shown as "MY_BMW M3 E46 CSL" by default: `MY_` plus the stock display name from the game's `system\cars.table`), install it in the game's mods folder, drive, repeat. Driving settings only, no cosmetics. Version 1 is built (71 settings). Open: confirm in the game that edits take effect and tune the feel on the gaming PC.
 
 ## 2. Where you are working: local or cloud
 
@@ -15,14 +15,14 @@ A local table page to tune the Assetto Corsa EVO BMW M3 E46 CSL for drifting: re
 | Can do | everything: extract the stock car, build, install, read game logs, run the tuner page | code and docs work that needs only the repo; analysis of text files |
 | Cannot do | | extract from the game, `schemas/` (git-ignored, must be regenerated locally), install, any test with real game files |
 
-State that lives only on the local PC and is not in git: `schemas/` (from the SDK Editor exe), the work folder `C:\Users\alexa\ace_modded_cars_work` (stock car copy, builds, backups, `tune_state.json`), the installed package in `Saved Games\ACE\mods\`, game logs, and the untracked `mod_examples/` (third-party example mods). In the last local session the +20 hp package (display 380 PS, power scale 1.056) was installed; backups are in the work folder. Nothing was left half-done. To hand over to the cloud: commit and push first. To come back to the local PC: pull, and re-run `tools\extract_protos.py` only if `schemas/` is missing.
+State that lives only on the local PC and is not in git: `schemas/` (from the SDK Editor exe), the work folder `C:\Users\alexa\ace_modded_cars_work` (stock car copy, builds, backups, `tune_state.json`), the installed package in `Saved Games\ACE\mods\`, and game logs. In the last local session the +20 hp package (display 380 PS, power scale 1.056) was installed; backups are in the work folder. Several cars are planned (TUNER_SPEC section 8); the game has 71 cars, only chosen ones are extracted. Nothing was left half-done. To hand over to the cloud: commit and push first. To come back to the local PC: pull, and re-run `tools\extract_protos.py` only if `schemas/` is missing.
 
 Local setup: Python 3.12 (not on PATH): `C:\Users\alexa\AppData\Local\Programs\Python\Python312\python.exe`, run tools with `-I`. Git for Windows installed; commits use the GitHub noreply address. **Gotcha:** the Claude desktop app writes under `AppData\Local` into a private redirected folder that the user's own terminal cannot see; keep work data outside AppData (and outside OneDrive).
 
 ## 3. Working rules
 
 - Process: Claude plans and reviews; subagents write all code under the user's "executor contract" (stock general-purpose subagent, model haiku for mechanical one or two file jobs, sonnet where judgment is needed; the contract text is copied verbatim into every delegation). One step at a time; the parent runs the verification itself and reads the diff; never accept a green run reached by weakening a test. Show a plan and wait for the user's OK before building.
-- Vendor data stays out of git: `schemas/`, the work folder, `*.kspkg`, game and SDK files. `mod_examples/` is local, third-party and untracked.
+- Vendor data stays out of git: `schemas/`, the work folder, `*.kspkg`, game and SDK files. Third-party mods are not kept in the repo (the local example-mod folder was deleted; only the driving-data text dumps remain in `Example mods (reference only)/`).
 - Test with scratch folders (`--work <dir>`, `--mods <dir>`); never touch the real work folder's state, the real mods folder, the game folder, the SDK folder or the stock cars while testing. Always back up before replacing a package (the tools do).
 - Edit car data only through `tools/car_json.py` (lossless). A setting changes every copy of a value.
 - Do not use `Nenkai/ACEvo.Package` (its AGENTS.md prohibits use by AI tools).

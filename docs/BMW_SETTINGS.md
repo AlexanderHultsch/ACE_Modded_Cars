@@ -6,7 +6,7 @@ This file lists every setting of the tuner (`tuner/catalogue.json`) with its def
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
-| `car_name` | Car name | Alex E46 Drift |  | Name of the tuned car in the game's car list (display_name of the .moddedcarcontent file written by the build). | verified |
+| `car_name` | Car name | MY_BMW M3 E46 CSL |  | Name of the tuned car in the game's car list (display_name of the .moddedcarcontent file written by the build). The default is MY_ plus the stock car's name from the game, you can change it. | verified |
 | `variant_name` | Variant name | E46 CSL Drift |  | Name of the car's preset/variant (text in en.cars.loc written by the build). Where exactly the game shows it is not confirmed. | unverified |
 
 ## Display

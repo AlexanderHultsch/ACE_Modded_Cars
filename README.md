@@ -2,7 +2,7 @@
 
 Change the driving settings of the Assetto Corsa EVO BMW M3 E46 CSL in a simple table, install your own tuned copy of the car next to the stock one, drive a lap, close the game, change again. About 70 settings: engine, gearing, differential, brakes, springs, dampers, alignment, fuel. No cosmetics.
 
-Your tuned car is called **Alex E46 Drift**. The stock BMW is never changed.
+Your tuned car is called **MY_BMW M3 E46 CSL** by default (`MY_` plus the stock car's name from the game; you can change the name in the table). The stock BMW is never changed.
 
 ## What you need
 
@@ -24,7 +24,7 @@ Your tuned car is called **Alex E46 Drift**. The stock BMW is never changed.
 1. Close the game (the tuner refuses to install while it runs).
 2. In the table, change values. Each row shows: variable name, your value, a description, and the BMW's default. Changed rows turn yellow and have a **reset** button. Use the search box to find a setting, or tick **changed only** to see what you changed.
 3. Press **Apply (update my BMW)**. After a few seconds the green message tells you the package was installed. Press **Save as new copy…** instead to keep the previous tuned car and install another one next to it (you type a new car id with exactly 17 lowercase letters, digits or underscores).
-4. Start the game, open Vehicle Selection, pick **Alex E46 Drift**, drive.
+4. Start the game, open Vehicle Selection, pick **MY_BMW M3 E46 CSL** (or the name you chose), drive.
 5. Close the game and repeat.
 
 "unverified" next to a description means the meaning is guessed from the setting's name and not yet confirmed in the game. Every setting is explained in [docs/BMW_SETTINGS.md](docs/BMW_SETTINGS.md).

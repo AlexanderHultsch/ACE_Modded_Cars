@@ -3,8 +3,8 @@
   "settings": [
     {
       "id": "car_name", "group": "Meta", "label": "Car name", "kind": "meta", "type": "string", "unit": "",
-      "description": "Name of the tuned car in the game's car list (display_name of the .moddedcarcontent file written by the build).",
-      "verified": true, "default": "Alex E46 Drift", "handler": "car_name", "targets": []
+      "description": "Name of the tuned car in the game's car list (display_name of the .moddedcarcontent file written by the build). The default is MY_ plus the stock car's name from the game, you can change it.",
+      "verified": true, "default_template": "MY_{stock_display_name}", "handler": "car_name", "targets": []
     },
     {
       "id": "variant_name", "group": "Meta", "label": "Variant name", "kind": "meta", "type": "string", "unit": "",

@@ -9,7 +9,9 @@ usage:
   python tools/tune.py apply    [--new-id ID] [--no-install] [--mods <dir>] [--work <dir>]
   python tools/tune.py doc      [--out <file>] [--work <dir>]
 
-init:    extracts the stock car from the game package into <work>/base (skipped when already there).
+init:    extracts the stock car from the game package into <work>/base (skipped when already there) and writes
+          <work>/stock_info.json (car id, display name, brand, year from the game's system/cars.table) when missing.
+          The other commands create that file on first need; without it the name is derived from the car's preset.
 defaults: reads every setting of tuner/catalogue.json from <work>/base, prints the table and writes
           <work>/defaults.json. Exit 1 when a target cannot be resolved or the copies of a value disagree.
 set/unset/show: edit and print <work>/tune_state.json ({setting id: value}).
@@ -59,6 +61,7 @@ DOC_NOT_COVERED = (
     "tyre model and compound data (shared game files, not in the car folder)", "aero",
     "electronics (TC/ABS)", "bump stops and caster", "damper limits", "engine map (`maps[]`) values",
     "turbo (the E46 is naturally aspirated)")
+CARS_TABLE = "system\\cars.table"
 CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
 KINDS = ("value", "curve_scale", "meta")
 VALUE_TYPES = ("int", "float", "string", "enum")
@@ -119,8 +122,10 @@ def load_catalogue(path=CATALOGUE):
             raise ValueError("%s: setting %r needs targets with file and path" % (path, s["id"]))
         if s["kind"] == "curve_scale" and not ("default" in s and {"file", "path"} <= set(s.get("curve_from", {}))):
             raise ValueError("%s: setting %r needs default and curve_from with file and path" % (path, s["id"]))
-        if s["kind"] == "meta" and not (s.get("handler") in HANDLERS and isinstance(s.get("default"), str)):
-            raise ValueError("%s: setting %r needs a handler (%s) and a string default" % (path, s["id"], "/".join(HANDLERS)))
+        if s["kind"] == "meta" and not (s.get("handler") in HANDLERS
+                                        and (isinstance(s.get("default"), str) or isinstance(s.get("default_template"), str))):
+            raise ValueError("%s: setting %r needs a handler (%s) and a string default or default_template"
+                             % (path, s["id"], "/".join(HANDLERS)))
     return cat
 
 
@@ -371,12 +376,90 @@ def listing(path):
     return set(os.listdir(path)) if os.path.isdir(path) else set()
 
 
+def stock_info_path(work):
+    return os.path.join(work, "stock_info.json")
+
+
+def valid_stock_info(info, car_id):
+    return (isinstance(info, dict) and info.get("car_id") == car_id
+            and all(isinstance(info.get(k), str) and info[k] for k in ("display_name", "brand"))
+            and type(info.get("year")) is int)
+
+
+def load_stock_info(work, car_id):
+    path = stock_info_path(work)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        info = json.load(f)
+    if not valid_stock_info(info, car_id):
+        raise ValueError("%s: expected car_id %s with display_name, brand and year" % (path, car_id))
+    return info
+
+
+def write_stock_info(work, car_id, game=DEFAULT_GAME):
+    """Make sure <work>/stock_info.json exists, read from the game's cars.table; returns "present" or "written"."""
+    if load_stock_info(work, car_id):
+        return "present"
+    if not os.path.isfile(game):
+        raise ValueError("game package not found: %s" % game)
+    tmp = os.path.join(work, "stock_tmp")
+    os.makedirs(work, exist_ok=True)
+    if os.path.exists(tmp):
+        remove_tree(work, tmp)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            kspkg.cmd_extract(game, tmp, CARS_TABLE)
+        table_file = os.path.join(tmp, *CARS_TABLE.split("\\"))
+        if not os.path.isfile(table_file):
+            raise ValueError("%s not found in %s" % (CARS_TABLE, game))
+        with open(table_file, "rb") as f:
+            data = f.read()
+    finally:
+        if os.path.exists(tmp):
+            remove_tree(work, tmp)
+    lines = car_json.decode_msg(schema(), "TableData", data).get("preset", {}).get("lines", [])
+    rows = [l["car_content"] for l in lines if l.get("car_content", {}).get("name") == car_id]
+    if len(rows) != 1:
+        raise ValueError("%s has %d rows for %s, expected 1" % (CARS_TABLE, len(rows), car_id))
+    info = {"car_id": car_id, "display_name": rows[0].get("display_name"), "brand": rows[0].get("brand"),
+            "year": rows[0].get("year")}
+    if not valid_stock_info(info, car_id):
+        raise ValueError("%s: the row of %s lacks display_name, brand or year" % (CARS_TABLE, car_id))
+    with open(stock_info_path(work), "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(info, indent=2, ensure_ascii=False) + "\n")
+    return "written"
+
+
+def stock_info_or_none(work, car_id, game=DEFAULT_GAME):
+    info = load_stock_info(work, car_id)
+    if info is None:
+        try:
+            write_stock_info(work, car_id, game)
+            info = load_stock_info(work, car_id)
+        except (ValueError, OSError):
+            return None
+    return info
+
+
+def preset_display_name(car_root):
+    folder = os.path.join(car_root, "presets")
+    names = sorted(n for n in listing(folder) if n.endswith(".mechanicalcarpreset"))
+    if not names:
+        raise ValueError("no mechanical preset in %s to derive the stock car name from" % folder)
+    preset = load_msg(os.path.join(folder, names[0]))[0]
+    text = ("%s %s" % (preset.get("brand", ""), preset.get("description", ""))).strip()
+    return re.sub(r" Preset Base$", "", text)
+
+
 def init(work, game=DEFAULT_GAME, catalogue=None):
     car_id = (catalogue or load_catalogue())["car_id"]
     base = os.path.join(work, "base")
     car_root = car_root_of(base, car_id)
     if os.path.isdir(car_root) and count_tree(car_root)["files"]:
-        return dict(count_tree(car_root), present=True, dir=car_root)
+        res = dict(count_tree(car_root), present=True, dir=car_root)
+        res["stock_info"] = write_stock_info(work, car_id, game)
+        return res
     if not os.path.isfile(game):
         raise ValueError("game package not found: %s" % game)
     part = base + ".partial"
@@ -392,7 +475,9 @@ def init(work, game=DEFAULT_GAME, catalogue=None):
     if os.path.exists(base):
         remove_tree(work, base)
     os.rename(part, base)
-    return dict(count_tree(car_root), present=False, dir=car_root)
+    res = dict(count_tree(car_root), present=False, dir=car_root)
+    res["stock_info"] = write_stock_info(work, car_id, game)
+    return res
 
 
 def read_file(car_root, rel, cache):
@@ -431,12 +516,16 @@ def resolve_target(s, t, car_root, cache):
     return out
 
 
-def resolve_defaults(work, catalogue=None):
+def resolve_defaults(work, catalogue=None, game=DEFAULT_GAME):
     cat = catalogue or load_catalogue()
     root = os.path.join(work, "base")
     car_root = car_root_of(root, cat["car_id"])
     if not os.path.isdir(car_root):
         raise ValueError("no base car in %s, run init first" % root)
+    stock_name = None
+    if any("default_template" in s for s in cat["settings"]):
+        info = stock_info_or_none(work, cat["car_id"], game)
+        stock_name = info["display_name"] if info else preset_display_name(car_root)
     cache, rows = {}, []
     for s in cat["settings"]:
         row = {k: s[k] for k in REQUIRED if k != "description"}
@@ -451,7 +540,9 @@ def resolve_defaults(work, catalogue=None):
         row["targets"] = targets
         row["resolved"] = all(t["resolved"] for t in targets)
         row["consistent"] = all(same(s, v, values[0]) for v in values)
-        row["default"] = s["default"] if "default" in s else values[0] if values else None
+        row["default"] = (s["default"] if "default" in s
+                          else s["default_template"].replace("{stock_display_name}", stock_name)
+                          if "default_template" in s else values[0] if values else None)
         row["absent"] = any(t.get("absent") for t in targets)
         row["ok"] = row["resolved"] and row["consistent"]
         rows.append(row)
@@ -492,10 +583,12 @@ def apply(work, new_id=DEFAULT_NEW_ID, install=True, mods_dir=None, catalogue=No
     if os.path.exists(out_dir):
         remove_tree(work, out_dir)
     meta = {s["handler"]: r["value"] for s, r in zip(cat["settings"], rows) if s["kind"] == "meta"}
+    info = load_stock_info(work, car_id) or {}
     log = io.StringIO()
     try:
         with contextlib.redirect_stdout(log):
-            clone_car.build(car_root_of(root, car_id), new_id, out_dir, meta["car_name"], CLONE_YEAR, CLONE_BRAND,
+            clone_car.build(car_root_of(root, car_id), new_id, out_dir, meta["car_name"],
+                            info.get("year", CLONE_YEAR), info.get("brand", CLONE_BRAND),
                             meta["variant_name"], pack=False)
     except SystemExit:
         raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip())
@@ -611,6 +704,7 @@ def main():
             res = init(work_dir(opts.get("work")), os.path.expandvars(opts.get("game", DEFAULT_GAME)))
             print("base already present" if res["present"] else "extracted the stock car")
             print("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
+            print("stock info %s" % res["stock_info"])
         elif cmd == "defaults":
             pos, opts = parse_args(sys.argv[2:], ("work",))
             if pos:
