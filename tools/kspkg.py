@@ -32,6 +32,7 @@ HEADER = 1 << 20
 ENTRY = 0x100
 FLAG_DIR, FLAG_XOR = 1, 1 << 8
 KEY = bytes.fromhex("c135117da921979f")   # same key as the game's content.kspkg
+CHUNK = 8 << 20         # entry copy/hash chunk; a multiple of 8, so the XOR key phase restarts correctly at every chunk
 
 
 LONG_PREFIX = "\\\\?\\"
@@ -73,6 +74,8 @@ def path_hash(p):
 def read_table(f):
     f.seek(0, 2)
     size = f.tell()
+    if size < HEADER + TBL:
+        raise ValueError("%s is not a .kspkg package (smaller than header + 64 MiB table)" % f.name)
     f.seek(size - TBL)
     raw = f.read(TBL)
     key = raw[-8:]           # tail is zero padding; 0 ^ key = key, and the length (64 MiB) is a multiple of 8, so the phase matches
@@ -86,6 +89,19 @@ def read_table(f):
         entries.append(dict(path=e[:plen].decode("utf-8", "replace"), flags=flags,
                             hash=h, size=fsize, off=foff))
     return key, entries, size
+
+
+def copy_entry(f, e, key, write):
+    f.seek(e["off"])
+    left = e["size"]
+    while left > 0:
+        buf = f.read(min(CHUNK, left))
+        if not buf:
+            raise ValueError(f"{e['path']}: package truncated (read {e['size'] - left} of {e['size']} bytes at offset {e['off']})")
+        if e["flags"] & FLAG_XOR:
+            buf = xor(buf, key)
+        write(buf)
+        left -= len(buf)
 
 
 def safe_path(root, p):
@@ -129,12 +145,8 @@ def cmd_extract(pkg, outdir, prefix=None):
                 os.makedirs(dst, exist_ok=True)
                 continue
             os.makedirs(os.path.dirname(dst), exist_ok=True)
-            f.seek(e["off"])
-            data = f.read(e["size"])
-            if e["flags"] & FLAG_XOR:
-                data = xor(data, key)
             with open(dst, "wb") as out:
-                out.write(data)
+                copy_entry(f, e, key, out.write)
     print(f"extracted {count} entries to {root}")
 
 
@@ -142,7 +154,7 @@ def cmd_pack(indir, pkg):
     root = long_path(indir)
     files, dirs = [], []
     for dp, dn, fn in os.walk(root):
-        parts = dp[len(root):].strip("\\").split("\\") if len(dp) > len(root) else []
+        parts = dp[len(root):].strip(os.sep).split(os.sep) if len(dp) > len(root) else []
         for n in dn:
             # observed: only folders at depth >= 3 (content\cars\<id>...) get entries
             if len(parts) + 1 >= 3:
@@ -186,11 +198,9 @@ def _contents(pkg):
             if e["flags"] & FLAG_DIR:
                 res[e["path"]] = ("D", e["hash"])
                 continue
-            f.seek(e["off"])
-            data = f.read(e["size"])
-            if e["flags"] & FLAG_XOR:
-                data = xor(data, key)
-            res[e["path"]] = (hashlib.sha256(data).hexdigest(), e["hash"])
+            hasher = hashlib.sha256()
+            copy_entry(f, e, key, hasher.update)
+            res[e["path"]] = (hasher.hexdigest(), e["hash"])
     return res
 
 
@@ -210,18 +220,22 @@ def cmd_verify(a, b):
 
 
 def main():
-    cmd = sys.argv[1]
-    if cmd == "list":
-        cmd_list(sys.argv[2])
-    elif cmd == "extract":
-        cmd_extract(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None)
-    elif cmd == "pack":
-        cmd_pack(sys.argv[2], sys.argv[3])
-    elif cmd == "verify":
-        sys.exit(0 if cmd_verify(sys.argv[2], sys.argv[3]) else 1)
-    else:
-        print(__doc__)
-        sys.exit(2)
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    args = sys.argv[2:]
+    try:
+        if cmd == "list" and len(args) == 1:
+            cmd_list(*args)
+        elif cmd == "extract" and len(args) in (2, 3):
+            cmd_extract(*args)
+        elif cmd == "pack" and len(args) == 2:
+            cmd_pack(*args)
+        elif cmd == "verify" and len(args) == 2:
+            sys.exit(0 if cmd_verify(*args) else 1)
+        else:
+            print(__doc__.split("\n\n")[1])
+            sys.exit(2)
+    except (ValueError, OSError) as e:
+        sys.exit("error: %s" % e)
 
 
 if __name__ == "__main__":

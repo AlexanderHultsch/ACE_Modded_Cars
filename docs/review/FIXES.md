@@ -19,6 +19,7 @@ Findings: `R1.md` .. `R5.md` in this folder (IDs like R1-005). Owner decisions o
 | R4-014 | Add `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'` |
 | R3-002 | Install copies to `<name>.kspkg.part` in the mods folder, size check, then `os.replace` |
 | R1-010 | Chunked extract/hash (CHUNK 8 MiB) |
+| R1-011 | Memoize `read_table` per (path, size, mtime) inside `kspkg.py` only (no signature change) |
 | R3-011 | Cache resolved rows in `tune.py` (invalidate on init/tyre extraction/catalogue or `.car` mtime change), one-setting resolve for the edit path |
 | R4-001 | Edits (set/unset/reset_all) are refused with 409 while a job runs |
 | R4-002 | Ctrl+C with a running job waits for it (second Ctrl+C aborts) |

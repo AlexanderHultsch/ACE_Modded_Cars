@@ -16,7 +16,6 @@ HEADER_SIZE = MIB
 TABLE_SIZE = 64 * MIB
 ENTRY_SIZE = 256
 DIR, XOR = 1, 0x100
-POSIX_BUG = unittest.expectedFailure if os.name != "nt" else (lambda f: f)
 
 
 def fnv(path):
@@ -250,11 +249,9 @@ class Packed(unittest.TestCase):
         for e in self.entries:
             self.assertEqual(e["path"], e["path"].lower())
 
-    @POSIX_BUG   # R1-007: pack splits on a hard-coded backslash, so entry names are mangled off Windows
     def test_pack_entry_names_use_backslashes_on_every_os(self):
         self.assertEqual(sorted(e["path"] for e in self.file_entries()), self.EXPECTED_NAMES)
 
-    @POSIX_BUG   # R1-007: directory entries (depth >= 3, including empty dirs) are missing off Windows
     def test_pack_writes_directory_entries_including_empty_ones(self):
         self.assertEqual(sorted(e["path"] for e in self.entries if e["flags"] & DIR), self.EXPECTED_DIRS)
 
@@ -448,14 +445,10 @@ class HandBuilt(unittest.TestCase):
         self.assertIn("IDENTICAL CONTENT", same.stdout)
         self.assertIn("differs:", diff.stdout)
 
-    # R1-005: a short read must be an error, today the file is silently written short
-    @unittest.expectedFailure
     def test_extract_of_a_truncated_package_raises(self):
         with tmp() as d, self.assertRaises(ValueError):
             capture(kspkg.cmd_extract, str(self.truncated), str(d / "out"))
 
-    # R1-005: verify hashes the short data without complaint
-    @unittest.expectedFailure
     def test_verify_of_a_truncated_package_raises(self):
         with self.assertRaises(ValueError):
             capture(kspkg.cmd_verify, str(self.truncated), str(self.truncated))
@@ -467,35 +460,25 @@ class CommandLine(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn(usage_block(), r.stdout)
 
-    # R1-006: usage block only (not the whole docstring) on stdout for a wrong command
-    @unittest.expectedFailure
     def test_unknown_command_prints_only_the_usage_block(self):
         r = run_tool("kspkg.py", "frobnicate")
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # R1-006: no arguments is a usage error (rc 2, usage on stdout), today an IndexError traceback
-    @unittest.expectedFailure
     def test_no_arguments_exits_2_with_usage_on_stdout(self):
         r = run_tool("kspkg.py")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # R1-006: list without a package operand is a usage error, today an IndexError traceback
-    @unittest.expectedFailure
     def test_list_without_operand_exits_2_with_usage_on_stdout(self):
         r = run_tool("kspkg.py", "list")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # R1-006: extract with a missing outdir is a usage error, today an IndexError traceback
-    @unittest.expectedFailure
     def test_extract_without_outdir_exits_2_with_usage_on_stdout(self):
         r = run_tool("kspkg.py", "extract", "only-one-operand.kspkg")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # R1-006: a missing package is "error: ..." on stderr with rc 1, today a FileNotFoundError traceback
-    @unittest.expectedFailure
     def test_list_of_a_missing_file_prints_error_on_stderr_and_exits_1(self):
         with tmp() as d:
             r = run_tool("kspkg.py", "list", d / "missing.kspkg")
@@ -503,8 +486,6 @@ class CommandLine(unittest.TestCase):
         self.assertTrue(r.stderr.startswith("error:"), r.stderr)
         self.assertNotIn("Traceback", r.stderr)
 
-    # R1-009 (printing as error: needs R1-006): a file smaller than header + table gives "error: ...", today an OSError traceback from the negative seek
-    @unittest.expectedFailure
     def test_list_of_a_file_smaller_than_the_table_prints_error_on_stderr_and_exits_1(self):
         with tmp() as d:
             small = d / "small.kspkg"
