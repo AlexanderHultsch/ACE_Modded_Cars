@@ -547,8 +547,6 @@ class TestStatedCounts(unittest.TestCase):
     def test_doc_rows_never_exceed_the_catalogue(self):
         self.assertTrue(all(0 < n <= len(SETTINGS) for n in self.counts.values()))
 
-    # R3-029: README says "About 110-140 settings per car" but a tested car has 142
-    @unittest.expectedFailure
     def test_readme_range_covers_the_tested_cars(self):
         m = re.search(r"About (\d+)\D+(\d+) settings per car", self.read("README.md"))
         self.assertIsNotNone(m)

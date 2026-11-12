@@ -1702,8 +1702,6 @@ class TestErrorChains(Base):
 
 
 class TestStdoutCapture(Base):
-    # R3-005: two threads capturing stdout at the same time must leave sys.stdout as it was
-    @unittest.expectedFailure
     def test_overlapping_captures_restore_stdout(self):
         real = sys.stdout
         self.addCleanup(setattr, sys, "stdout", real)

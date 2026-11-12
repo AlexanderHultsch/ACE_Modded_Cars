@@ -159,6 +159,7 @@ TYRE_UNAVAILABLE = "shared tyre files not extracted"
 
 _schema = []
 _tyre_lock = threading.Lock()
+_stdout_lock = threading.Lock()
 
 
 def schema():
@@ -646,7 +647,7 @@ def read_game_file(work, game, rel):
     if os.path.exists(tmp):
         remove_tree(work, tmp)
     try:
-        with contextlib.redirect_stdout(io.StringIO()):
+        with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
             kspkg.cmd_extract(game, tmp, rel)
         extracted = os.path.join(tmp, *rel.split("\\"))
         if not os.path.isfile(extracted):
@@ -773,7 +774,7 @@ def init(work, car_id, game=DEFAULT_GAME):
         os.makedirs(kspkg.long_path(car_work(work, car_id)), exist_ok=True)
         if os.path.exists(kspkg.long_path(part)):
             remove_tree(work, part)
-        with contextlib.redirect_stdout(io.StringIO()):
+        with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
             kspkg.cmd_extract(game, part, "content\\cars\\" + car_id)
         part_car = car_root_of(part, car_id)
         if not os.path.isdir(kspkg.long_path(part_car)) or not count_tree(part_car)["files"]:
@@ -953,7 +954,7 @@ def ensure_tyre_files(work, car_id, game=DEFAULT_GAME, cache=None):
             raise ValueError("game package not found: %s" % game)
         for p in missing:
             # kspkg and clone_car print their progress: keep it out of this command's output
-            with contextlib.redirect_stdout(io.StringIO()):
+            with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
                 kspkg.cmd_extract(game, root, p)
         gone = [p for p in missing if not tyre_present(root, p)]
         if gone:
@@ -1172,7 +1173,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     log = io.StringIO()
     try:
         # kspkg and clone_car print their progress: keep it out of this command's output
-        with contextlib.redirect_stdout(log):
+        with _stdout_lock, contextlib.redirect_stdout(log):
             notes = clone_car.build(car_root_of(root, car_id), new_id, out_dir, car_name,
                                     info.get("year", CLONE_YEAR), info.get("brand", CLONE_BRAND),
                                     meta["variant_name"], stock_loc, {k: info.get(k) for k in STOCK_PROPERTIES},
@@ -1222,7 +1223,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         notes.append(build_tyre(root, car_id, new_id, car_root, role, items, cache))
     pkg = os.path.join(out_dir, new_id + ".kspkg")
     # kspkg and clone_car print their progress: keep it out of this command's output
-    with contextlib.redirect_stdout(io.StringIO()):
+    with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
         kspkg.cmd_pack(out_dir, pkg)
     result = {"new_id": new_id, "build_dir": out_dir, "package": pkg, "size": os.path.getsize(pkg),
               "applied": applied, "notes": notes, "installed": None, "backup": None}
@@ -1232,7 +1233,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         # clone_car.install only prints the backup name, so find it as the new file in the backups folder
         before = listing(backups)
         # kspkg and clone_car print their progress: keep it out of this command's output
-        with contextlib.redirect_stdout(io.StringIO()):
+        with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
             clone_car.install(pkg, mods, backups)
         new = sorted(listing(backups) - before)
         result["installed"] = os.path.join(mods, os.path.basename(pkg))
