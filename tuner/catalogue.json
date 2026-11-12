@@ -29,7 +29,7 @@
     },
     {
       "id": "limiter", "group": "Engine", "label": "Rev limiter", "kind": "value", "type": "int", "unit": "rpm",
-      "description": "Engine rev limiter (EngineData.limiter). The engine cuts power when it reaches this speed. The stock value also appears in nominal_rpm, which is not changed.",
+      "description": "Engine rev limiter (EngineData.limiter). The engine cuts power when it reaches this speed. nominal_rpm and engine_damage_rpm are separate settings and should normally be raised together with the limiter.",
       "verified": true, "min": 3000, "max": 12000,
       "targets": [
         {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "limiter"},
@@ -50,6 +50,67 @@
       "description": "Multiplies the torque value of every point of the engine power curve. 1.0 is stock, 1.056 is about +20 hp.",
       "verified": true, "default": 1.0, "min": 0.5, "max": 2.0,
       "curve_from": {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "powerCurve"},
+      "targets": []
+    },
+    {
+      "id": "nominal_rpm", "group": "Engine", "label": "Nominal rpm", "kind": "value", "type": "float", "unit": "rpm",
+      "description": "Nominal (peak) engine speed reference of the engine (EngineData.nominal_rpm). The stock value equals the rev limiter. What the game uses it for is not confirmed.",
+      "verified": false, "min": 3000, "max": 12000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "nominal_rpm"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.nominal_rpm"}
+      ]
+    },
+    {
+      "id": "engine_damage_rpm", "group": "Engine", "label": "Engine damage rpm", "kind": "value", "type": "float", "unit": "rpm",
+      "description": "Engine speed above which the engine takes damage (EngineData.damage.rpmDamageThreshold). Raise it together with the rev limiter, otherwise running at the new limiter damages the engine.",
+      "verified": true, "min": 3000, "max": 14000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "damage.rpmDamageThreshold"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.damage.rpmDamageThreshold"}
+      ]
+    },
+    {
+      "id": "limiter_cycles", "group": "Engine", "label": "Limiter cut frequency", "kind": "value", "type": "int", "unit": "",
+      "description": "Frequency of the rev limiter cut (EngineData.limiterCycles). Assumed to set how quickly the limiter cuts and restores power at the limit, not confirmed.",
+      "verified": false, "min": 1, "max": 100,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "limiterCycles"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.limiterCycles"}
+      ]
+    },
+    {
+      "id": "engine_inertia", "group": "Engine", "label": "Engine inertia", "kind": "value", "type": "float", "unit": "kg m^2",
+      "description": "Rotational inertia of the engine (EngineData.inertia). Assumed: a higher value makes the engine speed rise and fall more slowly, not confirmed.",
+      "verified": false, "min": 0.01, "max": 1,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "inertia"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.inertia"}
+      ]
+    },
+    {
+      "id": "throttle_lag_up", "group": "Engine", "label": "Throttle lag up", "kind": "value", "type": "float", "unit": "",
+      "description": "Throttle response lag when the throttle is opened (EngineData.throttle_lag_up). Scale and effect are not confirmed. The engine map also stores its own value, which this setting does not change.",
+      "verified": false, "min": 0, "max": 1,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "throttle_lag_up"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.throttle_lag_up"}
+      ]
+    },
+    {
+      "id": "throttle_lag_dn", "group": "Engine", "label": "Throttle lag down", "kind": "value", "type": "float", "unit": "",
+      "description": "Throttle response lag when the throttle is closed (EngineData.throttle_lag_dn). Scale and effect are not confirmed. The engine map also stores its own value, which this setting does not change.",
+      "verified": false, "min": 0, "max": 1,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "throttle_lag_dn"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.throttle_lag_dn"}
+      ]
+    },
+    {
+      "id": "coast_scale", "group": "Engine", "label": "Coast scale", "kind": "curve_scale", "type": "float", "unit": "x",
+      "description": "Multiplies the value of every point of the engine coast (off-throttle) curve. From about 1000 rpm upwards the stock points are negative, so a higher factor means stronger engine braking there; the positive points at low rpm are scaled too. 1.0 is stock. Reading of the curve is assumed, not confirmed in the game.",
+      "verified": false, "default": 1.0, "min": 0, "max": 3,
+      "curve_from": {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "coastCurve"},
       "targets": []
     },
     {
@@ -113,6 +174,455 @@
       "targets": [
         {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gears[7].ratio"},
         {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gears[7].ratio"}
+      ]
+    },
+    {
+      "id": "autoshift_up_rpm", "group": "Gearing", "label": "Auto-shift up rpm", "kind": "value", "type": "int", "unit": "rpm",
+      "description": "Engine speed at which the automatic gearbox shifts up (GearBoxData.autoshifter.up). Raising it makes the automatic hold each gear longer; keep it below the rev limiter.",
+      "verified": true, "min": 3000, "max": 12000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "autoshifter.up"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.autoshifter.up"}
+      ]
+    },
+    {
+      "id": "gear_up_time", "group": "Gearing", "label": "Upshift time", "kind": "value", "type": "float", "unit": "ms",
+      "description": "Duration of an upshift (GearBoxData.gear_up_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts.",
+      "verified": false, "min": 0, "max": 1000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gear_up_time"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gear_up_time"}
+      ]
+    },
+    {
+      "id": "gear_dn_time", "group": "Gearing", "label": "Downshift time", "kind": "value", "type": "float", "unit": "ms",
+      "description": "Duration of a downshift (GearBoxData.gear_dn_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts.",
+      "verified": false, "min": 0, "max": 1000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gear_dn_time"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gear_dn_time"}
+      ]
+    },
+    {
+      "id": "auto_cut_off_time", "group": "Gearing", "label": "Auto cut-off time", "kind": "value", "type": "float", "unit": "ms",
+      "description": "Time the engine power is cut during an automatic shift (GearBoxData.auto_cut_off_time). Assumed to be milliseconds, not confirmed. A lower value shortens the power cut.",
+      "verified": false, "min": 0, "max": 1000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "auto_cut_off_time"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.auto_cut_off_time"}
+      ]
+    },
+    {
+      "id": "diff_power_default", "group": "Differential", "label": "Diff power lock", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: how strongly the rear differential locks the rear wheels under throttle (0 = open, 1 = fully locked). Raising it makes both rear wheels turn together more, which helps keep the rear sliding on power.",
+      "verified": true, "min": 0, "max": 1,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "mechanical_balance.differential.power"}
+      ]
+    },
+    {
+      "id": "diff_coast_default", "group": "Differential", "label": "Diff coast lock", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: how strongly the rear differential locks the rear wheels when off throttle (0 = open, 1 = fully locked). Raising it keeps the rear locked together when you lift off the throttle.",
+      "verified": true, "min": 0, "max": 1,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "mechanical_balance.differential.coast"}
+      ]
+    },
+    {
+      "id": "diff_preload_default", "group": "Differential", "label": "Diff preload", "kind": "value", "type": "float", "unit": "Nm",
+      "description": "Default setup: torque that always holds the differential locked, independent of throttle. Raising it locks the rear wheels together more even at low load.",
+      "verified": true, "min": 0, "max": 300,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "mechanical_balance.differential.preload"}
+      ]
+    },
+    {
+      "id": "diff_power_max", "group": "Differential", "label": "Diff power max", "kind": "value", "type": "float", "unit": "",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential power lock.",
+      "verified": false, "min": 0, "max": 1,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.differential.power.max"}
+      ]
+    },
+    {
+      "id": "diff_coast_max", "group": "Differential", "label": "Diff coast max", "kind": "value", "type": "float", "unit": "",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential coast lock.",
+      "verified": false, "min": 0, "max": 1,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.differential.coast.max"}
+      ]
+    },
+    {
+      "id": "diff_preload_max", "group": "Differential", "label": "Diff preload max", "kind": "value", "type": "float", "unit": "Nm",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential preload.",
+      "verified": false, "min": 0, "max": 300,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.differential.preload.max"}
+      ]
+    },
+    {
+      "id": "diff_type", "group": "Differential (hardware)", "label": "Differential type", "kind": "value", "type": "enum", "unit": "",
+      "description": "Differential hardware model (DifferentialData.type). Spool is a fully locked rear axle, the drift classic. The stock file does not store this field, so it reads as the first choice, LSD. Not confirmed that the game applies it for this car.",
+      "verified": false, "choices": ["LSD", "Spool", "Torsen", "EpicyclicTorsen", "EpicyclicLSD", "TorqueVectoring"],
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.drivetrain", "path": "differential_data.type"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "drivetrain.differential_data.type"}
+      ]
+    },
+    {
+      "id": "steer_ratio", "group": "Steering & brakes", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle.",
+      "verified": true, "min": 5, "max": 30,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "mechanical_balance.steer_ratio"}
+      ]
+    },
+    {
+      "id": "steer_ratio_min", "group": "Steering & brakes", "label": "Steering ratio min", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest steering ratio allowed (quickest steering).",
+      "verified": false, "min": 5, "max": 30,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.steer_ratio.min"}
+      ]
+    },
+    {
+      "id": "steer_ratio_max", "group": "Steering & brakes", "label": "Steering ratio max", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest steering ratio allowed (slowest steering).",
+      "verified": false, "min": 5, "max": 30,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.steer_ratio.max"}
+      ]
+    },
+    {
+      "id": "brake_bias", "group": "Steering & brakes", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
+      "description": "Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner.",
+      "verified": true, "min": 0, "max": 100,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "mechanical_balance.brakes.front_bias"}
+      ]
+    },
+    {
+      "id": "brake_bias_min", "group": "Steering & brakes", "label": "Brake bias min", "kind": "value", "type": "float", "unit": "%",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front brake bias allowed. The stock file does not store this field, so it reads as 0.",
+      "verified": false, "min": 0, "max": 100,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.brakes.front_bias.min"}
+      ]
+    },
+    {
+      "id": "brake_bias_max", "group": "Steering & brakes", "label": "Brake bias max", "kind": "value", "type": "float", "unit": "%",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front brake bias allowed.",
+      "verified": false, "min": 0, "max": 100,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.brakes.front_bias.max"}
+      ]
+    },
+    {
+      "id": "handbrake_torque", "group": "Brakes & steering (hardware)", "label": "Handbrake torque", "kind": "value", "type": "float", "unit": "Nm",
+      "description": "Braking torque of the handbrake (BrakesData.handBrakeTorque). Raising it locks the rear wheels harder when the handbrake is pulled, which helps start a slide.",
+      "verified": true, "min": 0, "max": 6000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.brakesystem", "path": "handBrakeTorque"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "brakes.handBrakeTorque"}
+      ]
+    },
+    {
+      "id": "brake_torque", "group": "Brakes & steering (hardware)", "label": "Total brake torque", "kind": "value", "type": "float", "unit": "Nm",
+      "description": "Total braking torque of the brake system (BrakesData.totalTorque). Raising it makes the brakes stronger.",
+      "verified": true, "min": 500, "max": 10000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.brakesystem", "path": "totalTorque"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "brakes.totalTorque"}
+      ]
+    },
+    {
+      "id": "steer_lock_deg", "group": "Brakes & steering (hardware)", "label": "Steering lock", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed whether per side or lock to lock. Raising it allows more wheel rotation, and with it more front wheel angle.",
+      "verified": false, "min": 90, "max": 1440,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "controls.steer_lock"}
+      ]
+    },
+    {
+      "id": "car_mass", "group": "Brakes & steering (hardware)", "label": "Car mass", "kind": "value", "type": "float", "unit": "kg",
+      "description": "Physics mass of the car (GeneralCarData.totalMass, stored in the .car only). The displayed weight on the spec sheet is separate text. Raising it makes the car heavier to accelerate, brake and turn.",
+      "verified": true, "min": 500, "max": 3000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "general.totalMass"}
+      ]
+    },
+    {
+      "id": "arb_front", "group": "Springs & anti-roll", "label": "Front anti-roll bar", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Default setup: stiffness of the front anti-roll bar. Stiffer means less body roll at the front and more understeer.",
+      "verified": true, "min": 0, "max": 200000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "mechanical_balance.arbs[0]"}
+      ]
+    },
+    {
+      "id": "arb_rear", "group": "Springs & anti-roll", "label": "Rear anti-roll bar", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Default setup: stiffness of the rear anti-roll bar. Stiffer means less body roll at the rear and more oversteer.",
+      "verified": true, "min": 0, "max": 200000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "mechanical_balance.arbs[1]"}
+      ]
+    },
+    {
+      "id": "arb_min", "group": "Springs & anti-roll", "label": "Anti-roll bar min", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest anti-roll bar stiffness allowed (front and rear).",
+      "verified": false, "min": 0, "max": 200000,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.arbs[0].min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.arbs[1].min"}
+      ]
+    },
+    {
+      "id": "arb_max", "group": "Springs & anti-roll", "label": "Anti-roll bar max", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest anti-roll bar stiffness allowed (front and rear).",
+      "verified": false, "min": 0, "max": 200000,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.arbs[0].max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "mechanical_balance.arbs[1].max"}
+      ]
+    },
+    {
+      "id": "spring_front", "group": "Springs & anti-roll", "label": "Front spring rate", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Default setup: wheel rate of the front springs (both wheels). Stiffer means less body roll and dive at the front and more understeer.",
+      "verified": true, "min": 5000, "max": 300000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "suspensions[0].wheel_rate"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "suspensions[1].wheel_rate"}
+      ]
+    },
+    {
+      "id": "spring_rear", "group": "Springs & anti-roll", "label": "Rear spring rate", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Default setup: wheel rate of the rear springs (both wheels). Stiffer means less body roll and squat at the rear and more oversteer.",
+      "verified": true, "min": 5000, "max": 300000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "suspensions[2].wheel_rate"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "suspensions[3].wheel_rate"}
+      ]
+    },
+    {
+      "id": "spring_min", "group": "Springs & anti-roll", "label": "Spring rate min", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest wheel rate allowed (all four wheels).",
+      "verified": false, "min": 5000, "max": 300000,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[0].wheel_rate.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[1].wheel_rate.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[2].wheel_rate.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[3].wheel_rate.min"}
+      ]
+    },
+    {
+      "id": "spring_max", "group": "Springs & anti-roll", "label": "Spring rate max", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest wheel rate allowed (all four wheels).",
+      "verified": false, "min": 5000, "max": 300000,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[0].wheel_rate.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[1].wheel_rate.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[2].wheel_rate.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "suspensions[3].wheel_rate.max"}
+      ]
+    },
+    {
+      "id": "damper_front_slow_bump", "group": "Dampers", "label": "Front damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[0].slow_bump"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[1].slow_bump"}
+      ]
+    },
+    {
+      "id": "damper_front_fast_bump", "group": "Dampers", "label": "Front damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the front axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[0].fast_bump"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[1].fast_bump"}
+      ]
+    },
+    {
+      "id": "damper_front_slow_rebound", "group": "Dampers", "label": "Front damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[0].slow_rebound"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[1].slow_rebound"}
+      ]
+    },
+    {
+      "id": "damper_front_fast_rebound", "group": "Dampers", "label": "Front damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the front axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[0].fast_rebound"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[1].fast_rebound"}
+      ]
+    },
+    {
+      "id": "damper_rear_slow_bump", "group": "Dampers", "label": "Rear damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[2].slow_bump"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[3].slow_bump"}
+      ]
+    },
+    {
+      "id": "damper_rear_fast_bump", "group": "Dampers", "label": "Rear damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the rear axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[2].fast_bump"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[3].fast_bump"}
+      ]
+    },
+    {
+      "id": "damper_rear_slow_rebound", "group": "Dampers", "label": "Rear damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[2].slow_rebound"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[3].slow_rebound"}
+      ]
+    },
+    {
+      "id": "damper_rear_fast_rebound", "group": "Dampers", "label": "Rear damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the rear axle (both wheels). Higher is firmer.",
+      "verified": true, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[2].fast_rebound"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "dampers[3].fast_rebound"}
+      ]
+    },
+    {
+      "id": "camber_front", "group": "Alignment & tyres", "label": "Front camber", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Default setup: front wheel tilt (both wheels). More negative tilts the top of the wheel inward, which gives more grip in corners and less on straights.",
+      "verified": true, "min": -8, "max": 2,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[0].camber"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[1].camber"}
+      ]
+    },
+    {
+      "id": "camber_rear", "group": "Alignment & tyres", "label": "Rear camber", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Default setup: rear wheel tilt (both wheels). More negative tilts the top of the wheel inward, which gives more cornering grip and less straight-line grip at the rear.",
+      "verified": true, "min": -8, "max": 2,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[2].camber"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[3].camber"}
+      ]
+    },
+    {
+      "id": "toe_front", "group": "Alignment & tyres", "label": "Front toe", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Default setup: front wheel toe angle (both wheels). Sign convention assumed: a negative value points the fronts slightly outward.",
+      "verified": true, "min": -1, "max": 1,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[0].toe"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[1].toe"}
+      ]
+    },
+    {
+      "id": "toe_rear", "group": "Alignment & tyres", "label": "Rear toe", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Default setup: rear wheel toe angle (both wheels). Sign convention assumed: a positive value points the rears slightly inward.",
+      "verified": true, "min": -1, "max": 1,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[2].toe"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[3].toe"}
+      ]
+    },
+    {
+      "id": "tyre_pressure_front", "group": "Alignment & tyres", "label": "Front tyre pressure", "kind": "value", "type": "float", "unit": "psi",
+      "description": "Default setup: cold pressure of the front tyres. Raising it stiffens the tyre; the effect on grip depends on the tyre model.",
+      "verified": true, "min": 15, "max": 50,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[0].pressure"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[1].pressure"}
+      ]
+    },
+    {
+      "id": "tyre_pressure_rear", "group": "Alignment & tyres", "label": "Rear tyre pressure", "kind": "value", "type": "float", "unit": "psi",
+      "description": "Default setup: cold pressure of the rear tyres. Raising it stiffens the tyre; the effect on grip depends on the tyre model.",
+      "verified": true, "min": 15, "max": 50,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[2].pressure"},
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "alignments[3].pressure"}
+      ]
+    },
+    {
+      "id": "camber_min", "group": "Alignment & tyres", "label": "Camber min", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest wheel tilt allowed (all four wheels).",
+      "verified": false, "min": -8, "max": 2,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[0].camber.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[1].camber.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[2].camber.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[3].camber.min"}
+      ]
+    },
+    {
+      "id": "camber_max", "group": "Alignment & tyres", "label": "Camber max", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest wheel tilt allowed (all four wheels).",
+      "verified": false, "min": -8, "max": 2,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[0].camber.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[1].camber.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[2].camber.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[3].camber.max"}
+      ]
+    },
+    {
+      "id": "toe_min", "group": "Alignment & tyres", "label": "Toe min", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest toe angle allowed (all four wheels).",
+      "verified": false, "min": -1, "max": 1,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[0].toe.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[1].toe.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[2].toe.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[3].toe.min"}
+      ]
+    },
+    {
+      "id": "toe_max", "group": "Alignment & tyres", "label": "Toe max", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest toe angle allowed (all four wheels).",
+      "verified": false, "min": -1, "max": 1,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[0].toe.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[1].toe.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[2].toe.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[3].toe.max"}
+      ]
+    },
+    {
+      "id": "tyre_pressure_min", "group": "Alignment & tyres", "label": "Tyre pressure min", "kind": "value", "type": "float", "unit": "psi",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest tyre pressure allowed (all four wheels).",
+      "verified": false, "min": 15, "max": 50,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[0].pressure.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[1].pressure.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[2].pressure.min"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[3].pressure.min"}
+      ]
+    },
+    {
+      "id": "tyre_pressure_max", "group": "Alignment & tyres", "label": "Tyre pressure max", "kind": "value", "type": "float", "unit": "psi",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest tyre pressure allowed (all four wheels).",
+      "verified": false, "min": 15, "max": 50,
+      "targets": [
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[0].pressure.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[1].pressure.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[2].pressure.max"},
+        {"file": "data/setup/limits_m3_e46.carsetuplimits", "path": "alignments[3].pressure.max"}
+      ]
+    },
+    {
+      "id": "fuel_start", "group": "Fuel", "label": "Starting fuel", "kind": "value", "type": "float", "unit": "L",
+      "description": "Default setup: fuel in the tank at the start. More fuel adds weight.",
+      "verified": true, "min": 1, "max": 100,
+      "targets": [
+        {"file": "data/setup/ks_bmw_m3_e46_stock_performance_pack.carsetup", "path": "fuel_strategy.fuel"}
       ]
     }
   ]

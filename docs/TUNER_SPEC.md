@@ -1,15 +1,15 @@
 # Specification: BMW E46 drift tuner
 
-Status: agreed design, not built yet (decisions of 2026-11-11). Blocked on the game download (E46 source files).
+Status: v1 built and committed (2026-11-12). Settings reference: [BMW_SETTINGS.md](BMW_SETTINGS.md) (generated). Still open: in-game confirmation of what the game reads (section 7).
 Process rule: Claude plans and reviews, subagents write all code under the executor contract; one verified step at a time.
 
 ## 1. Goal and loop
 
-Understand and quickly change the settings of one car, the BMW M3 E46, without touching the stock car:
+Understand and quickly change the settings of one car, the BMW M3 E46 CSL, without touching the stock car:
 
-1. Open the tuner page (local), change values in a table, press Apply.
-2. The tool builds and installs the tuned BMW into `%USERPROFILE%\Saved Games\ACE\mods\`.
-3. The user starts the game, drives a lap, closes the game, and repeats.
+1. Start the tuner (`tuner\start_tuner.bat`), change values in the table, press Apply.
+2. The tool builds the tuned BMW from the pristine stock files and installs it into `%USERPROFILE%\Saved Games\ACE\mods\`.
+3. The user closes the game if it runs, starts it, drives a lap, closes it, and repeats.
 
 Out of scope for v1: other cars, online play, tracks, 3D/visual changes, starting or closing the game.
 
@@ -17,69 +17,62 @@ Out of scope for v1: other cars, online play, tracks, 3D/visual changes, startin
 
 | Topic | Decision |
 |---|---|
-| Interface | One local HTML page, a table. The page is the only place the user edits (no text file for the user). |
+| Interface | One local HTML page, a table; the page is the only place the user edits. |
 | Table columns | Variable name, Value, Description, Default (for the BMW). |
-| Scope v1 | Essentials: about 40-60 drift-relevant settings. An "all settings" view comes later. |
-| Apply | Install only. The user starts and closes the game. A backup of the previous install is made every time. |
-| Car identity | Own car id (working name `alex_e46_drift`); the stock `ks_bmw_m3_e46` is never modified. |
-| Apply modes | Default "Update my tuned BMW" (replaces the installed one). Second button "Save as new copy" (numbered id, e.g. `alex_e46_drift_02`). |
-| Descriptions | English. Entries whose meaning is guessed from names and values carry an `unverified` flag shown in the table. |
-| Base data | Kunos `ks_bmw_m3_e46` from the installed game. Defaults are read from those files, not typed in. |
+| Scope v1 | 71 settings in 12 groups (engine, gearing, differential, brakes/steering, springs, dampers, alignment, fuel, display/meta). |
+| Apply | Install only; the user starts and closes the game. A backup of the previous install is made every time. Apply is refused while the game runs. |
+| Car identity | Own car id `ax_bmw_m3_e46_csl` (same length as the stock `ks_bmw_m3_e46_csl`); the stock car is never modified. |
+| Apply modes | "Apply (update my BMW)" replaces the installed tuned car. "Save as new copy" installs another 17-character id next to it. |
+| Descriptions | English. `verified` false = meaning guessed from names and values; shown as an "unverified" badge. |
+| Base data | The stock E46 from the game's `content.kspkg`; every default is read from those files. |
 
-## 3. Architecture
+## 3. Architecture (as built)
 
 ```
-game content.kspkg --kspkg.py extract--> work/base/        (E46 files, git-ignored)
-settings catalogue  (which settings, group, unit, description, verified flag)
-work/tune_state.json (values the user changed; hidden, git-ignored)
+game content.kspkg --kspkg.py extract (prefix)--> <work>\base\content\cars\ks_bmw_m3_e46_csl   (tune.py init, once)
+tuner\catalogue.json   settings list: id, group, label, kind, type, unit, description, verified, min/max, targets
+<work>\tune_state.json values the user changed
 
-browser page  <--HTTP, 127.0.0.1 only-->  local server (stdlib http.server)
-                                              |
-   Apply: copy base -> rename to new car id -> car_json decode -> set values -> encode
-          -> kspkg.py pack -> backup old install -> copy to mods folder
+browser page <--HTTP 127.0.0.1 only--> tools\tuner_server.py (stdlib http.server, one background job)
+                                          |  imports tools\tune.py
+   apply: clone_car.build (copy base -> same-length id, registration, localization, no pack)
+          -> for every changed setting: car_json decode target file, set path, encode (ALL copies)
+          -> kspkg pack -> clone_car.install (backup + copy to mods folder)
 ```
 
-Existing building blocks (committed): `tools/kspkg.py` (list/extract/pack/verify), `tools/extract_protos.py` (schema from the SDK Editor exe into `schemas/`), `tools/car_json.py` (decode/encode with real field names, byte-exact round trip).
-To build (final file layout is set by the build plan): settings catalogue, base extraction step, car-id renamer, build/pack/install step with backup, local server, HTML page.
+Work folder: `%USERPROFILE%\ace_modded_cars_work` (`--work` overrides): `base\`, `build\<id>\`, `backups\`, `tune_state.json`, `defaults.json`. It is deliberately outside AppData (the Claude desktop app redirects its AppData writes into a private folder, invisible to the user's terminal) and outside OneDrive (hundreds of MB of temporary data).
+
+Files: `tools/kspkg.py` (packages, extract with path prefix), `tools/extract_protos.py` (schemas from the SDK Editor exe into `schemas/`), `tools/car_json.py` (lossless decode/encode, 29 extensions mapped, legacy fields and wire-type conflicts preserved under `_unknown`), `tools/clone_car.py` (clone under a same-length id, `.moddedcarcontent`, `uiresources\localization\en.cars.loc`, pack, install with backup), `tools/tune.py` (catalogue, state, defaults, set, apply, doc), `tools/tuner_server.py` (JSON API + job), `tuner/web/index.html` (the table page), `tuner/start_tuner.bat`.
 
 ## 4. Settings catalogue
 
-One entry per setting: `id`, `group` (Engine, Turbo, Drivetrain, Gearing, Steering/Setup limits, Brakes, Tyres, ...), `file` (which car file), `path` (field path in the `car_json` representation), `type`, `unit`, `description`, `verified` (true/false), `hint` (sensible range, optional). `default` is filled by reading the base car, never hand-typed.
-Derived settings are allowed where one table row changes many values, e.g. `torque_scale` multiplies every point of the power curve (the easiest power lever).
-
-Draft essentials (names from the extracted schema; to be confirmed against the real E46 files):
-
-- Engine (`EngineData`): `limiter`, `minimum` (idle), `limiterCycles`, `inertia`, power-curve scale, `throttle_lag_up` / `throttle_lag_dn`.
-- Turbo (`TurboData`, if the BMW has none this group is hidden): `max_boost`, `lag_UP`, `lag_DN`, `rpm_Ref`, `wastegate`, `max_turbo_boost`.
-- Differential: `differential_data.power`, `.coast`, `.preload` (also default in `.carsetup`, range in `.carsetuplimits`; all three must be changed together).
-- Gearing: gear ratios, final drive, auto-shift rpm.
-- Setup limits (`CarSetupDataLimits`): diff ranges, preload range, steering ratio/lock, brake bias range, so the in-game setup screen allows the new values.
-- Setup defaults (`CarSetupData`): spring/damper rates, camber, toe, tyre pressure, brake bias.
-- Tyres: only what the real files expose; verify after extraction.
-- Display text (`.mechanicalcarpreset` stats, car name) is cosmetic; the tool should offer the name only.
+One entry per setting: `id`, `group`, `label`, `kind` (`value`, `curve_scale`, `meta`), `type` (int, float, string, enum), `unit`, `description`, `verified`, optional `min`/`max` (soft hints, warnings only), and `targets` (file + field path inside the decoded JSON; dotted names, `[n]` list index, `[key=VALUE]` selector). A setting lists EVERY copy of a value: the standalone file and the inline copy inside `data/ks_bmw_m3_e46_csl.car` (the game's choice between them is not known yet). `default` is read from the base car; absent fields count as the proto3 default and are flagged. `power_scale` and `coast_scale` multiply every point of the engine's power / coast curve. Settings whose value exists for several wheels (springs, dampers, camber, toe, pressure) write all wheels of the axle.
+The reference with defaults and descriptions is generated: `python tools/tune.py doc` -> `docs/BMW_SETTINGS.md`.
 
 ## 5. Build pipeline rules
 
-1. Never modify the game folder or the stock car. Write only to `work/` and the mods folder.
-2. Rename the car id in every path inside the copied files and in the package (folder, `cardata.car` refs, presets, loc), including the UI loc keys. A script must verify that no old id remains.
-3. Edit only through `car_json` (decode, change by field path, encode). Settings that live in more than one file (diff) are changed in every copy; `cardata.car` inline copies are kept in sync.
-4. Pack with `kspkg.py pack`; run `kspkg.py verify` against the extracted tree.
-5. Backup: before replacing an installed package, copy it to `work/backups/<id>_<timestamp>.kspkg`.
-6. The server listens on 127.0.0.1 only and accepts only the configured paths.
-7. No vendor data in git: `schemas/`, `work/`, base car files and `*.kspkg` stay ignored.
+1. Never modify the game folder, the SDK folder or the stock car. Write only to the work folder and the mods folder.
+2. Every Apply starts from the pristine base: clone under the new id by same-length byte replacement (no length prefix changes), apply the changed settings, pack. An unchanged Apply is byte-identical to a plain clone (tested).
+3. Edit only through `car_json` (decode, change by field path, encode).
+4. Backup: before replacing an installed package, copy it to `<work>\backups\<id>_<timestamp>.kspkg`.
+5. The server listens on 127.0.0.1 only, checks the Host header, and requires header `X-Tuner: 1` and JSON content type on every POST.
+6. No vendor data in git: `schemas/`, the work folder, base car files and `*.kspkg` stay out of the repo.
 
-## 6. Acceptance tests (per component)
+## 6. Verification and tests done
 
-- Catalogue: every `path` resolves in the base E46 decoded JSON; every `default` equals the base value.
-- Rename: unpacked output contains zero occurrences of the old car id (grep).
-- Build: with no edits, the built package verifies content-identical to the base apart from the id rename; with one edit, exactly the expected values differ.
-- Server/page: starts, shows the table, lists defaults, marks changed rows, Apply returns the installed path and backup path.
-- In game (manual, by the user): the tuned car appears next to the stock E46, loads, shows the edited value in the setup screen or in behaviour.
+- Catalogue: every target resolves in the real E46; all copies agree (floats within 1e-5 relative); defaults come from the files.
+- Clone: no occurrence of the old id remains in names or contents; reverse replacement reproduces every stock file byte for byte (312 files).
+- Edit tests (scratch folders): +20 hp edit changes exactly the power curve and the preset; setup, engine, gearbox, drivetrain, brake edits change exactly the expected values in all copies; `car_json.py check` has no failures.
+- Server: API, input validation, Host/CSRF checks, game-running refusal, two copies side by side, backups.
+- In game (laptop): the clone appears next to the stock car; physics log line identical to stock (see section 7).
 
-## 7. Open risks and questions
+## 7. Knowledge and open questions
 
-- Do the real game files fit the Editor schema? The older mod files did not for `.car`, `.drivetrain`, `.gearbox`, `.clutch`, `.suspension`, `.tyre`, `.rimmesh`, `.tyremesh`, `.actor` (see `mod_examples/ANALYSIS.md`). If the E46 files do not fit either, a decision is needed: map on a relaxed fit (unknown fields preserved) or keep those files out of the table.
-- Does the game load a packed car under a new id that is not in its own tables? (First test: repack the unchanged E46 as `alex_e46_drift`.)
-- Which copy wins when the same value exists twice (drivetrain vs `.carsetup`, drivetrain gears vs `.gearbox`)? Plan: change all copies; learn the rule from in-game tests.
-- Does the game accept our pack variant (lower-cased paths, no XOR flags)? The unchanged-repack test covers it.
-- Descriptions are not from official documentation; unverified ones are flagged.
+- **Verification without driving:** at session start the game writes to `Saved Games\ACE\Logs\log-*.txt` lines such as `Creating car: ax_bmw_m3_e46_csl` and `POWER CLASS INDEX: 175.50609 (ax_bmw_m3_e46_csl) PW:266356.8 (357.18982 HP) W:1517.65`. Real power and mass changes can be checked there even if the renderer crashes. The unchanged clone matched the stock car exactly. Expected for the +20 hp edit (power_scale 1.056): about 377 HP. Not yet confirmed.
+- The development laptop crashes in the render thread (Intel UHD Graphics, 128 MB) with stock cars too; the mod is not the cause.
+- Which copy the game reads (standalone files vs inline copy in `.car`) is unknown; the tuner writes both.
+- The E46 `.drivetrain` file holds a second, older gear set in fields outside the schema; the schema-known set is in `.gearbox`. The tuner changes the `.gearbox` set and its inline copy.
+- Stock setup defaults exceed some stock limits (diff power 0.3 vs max 0.1, front anti-roll 70000 vs max 50000, some dampers). Effect of the limit settings in the game is untested.
+- `diff_type` Spool (fully locked) and `engine_damage_rpm` etc. are untested in the game.
+- Does the game load the numbered copies (other ids)? Only the default id was tested in the game.
+- Not covered yet: tyre model/compounds (shared game files), aero, TC/ABS, bump stops, caster, damper limits, engine map values.
