@@ -69,6 +69,7 @@ body {
   font: inherit; padding: 6px 8px; max-width: 100%; border: 1px solid var(--border); border-radius: 6px;
   background: var(--panel); color: var(--text);
 }
+.untested { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button {
   font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
@@ -117,9 +118,9 @@ thead th {
 thead th:first-child { border-top-left-radius: 8px; }
 thead th:last-child { border-top-right-radius: 8px; }
 col.c-name { width: 22%; }
-col.c-value { width: 24%; }
+col.c-value { width: 23%; }
+col.c-default { width: 17%; }
 col.c-desc { width: 38%; }
-col.c-default { width: 16%; }
 td { padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 tr.group th {
   text-align: left; padding: 8px 12px; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase;
@@ -173,6 +174,8 @@ button.reset { padding: 2px 8px; font-size: 12px; }
     </div>
   </header>
 
+  <p id="untested" class="untested" hidden></p>
+
   <div id="status" class="strip" role="status" aria-live="polite"></div>
 
   <section id="progress" class="panel" hidden aria-live="polite"></section>
@@ -193,13 +196,13 @@ button.reset { padding: 2px 8px; font-size: 12px; }
     <div class="tablewrap">
       <table>
         <caption id="caption" class="sr-only">Settings of the selected car</caption>
-        <colgroup><col class="c-name"><col class="c-value"><col class="c-desc"><col class="c-default"></colgroup>
+        <colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-desc"></colgroup>
         <thead>
           <tr>
             <th scope="col">Variable name</th>
             <th scope="col">Value</th>
-            <th scope="col">Description</th>
             <th scope="col">Default (for the selected car)</th>
+            <th scope="col">Description</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -343,19 +346,33 @@ function optionText(c) {
 function renderCars() {
   const sel = $("car-select");
   const list = info && info.cars ? info.cars : [];
-  const options = list.map((c) => [c.id, optionText(c)]);
-  const sig = JSON.stringify([options, carId]);
+  const byName = (a, b) => (a.display_name || a.label).localeCompare(b.display_name || b.label);
+  const groupsOf = [
+    ["Tested cars", list.filter((c) => c.tested).sort(byName)],
+    ["Other cars (not tested)", list.filter((c) => !c.tested).sort(byName)]
+  ].map(([title, cars]) => [title, cars.map((c) => [c.id, optionText(c)])]);
+  const sig = JSON.stringify([groupsOf, carId]);
   if (sig === carsSig) return;
   carsSig = sig;
   sel.replaceChildren();
-  for (const [id, text] of options) {
-    const o = el("option", "", text);
-    o.value = id;
-    sel.appendChild(o);
+  for (const [title, options] of groupsOf) {
+    if (!options.length) continue;
+    const g = el("optgroup");
+    g.label = title;
+    for (const [id, text] of options) {
+      const o = el("option", "", text);
+      o.value = id;
+      g.appendChild(o);
+    }
+    sel.appendChild(g);
   }
   sel.value = carId || "";
-  sel.disabled = options.length === 0;
-  if (carEntry()) {
+  sel.disabled = list.length === 0;
+  const entry = carEntry();
+  $("untested").hidden = !entry || entry.tested;
+  $("untested").textContent = entry && !entry.tested ?
+    "This car has not been tested with the tuner yet; check the results before you trust them." : "";
+  if (entry) {
     const name = carName();
     $("title").textContent = name + " drift tuner";
     document.title = name + " drift tuner";
@@ -605,7 +622,7 @@ function buildRow(data, car) {
     defCell.appendChild(b);
   }
 
-  r.tr.append(nameCell, valueCell, descCell, defCell);
+  r.tr.append(nameCell, valueCell, defCell, descCell);
   r.hay = (data.id + " " + data.label + " " + data.description).toLowerCase();
   showRow(r, data);
   return r;

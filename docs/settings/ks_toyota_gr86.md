@@ -6,7 +6,6 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
-| `car_name` | Car name | MY_Toyota GR86 |  | Name of the tuned car in the game's car list (display_name of the .moddedcarcontent file written by the build). The default is MY_ plus the stock car's name from the game, you can change it. | verified |
 | `variant_name` | Variant name | GR86 Premium |  | Name of the car's preset/variant (value of the line whose key ends with _preset_base in en.cars.loc written by the build). The default is the stock car's own text for that line (the stock car's name when it has none), you can change it. Cars without such a line get no variant line. Where exactly the game shows it is not confirmed. | unverified |
 
 ## Display

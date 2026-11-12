@@ -2,7 +2,7 @@
 
 Change the driving settings of a car in a simple table, install your own tuned copy next to the stock one, drive a lap, close the game, change again. About 75-80 settings per car: engine, turbo, gearing, differential, brakes, springs, dampers, alignment, fuel. No cosmetics.
 
-Cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Romeo Giulia GTAm**, **Porsche 992 GT3 R Rennsport**. Your tuned copy of a car is called `MY_` plus the stock name by default (for example `MY_BMW M3 E46 CSL`); you can rename it in the table. The stock cars are never changed.
+Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Romeo Giulia GTAm**, **Porsche 992 GT3 R Rennsport**. The selector lists all 71 game cars; the others are shown as "not extracted" and are untested (they extract and build without errors, but whether they load and drive is unknown). Your tuned copy of a car is always called the stock name plus `_MY` (for example `BMW M3 E46 CSL_MY`), so it sorts right next to the stock car in the game's car list. The stock cars are never changed.
 
 ## What you need
 
@@ -17,14 +17,14 @@ Cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Romeo Giuli
    python tools\extract_protos.py "C:\Program Files (x86)\Steam\steamapps\common\Assetto Corsa EVO SDK\AssettoCorsaEVOEditor.exe" schemas
    ```
 2. Double-click **`tuner\start_tuner.bat`**. A console window opens and your browser shows the tuner at http://127.0.0.1:8765/ . Keep the console window open while you use it. (After updating the repository, close that window and start it again.)
-3. Pick a car in the selector at the top. The first time you pick a car, press **Extract stock car** (about 20 seconds). This copies that car's data out of the game into `%USERPROFILE%\ace_modded_cars_work\<car id>`. Only cars you pick are extracted.
+3. Pick a car in the selector at the top ("Tested cars" first, then all other game cars). The first time you pick a car, press **Extract stock car** (about 20 seconds). This copies that car's data out of the game into `%USERPROFILE%\ace_modded_cars_work\<car id>`. Only cars you pick are extracted.
 
 ## Every time you tune
 
 1. Close the game (the tuner refuses to install while it runs).
-2. Choose the car, then change values in the table. Each row shows: variable name, your value, a description, and the car's default. Changed rows turn yellow and have a **reset** button. Use the search box, or tick **changed only** to see what you changed. Settings a car does not have (for example turbo values on a naturally aspirated car) are hidden; the line under the title tells you how many.
+2. Choose the car, then change values in the table. Each row shows: variable name, your value, the car's default (right next to your value) and a description. Changed rows turn yellow and have a **reset** button. Use the search box, or tick **changed only** to see what you changed. Settings a car does not have (for example turbo values on a naturally aspirated car) are hidden; the line under the title tells you how many.
 3. Press **Apply (update my car)**. After a few seconds the green message tells you the package was installed. Press **Save as new copy…** instead to keep the previous tuned car and install another one next to it (you type a new car id with exactly the length shown).
-4. Start the game, open Vehicle Selection, pick your `MY_...` car, drive.
+4. Start the game, open Vehicle Selection, pick your `..._MY` car (next to the stock one), drive.
 5. Close the game and repeat.
 
 "unverified" next to a description means the meaning is guessed from the setting's name and not yet confirmed in the game. A "copies differ in stock" badge means the game's own files disagree about that value; applying writes your value to every copy. Every setting of every car is explained in `docs/settings/<car id>.md`, for example [docs/settings/ks_bmw_m3_e46_csl.md](docs/settings/ks_bmw_m3_e46_csl.md).

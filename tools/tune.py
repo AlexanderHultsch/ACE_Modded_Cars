@@ -1,7 +1,7 @@
 """Settings engine of the tuner: read defaults, keep the chosen values, build and install the tuned car.
 
 usage:
-  python tools/tune.py cars     [--mods <dir>] [--work <dir>]
+  python tools/tune.py cars     [--tested] [--game <content.kspkg>] [--mods <dir>] [--work <dir>]
   python tools/tune.py init     [--car ID] [--game <content.kspkg>] [--work <dir>]
   python tools/tune.py defaults [--car ID] [--hidden] [--work <dir>]
   python tools/tune.py set      <id> <value> [--car ID] [--work <dir>]
@@ -10,16 +10,24 @@ usage:
   python tools/tune.py apply    [--car ID] [--new-id ID] [--no-install] [--mods <dir>] [--work <dir>]
   python tools/tune.py doc      [--car ID | --all] [--out <file>] [--work <dir>]
 
-The cars come from the shortlist tuner/cars.json (a default car and a list of {id, label}); --car ID picks one of them
-(default: the shortlist's default car), any other id is rejected. <car> below is the chosen stock car id, <new_id> its
-tuned copy (default: ax_ plus the stock id without its ks_, e.g. ks_bmw_m3_e46_csl -> ax_bmw_m3_e46_csl; other
-prefixes: ax plus the id without its first two characters; same length as the stock id).
+--car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
+rejected with the closest matches. The game's cars come from system/cars.table, read once and cached in
+<work>/cars_index.json (id, display_name, brand, year of every car). When there is no cache and the game package is not
+reachable, the tested cars of tuner/cars.json (a default car, a "note" and a list of {id, label}) are the only cars.
+Cars outside that list are untested: init, apply and doc print "note: <id> is not in the tested list; results are
+unverified". <car> below is the chosen stock car id, <new_id> its tuned copy (default: ax_ plus the stock id without
+its ks_, e.g. ks_bmw_m3_e46_csl -> ax_bmw_m3_e46_csl; other prefixes: ax plus the id without its first two
+characters; same length as the stock id).
 Work folder layout: <work>/<car>/{base, build/<new_id>, tune_state.json, stock_info.json, defaults.json} per car,
-shared <work>/backups and <work>/stock_loc/en.cars.loc. The first command that runs moves the old single-car layout
-(<work>/base, build, tune_state.json, stock_info.json, defaults.json) into <work>/<default car> and prints what moved.
+shared <work>/backups, <work>/stock_loc/en.cars.loc and <work>/cars_index.json. The first command that runs moves the
+old single-car layout (<work>/base, build, tune_state.json, stock_info.json, defaults.json) into <work>/<default car>
+and prints what moved.
 
-cars:    table of the shortlist: id, display name (stock_info.json when extracted, else the label), extracted yes/no,
-          new id, installed yes/no (<new_id>.kspkg in the mods folder), size of the extracted stock car.
+cars:    table of every game car sorted by display name: id, display name (stock_info.json when extracted, else the
+          game's name), extracted yes/no, tested yes/no (listed in tuner/cars.json), new id, installed yes/no
+          (<new_id>.kspkg in the mods folder), size of the extracted stock car. --tested lists only the tested cars.
+          Without the cache and the game package (--game, default the Steam install) only the tested cars are
+          listed, with a note.
 init:    extracts the stock car from the game package into <work>/<car>/base (skipped when already there), the game's
           stock en.cars.loc into <work>/stock_loc once, and writes <work>/<car>/stock_info.json (car id, display name,
           brand, year, property_1..3 as enum names from the game's system/cars.table, variant_name = stock text of the
@@ -39,9 +47,9 @@ apply:    always starts from the pristine <work>/<car>/base: clones the car unde
           %USERPROFILE%\\Saved Games\\ACE\\mods) with a backup of the previous package in <work>/backups. Only changed
           settings must be applicable. For a car other than the default car, the stock info must exist.
 doc:      writes a Markdown reference of the settings applicable to the car with their defaults from
-          <work>/<car>/base to <file> (default docs/settings/<car>.md in the repository). --all writes that file for
-          every car of the shortlist, extracting the cars that are not extracted yet first (--car and --out cannot
-          be combined with --all).
+          <work>/<car>/base to <file> (default docs/settings/<car>.md in the repository); the car must be extracted.
+          --all writes that file for every tested car of tuner/cars.json, extracting the cars that are not extracted
+          yet first (--car and --out cannot be combined with --all).
 <work> defaults to %USERPROFILE%\\ace_modded_cars_work. Writes nothing outside <work> and the mods folder. File
 operations on car trees use extended-length paths (kspkg.long_path), so deep Windows paths work.
 
@@ -58,12 +66,14 @@ the engine file). A target with "optional": true is written when it resolves and
 target is required. A setting is applicable to a car when all its required targets resolve (an absent last field
 counts as resolved, a missing object or list element on the way does not). "needs" is a list of further targets that
 must resolve for the setting to be applicable but are never written and not compared. "hide_if_absent": true hides
-the setting when the last field of all its required targets is absent in the stock data. meta settings: car_name is
-always applicable, variant_name only when the stock car has a variant name.
+the setting when the last field of all its required targets is absent in the stock data. meta settings: variant_name,
+applicable only when the stock car has a variant name. The car name is not a setting: apply always names the tuned
+car "<stock display name>_MY" (stock_info.json, else the car's mechanical preset), so it is listed next to the stock car.
 
 Stdlib only. Needs schemas/acevo.desc (see tools/extract_protos.py).
 """
 import contextlib
+import difflib
 import io
 import json
 import math
@@ -100,9 +110,10 @@ CARS_TABLE = "system\\cars.table"
 STOCK_LOC = "uiresources\\localization\\en.cars.loc"
 STOCK_PROPERTIES = ("property_1", "property_2", "property_3")
 CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
+CAR_NAME_SUFFIX = "_MY"
 KINDS = ("value", "curve_scale", "meta")
 VALUE_TYPES = ("int", "float", "string", "enum")
-HANDLERS = ("car_name", "variant_name")
+HANDLERS = ("variant_name",)
 REQUIRED = ("id", "group", "label", "kind", "type", "unit", "description", "verified")
 MANIFEST_ROLES = {"engine": "engine_path", "drivetrain": "drivetrain_path", "gearbox": "gearbox_path",
                   "brakes": "brakes_path", "setup": "stock_setup", "limits": "setupLimits"}
@@ -154,11 +165,19 @@ def load_cars(path=CARS_JSON):
     return data
 
 
-def pick_car(cars, car_id=None):
+def pick_car(cars, car_id=None, index=None):
     car_id = car_id or cars["default"]
-    known = [c["id"] for c in cars["cars"]]
-    if car_id not in known:
-        raise ValueError("unknown car %r, the shortlist (tuner/cars.json) has: %s" % (car_id, ", ".join(known)))
+    if index is None:
+        known = [c["id"] for c in cars["cars"]]
+        if car_id not in known:
+            raise ValueError("unknown car %r, the car list of the game is not available, the tested cars "
+                             "(tuner/cars.json) are: %s" % (car_id, ", ".join(known)))
+    else:
+        known = [c["id"] for c in index]
+        if car_id not in known:
+            close = difflib.get_close_matches(car_id, known, n=5, cutoff=0.6)
+            raise ValueError("unknown car %r, %s" % (car_id, "close matches: " + ", ".join(close) if close else
+                                                     "the game has %d cars, tune.py cars lists them" % len(known)))
     return car_id
 
 
@@ -596,6 +615,49 @@ def stock_info_or_none(work, car_id, game=DEFAULT_GAME):
     return info
 
 
+def cars_index_path(work):
+    return os.path.join(work, "cars_index.json")
+
+
+def valid_cars_index(index):
+    return (isinstance(index, list) and bool(index)
+            and all(isinstance(c, dict) and isinstance(c.get("id"), str) and isinstance(c.get("display_name"), str)
+                    for c in index))
+
+
+def load_cars_index(work, game=DEFAULT_GAME):
+    """[{id, display_name, brand, year}] of every car of the game sorted by display name, from the cache
+    <work>/cars_index.json; created from the game's cars.table when missing. None when there is no cache and the
+    game package cannot be read."""
+    path = cars_index_path(work)
+    if os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                index = json.load(f)
+        except (ValueError, OSError):
+            index = None
+        if valid_cars_index(index):
+            return index
+    if not os.path.isfile(game):
+        return None
+    try:
+        data = read_game_file(work, game, CARS_TABLE)
+        lines = car_json.decode_msg(schema(), "TableData", data).get("preset", {}).get("lines", [])
+    except (ValueError, OSError):
+        return None
+    rows = {}
+    for l in lines:
+        c = l.get("car_content", {})
+        if isinstance(c.get("name"), str) and c["name"]:
+            rows[c["name"]] = {"id": c["name"], "display_name": c.get("display_name") or c["name"],
+                               "brand": c.get("brand", ""), "year": c.get("year")}
+    index = sorted(rows.values(), key=lambda c: (c["display_name"].lower(), c["id"]))
+    if not valid_cars_index(index):
+        return None
+    save_json(path, index)
+    return index
+
+
 def preset_display_name(car_root):
     folder = os.path.join(car_root, "presets")
     names = sorted(n for n in listing(folder) if n.endswith(".mechanicalcarpreset"))
@@ -849,10 +911,11 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     except (ValueError, OSError):
         pass
     stock_loc = stock_loc_path(work) if os.path.isfile(stock_loc_path(work)) else None
+    car_name = (info.get("display_name") or preset_display_name(car_root_of(root, car_id))) + CAR_NAME_SUFFIX
     log = io.StringIO()
     try:
         with contextlib.redirect_stdout(log):
-            notes = clone_car.build(car_root_of(root, car_id), new_id, out_dir, meta["car_name"],
+            notes = clone_car.build(car_root_of(root, car_id), new_id, out_dir, car_name,
                                     info.get("year", CLONE_YEAR), info.get("brand", CLONE_BRAND),
                                     meta["variant_name"], stock_loc, {k: info.get(k) for k in STOCK_PROPERTIES},
                                     pack=False)
@@ -864,8 +927,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         item = {"id": s["id"], "old": r["default"], "new": r["value"], "files": []}
         applied.append(item)
         if s["kind"] == "meta":
-            item["files"].append(new_id + ".moddedcarcontent" if s["handler"] == "car_name"
-                                 else "uiresources/localization/en.cars.loc")
+            item["files"].append("uiresources/localization/en.cars.loc")
         elif s["kind"] == "curve_scale":
             text, _ = get_value(load_msg(car_path(car_root, renamed(r["targets"][0]["rel"], car_id, new_id)))[0],
                                 s["curve_from"]["path"])
@@ -904,21 +966,25 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     return result
 
 
-def list_cars(work, mods_dir=None):
+def list_cars(work, mods_dir=None, tested_only=False, game=DEFAULT_GAME):
+    """Every car of the game (the tested cars only when the car index is not available or tested_only), sorted by
+    display name."""
     cars = load_cars()
     mods = os.path.abspath(os.path.expandvars(mods_dir or clone_car.DEFAULT_MODS))
+    labels = {c["id"]: c["label"] for c in cars["cars"]}
+    names = {c["id"]: c["display_name"] for c in load_cars_index(work, game) or []}
     rows = []
-    for c in cars["cars"]:
-        car_id = c["id"]
+    for car_id in labels if tested_only else list(dict.fromkeys(list(labels) + list(names))):
         car_root = car_root_of(base_dir(work, car_id), car_id)
         extracted = os.path.isdir(kspkg.long_path(car_root)) and bool(os.listdir(kspkg.long_path(car_root)))
         info = load_stock_info(work, car_id) if extracted else None
+        display_name = info["display_name"] if info else names.get(car_id) or labels.get(car_id) or car_id
         new_id = new_id_for(car_id)
-        rows.append({"id": car_id, "default": car_id == cars["default"], "label": c["label"],
-                     "display_name": info["display_name"] if info else c["label"], "extracted": extracted,
+        rows.append({"id": car_id, "default": car_id == cars["default"], "label": labels.get(car_id, display_name),
+                     "display_name": display_name, "extracted": extracted, "tested": car_id in labels,
                      "new_id": new_id, "installed": os.path.isfile(os.path.join(mods, new_id + ".kspkg")),
                      "bytes": count_tree(car_root)["bytes"] if extracted else None})
-    return rows
+    return sorted(rows, key=lambda r: (r["display_name"].lower(), r["id"]))
 
 
 def parse_args(args, flags, switches=()):
@@ -982,7 +1048,12 @@ def display_name_of(work, car_id):
     info = load_stock_info(work, car_id)
     if info:
         return info["display_name"]
-    return next(c["label"] for c in load_cars()["cars"] if c["id"] == car_id)
+    return next(r["display_name"] for r in list_cars(work) if r["id"] == car_id)
+
+
+def note_untested(car_id):
+    if car_id not in [c["id"] for c in load_cars()["cars"]]:
+        print("note: %s is not in the tested list; results are unverified" % car_id)
 
 
 def doc_text(car_id, display_name, rows):
@@ -1022,7 +1093,7 @@ def start(opts):
     """Work folder and chosen car of a command; moves the old single-car layout first and says so."""
     work = work_dir(opts.get("work"))
     cars = load_cars()
-    car_id = pick_car(cars, opts.get("car"))
+    car_id = pick_car(cars, opts.get("car"), load_cars_index(work, os.path.expandvars(opts.get("game", DEFAULT_GAME))))
     moved = migrate_old_layout(work, cars["default"])
     if moved:
         print("moved the old single-car layout of %s into %s: %s" % (work, car_work(work, cars["default"]),
@@ -1034,20 +1105,25 @@ def main():
     cmd =sys.argv[1] if len(sys.argv) > 1 else ""
     try:
         if cmd == "cars":
-            pos, opts = parse_args(sys.argv[2:], ("mods", "work"))
+            pos, opts = parse_args(sys.argv[2:], ("game", "mods", "work"), ("tested",))
             if pos:
                 sys.exit(__doc__.split("\n\n")[1])
             work, _ = start(opts)
-            print(table(["id", "display name", "extracted", "new id", "installed", "size"],
-                        [[r["id"], r["display_name"], "yes" if r["extracted"] else "no", r["new_id"],
-                          "yes" if r["installed"] else "no",
+            game = os.path.expandvars(opts.get("game", DEFAULT_GAME))
+            print(table(["id", "display name", "extracted", "tested", "new id", "installed", "size"],
+                        [[r["id"], r["display_name"], "yes" if r["extracted"] else "no", "yes" if r["tested"] else "no",
+                          r["new_id"], "yes" if r["installed"] else "no",
                           "%.1f MB" % (r["bytes"] / (1 << 20)) if r["extracted"] else "-"]
-                         for r in list_cars(work, opts.get("mods"))]))
+                         for r in list_cars(work, opts.get("mods"), "tested" in opts, game)]))
+            if "tested" not in opts and load_cars_index(work, game) is None:
+                print("note: the game package is not available and there is no car index, "
+                      "only the tested cars are listed")
         elif cmd == "init":
             pos, opts = parse_args(sys.argv[2:], ("car", "game", "work"))
             if pos:
                 sys.exit(__doc__.split("\n\n")[1])
             work, car_id = start(opts)
+            note_untested(car_id)
             res = init(work, car_id, os.path.expandvars(opts.get("game", DEFAULT_GAME)))
             print("base already present" if res["present"] else "extracted the stock car")
             print("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
@@ -1097,6 +1173,7 @@ def main():
             if pos:
                 sys.exit(__doc__.split("\n\n")[1])
             work, car_id = start(opts)
+            note_untested(car_id)
             warn_unknown_state(work, car_id)
             res = apply(work, car_id, opts.get("new-id"), "no-install" not in opts, opts.get("mods"))
             print("car: %s, new id: %s" % (car_id, res["new_id"]))
@@ -1120,6 +1197,7 @@ def main():
                         print("extracted the stock car %s" % c["id"])
                     print("wrote %s" % write_doc(work, c["id"], str(DOC_DIR / (c["id"] + ".md"))))
             else:
+                note_untested(car_id)
                 print("wrote %s" % write_doc(work, car_id, os.path.abspath(opts.get("out", DOC_DIR / (car_id + ".md")))))
         else:
             sys.exit(__doc__.split("\n\n")[1])

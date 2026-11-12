@@ -4,16 +4,17 @@ usage:
   python tools/tuner_server.py [--port N] [--work <dir>] [--mods <dir>]
 
 Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765) and a small JSON API:
-  GET  /api/state       work folder, base car, game running, installed package, background job; the shortlist cars
-                        (id, label, display_name, extracted, new_id, installed) and the number of applicable and
+  GET  /api/state       work folder, base car, game running, installed package, background job; every car of the game
+                        (id, label, display_name, extracted, tested, new_id, installed) and the number of applicable and
                         hidden settings of the car (null while the base is missing or being extracted)
   GET  /api/settings    every setting applicable to the car, with default, current value and changed flag
                         (copies_differ, plus copy_values when the copies of the value differ in the stock data)
   POST /api/set         {"id": ..., "value": ...}          POST /api/unset  {"id": ...}
   POST /api/reset_all   clears every changed value         POST /api/init   extracts the stock car (background job)
   POST /api/apply       {"mode": "update" | "new_copy", "new_id": ...}   builds and installs (background job)
-Every route takes an optional car id from the shortlist tuner/cars.json: the query parameter ?car=<id> on GET, the field
-"car" in the JSON body on POST (any other id is a 400 error). Without it the shortlist's default car is used.
+Every route takes an optional car id of the game (the list is cached in <work>/cars_index.json, see tune.py; without it
+and without the game package only the tested cars of tuner/cars.json): the query parameter ?car=<id> on GET, the field
+"car" in the JSON body on POST (any other id is a 400 error). Without it the default car of tuner/cars.json is used.
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of that car; the old single-car layout of the work folder
 is moved into the default car's folder when the server starts.
@@ -201,7 +202,7 @@ def api_state(car):
     work, cars = CONFIG["work"], tune.load_cars()
     applicable, hidden = settings_counts(work, car)
     return {"work": work, "car": car, "default_car": cars["default"],
-            "cars": [{k: c[k] for k in ("id", "label", "display_name", "extracted", "new_id", "installed")}
+            "cars": [{k: c[k] for k in ("id", "label", "display_name", "extracted", "tested", "new_id", "installed")}
                      for c in tune.list_cars(work, CONFIG["mods"])],
             "base_present": base_present(work, car), "game_running": game_running(),
             "installed": installed_info(car), "stock_id_length": len(car),
@@ -284,7 +285,7 @@ def request_car(value, query):
     if value is not None and not isinstance(value, str):
         raise ApiError(400, "car must be text")
     try:
-        return tune.pick_car(tune.load_cars(), value)
+        return tune.pick_car(tune.load_cars(), value, tune.load_cars_index(CONFIG["work"]))
     except ValueError as e:
         raise ApiError(400, str(e))
 
@@ -400,6 +401,7 @@ def main():
         if moved:
             print("moved the old single-car layout of %s into %s: %s" % (
                 CONFIG["work"], tune.car_work(CONFIG["work"], default_car), ", ".join(moved)))
+        tune.load_cars_index(CONFIG["work"])
         server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)
