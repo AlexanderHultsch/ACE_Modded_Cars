@@ -248,8 +248,6 @@ class TestModdedContentAndLocalization(Base):
         _, notes = clone_car.write_localization(str(self.d / "car"), "ks_x", "ax_x", loc, "V")
         self.assertEqual(notes, ["note: 0 stock lines end with _preset_base, the variant name is not applied"])
 
-    # R1-026: nothing was asked to be applied (variant None), so there is nothing to note
-    @unittest.expectedFailure
     def test_no_note_when_no_variant_was_requested(self):
         loc = self.loc(b"ks_x_name=A\r\n")
         _, notes = clone_car.write_localization(str(self.d / "car"), "ks_x", "ax_x", loc, None)
@@ -356,8 +354,6 @@ class TestBuild(Base):
             self.capture(clone_car.build, str(self.src), "ax_xy", str(self.out), "N", 1, "B")
         self.assertFalse(self.out.exists())
 
-    # R1-027: build() is a library function and must signal a failed self-check with an exception, not sys.exit
-    @unittest.expectedFailure
     def test_failed_self_check_raises_value_error(self):
         self.patch(car_json, "decode_msg", lambda sch, msg, data: {"display_name": "other"})
         with self.assertRaises(ValueError):
@@ -444,8 +440,6 @@ class TestInstall(Base):
         with self.assertRaisesRegex(ValueError, "installed size mismatch"):
             self.install()
 
-    # R3-002: a copy that dies half way must not leave a truncated package under the real name
-    @unittest.expectedFailure
     def test_failure_half_way_keeps_the_old_package(self):
         self.write(self.mods / "ax_x.kspkg", b"G" * 1000)
         real = shutil.copyfile
@@ -503,8 +497,6 @@ class TestCli(Base):
                 self.assertEqual((r.returncode, r.stdout), (1, ""))
                 self.assertRegex(r.stderr, r"^error: .*%s.*\n$" % re.escape(message))
 
-    # R1-028: a mods path with an unexpanded %VAR% must be an error that creates no folder
-    @unittest.expectedFailure
     def test_unexpanded_mods_path_is_an_error_and_creates_nothing(self):
         pkg = self.write(self.d / "pkg" / "ax_x.kspkg", b"N" * 20)
         r = self.run_in("install", pkg, "--mods", "%ACE_TEST_NO_SUCH_VAR%/mods", "--backups", self.d / "backups")
@@ -512,8 +504,6 @@ class TestCli(Base):
         self.assertTrue(r.stderr.startswith("error:"), r.stderr)
         self.assertEqual(os.listdir(self.d / "cwd"), [])
 
-    # R1-028
-    @unittest.expectedFailure
     def test_unexpanded_backups_path_is_an_error_and_creates_nothing(self):
         pkg = self.write(self.d / "pkg" / "ax_x.kspkg", b"N" * 20)
         self.write(self.d / "mods" / "ax_x.kspkg", b"old")
@@ -525,8 +515,6 @@ class TestCli(Base):
 
 
 def usage_case(name, argv):
-    # D5: wrong or missing arguments print the usage block on stdout and exit 2, today it goes to stderr and exits 1
-    @unittest.expectedFailure
     def test(self):
         r = self.run_in(*argv)
         self.assertEqual((r.returncode, r.stdout.strip(), r.stderr), (2, USAGE.strip(), ""))

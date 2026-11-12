@@ -19,9 +19,12 @@ build:   copies <car_dir> (basename = old car id) to <out_dir>/content/cars/<new
          All file operations use extended-length paths (see kspkg.long_path), printed paths stay normal.
 install: copies <pkg> to the mods folder (default %USERPROFILE%\\Saved Games\\ACE\\mods). An existing package of the
          same name is first copied to <backups>/<name>_<YYYYmmdd_HHMMSS>.kspkg (default %USERPROFILE%\\ace_modded_cars_work\\backups).
+         The new package is copied to <name>.kspkg.part and renamed when complete, so a failed copy leaves the old package intact.
+         --mods and --backups must expand fully (an unset %VAR% is an error, no folder is created).
 
 Stdlib only. Needs schemas/acevo.desc for the .moddedcarcontent file (see tools/extract_protos.py).
 """
+import contextlib
 import datetime
 import os
 import pathlib
@@ -51,11 +54,14 @@ def replacer(new_id):
     return repl
 
 
-def parse_args(args, flags):
+def parse_args(args, flags, switches=()):
     pos, opts = [], {}
     i = 0
     while i < len(args):
-        if args[i].startswith("--"):
+        if args[i].startswith("--") and args[i][2:] in switches:
+            opts[args[i][2:]] = True
+            i += 1
+        elif args[i].startswith("--"):
             if args[i][2:] not in flags or i + 1 >= len(args):
                 raise ValueError("bad option %s" % args[i])
             opts[args[i][2:]] = args[i + 1]
@@ -64,6 +70,14 @@ def parse_args(args, flags):
             pos.append(args[i])
             i += 1
     return pos, opts
+
+
+def expand(path):
+    """Absolute path with environment variables expanded; a %VAR% that cannot be expanded is an error."""
+    full = os.path.abspath(os.path.expandvars(path))
+    if "%" in full:
+        raise ValueError("cannot expand the path %r" % path)
+    return full
 
 
 def validate(old_id, new_id, out_dir):
@@ -140,7 +154,7 @@ def write_localization(car_root, old_id, new_id, stock_loc, variant):
     if len(base) == 1:
         if variant is not None:
             lines[base[0]] = lines[base[0]].split("=", 1)[0] + "=" + variant
-    else:
+    elif variant is not None:
         notes.append("note: %d stock lines end with %s, the variant name is not applied" % (len(base), VARIANT_SUFFIX))
     folder = os.path.join(car_root, *LOC_PATH[:-1])
     os.makedirs(kspkg.long_path(folder), exist_ok=True)
@@ -199,7 +213,7 @@ def build(car_dir, new_id, out_dir, name, year, brand, variant=None, stock_loc=N
     for n in notes:
         print(n)
     if not self_check(out_dir, old_id, modded):
-        sys.exit(1)
+        raise ValueError("self-check failed (see the lines above)")
     if pack:
         pkg = os.path.join(out_dir, new_id + ".kspkg")
         kspkg.cmd_pack(out_dir, pkg)
@@ -208,8 +222,10 @@ def build(car_dir, new_id, out_dir, name, year, brand, variant=None, stock_loc=N
 
 
 def install(pkg, mods_dir, backups):
+    """Returns the path of the backup made of the replaced package, None when there was no previous install."""
     if not pkg.lower().endswith(".kspkg") or not os.path.isfile(pkg):
         raise ValueError("%s is not an existing .kspkg file" % pkg)
+    mods_dir, backups = expand(mods_dir), expand(backups)
     os.makedirs(mods_dir, exist_ok=True)
     target = os.path.join(mods_dir, os.path.basename(pkg))
     backup = None
@@ -222,36 +238,54 @@ def install(pkg, mods_dir, backups):
         shutil.copy2(target, backup)
         if os.path.getsize(backup) != os.path.getsize(target):
             raise ValueError("backup size mismatch for %s, target left untouched" % backup)
-    shutil.copyfile(pkg, target)
-    if os.path.getsize(target) != os.path.getsize(pkg):
-        raise ValueError("installed size mismatch for %s" % target)
+    part = target + ".part"
+    try:
+        shutil.copyfile(pkg, part)
+        if os.path.getsize(part) != os.path.getsize(pkg):
+            raise ValueError("installed size mismatch for %s" % target)
+        os.replace(part, target)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(part)
+        raise
     print("installed: %s (%d bytes)" % (target, os.path.getsize(target)))
     print("backup: %s" % ("%s (%d bytes)" % (backup, os.path.getsize(backup)) if backup else "no previous install"))
+    return backup
+
+
+def usage():
+    print(__doc__.split("\n\n")[1])
+    sys.exit(2)
 
 
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
         if cmd == "build":
-            rest = [a for a in sys.argv[2:] if a != "--no-pack"]
-            pos, opts = parse_args(rest, ("name", "year", "brand", "variant", "loc", "property1", "property2", "property3"))
+            try:
+                pos, opts = parse_args(sys.argv[2:], ("name", "year", "brand", "variant", "loc", "property1", "property2", "property3"),
+                                       ("no-pack",))
+            except ValueError:
+                usage()
             if len(pos) != 3:
-                sys.exit(__doc__.split("\n\n")[1])
+                usage()
             try:
                 year = int(opts.get("year", 2003))
             except ValueError:
                 raise ValueError("--year must be an integer") from None
             props = {"property_%d" % i: opts.get("property%d" % i) for i in (1, 2, 3)}
             build(pos[0], pos[1], pos[2], opts.get("name", pos[1] + "_MY"), year,
-                  opts.get("brand", "BMW"), opts.get("variant"), opts.get("loc"), props, len(rest) == len(sys.argv[2:]))
+                  opts.get("brand", "BMW"), opts.get("variant"), opts.get("loc"), props, "no-pack" not in opts)
         elif cmd == "install":
-            pos, opts = parse_args(sys.argv[2:], ("mods", "backups"))
+            try:
+                pos, opts = parse_args(sys.argv[2:], ("mods", "backups"))
+            except ValueError:
+                usage()
             if len(pos) != 1:
-                sys.exit(__doc__.split("\n\n")[1])
-            install(pos[0], os.path.expandvars(opts.get("mods", DEFAULT_MODS)),
-                    os.path.expandvars(opts.get("backups", DEFAULT_BACKUPS)))
+                usage()
+            install(pos[0], opts.get("mods", DEFAULT_MODS), opts.get("backups", DEFAULT_BACKUPS))
         else:
-            sys.exit(__doc__.split("\n\n")[1])
+            usage()
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)
 

@@ -841,22 +841,16 @@ class Cli(unittest.TestCase):
         self.assertEqual(r.stdout.splitlines(), [".%-20s %s" % (e, n) for e, n in sorted(cj.TYPES.items())])
         self.assertIn(".aicardata            AiCarData", r.stdout)
 
-    # R2-001: a file that does not round-trip must not be decoded, today a warning on stderr, rc 0 and a written file
-    @unittest.expectedFailure
     def test_decode_of_a_file_that_does_not_round_trip_prints_error_and_exits_1(self):
         r = self.run_cli("decode", self.work / "nan.curve", self.scratch() / "nan.json")
         self.assertEqual(r.returncode, 1, r.stderr)
         self.assertTrue(r.stderr.startswith("error: round-trip mismatch"), r.stderr)
 
-    # R2-001: and no output file may be left behind
-    @unittest.expectedFailure
     def test_decode_of_a_file_that_does_not_round_trip_writes_no_output_file(self):
         out = self.scratch() / "nan.json"
         self.run_cli("decode", self.work / "nan.curve", out)
         self.assertFalse(out.exists(), "decode wrote a JSON that does not encode back to the original")
 
-    # R2-001: nor may it print the JSON to stdout
-    @unittest.expectedFailure
     def test_decode_of_a_file_that_does_not_round_trip_prints_no_json_on_stdout(self):
         r = self.run_cli("decode", self.work / "nan.curve")
         self.assertEqual(r.stdout, "")
@@ -870,83 +864,55 @@ class Cli(unittest.TestCase):
         self.assertTrue(r.stderr.startswith("error:"), r.stderr)
         self.assertFalse((d / "out.curve").exists())
 
-    # R2-002: reserved keys and huge numbers in hand-edited JSON end in a traceback, wanted is "error: ..." and rc 1
-    @unittest.expectedFailure
     def test_encode_with_packed_not_a_list_is_an_error(self):
         self.assert_encode_error('{"r_i32": [1], "_packed": 5}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_unknown_not_a_list_is_an_error(self):
         self.assert_encode_error('{"_unknown": 5}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_an_unknown_entry_that_is_not_a_list_is_an_error(self):
         self.assert_encode_error('{"_unknown": [5]}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_a_string_value_for_an_unknown_varint_is_an_error(self):
         self.assert_encode_error('{"_unknown": [[5, 0, "abc"]]}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_a_string_value_for_an_unknown_fixed64_is_an_error(self):
         self.assert_encode_error('{"_unknown": [[5, 1, "abc"]]}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_a_number_value_for_an_unknown_length_delimited_field_is_an_error(self):
         self.assert_encode_error('{"_unknown": [[5, 2, 7]]}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_order_not_a_list_is_an_error(self):
         self.assert_encode_error('{"d": 1.0, "_order": 5}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_an_unhashable_order_entry_is_an_error(self):
         self.assert_encode_error('{"d": 1.0, "_order": [["d"]]}')
 
-    # R2-002
-    @unittest.expectedFailure
     def test_encode_with_an_integer_too_large_for_a_double_is_an_error(self):
         self.assert_encode_error('{"d": 1%s}' % ("0" * 400))
 
 
 class CommandLine(unittest.TestCase):
-    # D5: no arguments is a usage error (rc 2, usage block on stdout), today the usage goes to stderr with rc 1
-    @unittest.expectedFailure
     def test_no_arguments_exits_2_with_usage_on_stdout(self):
         r = run_tool("car_json.py")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # D5: an unknown command is a usage error, today stderr and rc 1
-    @unittest.expectedFailure
     def test_unknown_command_exits_2_with_usage_on_stdout(self):
         r = run_tool("car_json.py", "frobnicate")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # D5: decode without a file is a usage error, today stderr and rc 1
-    @unittest.expectedFailure
     def test_decode_without_operand_exits_2_with_usage_on_stdout(self):
         r = run_tool("car_json.py", "decode")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # D5: encode with one operand is a usage error, today stderr and rc 1
-    @unittest.expectedFailure
     def test_encode_with_one_operand_exits_2_with_usage_on_stdout(self):
         r = run_tool("car_json.py", "encode", "in.json")
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertEqual(r.stdout.strip(), usage_block())
 
-    # D5: check without a folder is a usage error, today stderr and rc 1
-    @unittest.expectedFailure
     def test_check_without_operand_exits_2_with_usage_on_stdout(self):
         r = run_tool("car_json.py", "check")
         self.assertEqual(r.returncode, 2, r.stderr)

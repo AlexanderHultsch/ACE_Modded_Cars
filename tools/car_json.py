@@ -35,6 +35,7 @@ import extract_protos as ep  # noqa: E402
 import kspkg  # noqa: E402
 
 DESC = pathlib.Path(__file__).resolve().parent.parent / "schemas" / "acevo.desc"
+_SCHEMAS = {}
 
 # Only extensions where exactly one candidate message decoded every sample file with an exact round trip. Wire-type mismatches and unknown fields
 # (e.g. the legacy tail of .drivetrain) do not exclude a type: they are kept in _unknown. Unmapped on purpose: .actor, .cardisplaysystem, .carwipersystem, .tyremesh.
@@ -85,9 +86,19 @@ class F32(float):
 
 
 def load_schema(path=DESC):
+    """Parsed schema of a descriptor set, cached per file (path, size, mtime); callers must not modify it."""
     path = pathlib.Path(path)
     if not path.is_file():
         raise ValueError("missing schema file %s (run tools/extract_protos.py)" % path)
+    st = path.stat()
+    key = (str(path), st.st_size, st.st_mtime_ns)
+    if key not in _SCHEMAS:
+        _SCHEMAS.clear()
+        _SCHEMAS[key] = parse_schema(path)
+    return _SCHEMAS[key]
+
+
+def parse_schema(path):
     sch = {"msgs": {}, "enums": {}}
     for rec in ep.split_set(path.read_bytes()):
         f = ep.parse_file(rec)
@@ -287,7 +298,10 @@ def packed_values(sch, f, raw):
 def flt(v):
     if type(v) is bool or not isinstance(v, (int, float, str)):
         raise ValueError("expected a number, got %r" % (v,))
-    return float(v)
+    try:
+        return float(v)
+    except OverflowError:
+        raise ValueError("number out of range: %r" % (v,)) from None
 
 
 def enc_scalar(sch, f, v):
@@ -354,6 +368,15 @@ def encode_msg(sch, name, obj):
         if k not in by_name and k not in RESERVED:
             raise ValueError("%s: unknown field %r" % (name, k))
     packed = obj.get("_packed", [])
+    if not isinstance(packed, list):
+        raise ValueError("%s: _packed: expected an array of field names" % name)
+    order = obj.get("_order")
+    if "_order" in obj and not (isinstance(order, list) and all(isinstance(k, str) for k in order)):
+        raise ValueError("%s: _order: expected an array of field names" % name)
+    unknown = obj.get("_unknown", [])
+    if not (isinstance(unknown, list) and all(isinstance(e, list) and len(e) >= 3 and type(e[0]) is int and e[0] > 0
+                                              and type(e[1]) is int for e in unknown)):
+        raise ValueError("%s: _unknown: expected [[field_number, wire_type, value], ...]" % name)
     occ = {}
     for key, val in obj.items():
         if key in RESERVED:
@@ -373,22 +396,29 @@ def encode_msg(sch, name, obj):
                 occ[key] = [(f["number"], occurrence(f, wt, enc_value(sch, f, val)))]
         except ValueError as e:
             raise ValueError("%s: %s" % (key, e)) from None
-    for fn, wt, v, *_ in obj.get("_unknown", []):
+    for fn, wt, v, *_ in unknown:
         if wt == 0:
+            if type(v) is not int or v < 0:
+                raise ValueError("%s: _unknown: bad value %r for wire type 0" % (name, v))
             body = ep.varint_bytes(v)
         elif wt in (1, 5):
-            body = v.to_bytes(8 if wt == 1 else 4, "little")
+            n = 8 if wt == 1 else 4
+            if type(v) is not int or not 0 <= v < 1 << (8 * n):
+                raise ValueError("%s: _unknown: bad value %r for wire type %d" % (name, v, wt))
+            body = v.to_bytes(n, "little")
         elif wt == 2:
+            if not (isinstance(v, str) and v.startswith("hex:")):
+                raise ValueError("%s: _unknown: expected \"hex:..\" for wire type 2, got %r" % (name, v))
             body = bytes.fromhex(v[4:])
             body = ep.varint_bytes(len(body)) + body
         else:
             raise ValueError("_unknown: wire type %d" % wt)
         occ.setdefault("?%d" % fn, []).append((fn, tag(fn, wt) + body))
-    if "_order" not in obj:
+    if order is None:
         return b"".join(b for _, b in sorted((x for xs in occ.values() for x in xs), key=lambda x: x[0]))
     pos = dict.fromkeys(occ, 0)
     out = []
-    for key in obj["_order"]:
+    for key in order:
         if key not in occ or pos[key] >= len(occ[key]):
             raise ValueError("_order names %r more often than it occurs" % key)
         out.append(occ[key][pos[key]][1])
@@ -446,11 +476,11 @@ def message_for(path):
     return TYPES[ext]
 
 
-def roundtrip(sch, name, data):
-    """Return (obj, error_or_None) for decode -> JSON text -> encode compared to data."""
+def roundtrip(sch, name, data, text=True):
+    """Return (obj, error_or_None) for decode -> JSON text -> encode compared to data (text=False skips the text pass)."""
     try:
         obj = decode_msg(sch, name, data)
-        back = encode_msg(sch, name, loads(dumps(obj)))
+        back = encode_msg(sch, name, loads(dumps(obj)) if text else obj)
     except (ValueError, KeyError, IndexError, TypeError, RecursionError) as e:
         return None, "%s: %s" % (type(e).__name__, e)
     if back != data:
@@ -500,10 +530,8 @@ def main():
             data = pathlib.Path(kspkg.long_path(args[0])).read_bytes()
             sch = load_schema()
             obj, err = roundtrip(sch, name, data)
-            if obj is None:
-                sys.exit("error: " + err)
             if err:
-                print("warning: " + err, file=sys.stderr)
+                sys.exit("error: " + err)
             text = dumps(obj) + "\n"
             if len(args) == 2:
                 pathlib.Path(args[1]).write_bytes(text.encode("utf-8"))
@@ -519,7 +547,8 @@ def main():
             for ext, name in sorted(TYPES.items()):
                 print(".%-20s %s" % (ext, name))
         else:
-            sys.exit(__doc__.split("\n\n")[1])
+            print(__doc__.split("\n\n")[1])
+            sys.exit(2)
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)
 
