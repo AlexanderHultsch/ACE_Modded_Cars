@@ -1,7 +1,0 @@
-4: "Hina's Drift Club - AE86 Trueno"
-5: 1984
-10: "hina_drift_club"
-42: 1
-30 {
-  1: <4 bytes>
-}

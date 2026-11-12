@@ -1,11 +1,11 @@
 """Dump all physics/setup/config files of an extracted car as schema-less protobuf text.
 
 usage: python tools/dump_car.py <extracted_car_root> <out_dir>
-  e.g. python tools/dump_car.py hdc_1.4/extracted/e46 hdc_1.4/decoded/e46
+  e.g. python tools/dump_car.py work/car/content/cars/<car_id> work/decoded/<car_id>
 
 Skips meshes, textures, materials and other heavy render assets. Field names are
 NOT available (numbers only) until the .proto schemas are extracted from the
-game executable (see HANDOVER.md).
+game executable (see docs/HANDOVER.md).
 """
 import pathlib
 import sys

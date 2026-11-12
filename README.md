@@ -1,27 +1,49 @@
-# ACE Modded Cars
+# ACE Modded Cars: BMW E46 drift tuner
 
-A local tuner for the Assetto Corsa EVO BMW M3 E46 CSL (drift focus): change about 70 settings (engine, gearing, differential, brakes, springs, dampers, alignment, fuel) in a table page, install your own tuned copy of the car next to the stock one, drive, close the game, change again.
+Change the driving settings of the Assetto Corsa EVO BMW M3 E46 CSL in a simple table, install your own tuned copy of the car next to the stock one, drive a lap, close the game, change again. About 70 settings: engine, gearing, differential, brakes, springs, dampers, alignment, fuel. No cosmetics.
 
-- **Start here:** [HANDOVER.md](HANDOVER.md) (status, formats, field knowledge, open questions)
-- **Specification:** [docs/TUNER_SPEC.md](docs/TUNER_SPEC.md); **all settings with defaults:** [docs/BMW_SETTINGS.md](docs/BMW_SETTINGS.md)
+Your tuned car is called **Alex E46 Drift**. The stock BMW is never changed.
 
-## Use the tuner (Windows)
+## What you need
 
-1. Requirements: Assetto Corsa EVO and its SDK installed through Steam, Python 3.9+ (the batch file looks for `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`), Git for Windows if you clone.
-2. First, extract the schemas once (they are Kunos property and stay local): `python tools/extract_protos.py "<Steam>/steamapps/common/Assetto Corsa EVO SDK/AssettoCorsaEVOEditor.exe" schemas`
-3. Double-click `tuner\start_tuner.bat`. It opens http://127.0.0.1:8765/ . On first use press "Extract stock car" (about 20 s).
-4. Edit values in the table, press "Apply (update my BMW)" (or "Save as new copy"). Close the game before applying. The tuned car "Alex E46 Drift" appears in the car list next to the stock E46. Every install keeps a backup in `%USERPROFILE%\ace_modded_cars_work\backups`.
-5. Check a power change without driving: the game log `Saved Games\ACE\Logs\log-*.txt` contains `POWER CLASS INDEX ... (<hp> HP)` when a session starts.
+- Windows PC with **Assetto Corsa EVO** and the **Assetto Corsa EVO SDK** installed through Steam (both fully downloaded).
+- **Python 3.12** from python.org, installed for the current user (the start file looks in `%LOCALAPPDATA%\Programs\Python\Python312\`).
+- This repository (clone or download it).
 
-Command line equivalents: `python tools/tune.py init | defaults | show | set <id> <value> | apply | doc`.
+## One-time setup
 
-## Tools (Python 3.9+, stdlib only, in `tools/`)
+1. Open a terminal in the repository folder and extract the car data field names from the SDK (they belong to the game vendor, so they stay on your PC and are not part of this repository):
+   ```
+   python tools\extract_protos.py "C:\Program Files (x86)\Steam\steamapps\common\Assetto Corsa EVO SDK\AssettoCorsaEVOEditor.exe" schemas
+   ```
+2. Double-click **`tuner\start_tuner.bat`**. A console window opens and your browser shows the tuner at http://127.0.0.1:8765/ . Keep the console window open while you use it.
+3. First start only: press **Extract stock car** (about 20 seconds). This copies the BMW's data out of the game into `%USERPROFILE%\ace_modded_cars_work`.
 
-- `kspkg.py` list / extract (optional path prefix) / pack / verify `.kspkg` packages
-- `extract_protos.py` extract the protobuf schemas from an exe into `schemas/` (git-ignored)
-- `car_json.py` decode / encode car data files as JSON with real field names (lossless)
-- `clone_car.py` clone a game car under a same-length id, register it as a mod, pack, install with backup
-- `tune.py`, `tuner_server.py` the settings engine and the local web server; `tuner/` holds the settings list and the page
-- `pb_raw.py`, `dump_car.py` schema-less protobuf dumps; reference dumps of Hina's Drift Club 1.4 in `hdc_1.4/decoded/` (credits in [NOTICE.md](NOTICE.md))
+## Every time you tune
 
-Not affiliated with KUNOS Simulazioni. Requires a legal copy of Assetto Corsa EVO and its SDK. Vendor data (`schemas/`, SDK and game files, the work folder) is not part of this repository.
+1. Close the game (the tuner refuses to install while it runs).
+2. In the table, change values. Each row shows: variable name, your value, a description, and the BMW's default. Changed rows turn yellow and have a **reset** button. Use the search box to find a setting, or tick **changed only** to see what you changed.
+3. Press **Apply (update my BMW)**. After a few seconds the green message tells you the package was installed. Press **Save as new copy…** instead to keep the previous tuned car and install another one next to it (you type a new car id with exactly 17 lowercase letters, digits or underscores).
+4. Start the game, open Vehicle Selection, pick **Alex E46 Drift**, drive.
+5. Close the game and repeat.
+
+"unverified" next to a description means the meaning is guessed from the setting's name and not yet confirmed in the game. Every setting is explained in [docs/BMW_SETTINGS.md](docs/BMW_SETTINGS.md).
+
+## Good to know
+
+- **Check a power change without driving:** when a session starts the game writes a line like `POWER CLASS INDEX ... (357.19 HP)` into the newest file in `%USERPROFILE%\Saved Games\ACE\Logs`. Stock is 357.19 HP; a power scale of 1.056 should show about 377 HP.
+- **Undo:** every install keeps a backup of the previous package in `%USERPROFILE%\ace_modded_cars_work\backups`. Copy one over `%USERPROFILE%\Saved Games\ACE\mods\ax_bmw_m3_e46_csl.kspkg`, or delete that file to remove the tuned car completely.
+- **Your values** are remembered in `%USERPROFILE%\ace_modded_cars_work\tune_state.json`; **Reset all** clears them.
+- **Car not in the list?** Check that `ax_bmw_m3_e46_csl.kspkg` is directly inside `%USERPROFILE%\Saved Games\ACE\mods\`, and look at the newest game log for errors.
+- **Python not found?** Install Python 3.12 for the current user, or edit the path in `tuner\start_tuner.bat`.
+- Command-line use for the same functions: `python tools\tune.py init | defaults | show | set <id> <value> | apply | doc`.
+
+## More
+
+- [docs/TUNER_SPEC.md](docs/TUNER_SPEC.md): state of the project (what works, what is verified, what is open).
+- [docs/HANDOVER.md](docs/HANDOVER.md): notes for continuing the work in a new session, local or cloud.
+- `Example mods (reference only)/`: text dumps of the driving data of six drift cars by other authors, for research only.
+
+## Credits and rights
+
+Not affiliated with KUNOS Simulazioni; requires a legal copy of Assetto Corsa EVO. Car data, field names and game files belong to Kunos and stay out of this repository. The reference dumps in `Example mods (reference only)/` come from Hina's Drift Club 1.4 by Hina (OverTake.gg), all rights with the author, removed on request. Do not publish tuned versions of Kunos' or Hina's cars.

@@ -1,5 +1,0 @@
-brand_hina_drift_club=Hina's Drift Club
-hdc_datsun_240z_01_analogue_l28_drift=Analogue L28 Drift
-hdc_datsun_240z_01_g_nose=G-Nose
-hdc_datsun_240z_01_hdc_na=HDC - NA
-hdc_datsun_240z_01_hdc=HDC

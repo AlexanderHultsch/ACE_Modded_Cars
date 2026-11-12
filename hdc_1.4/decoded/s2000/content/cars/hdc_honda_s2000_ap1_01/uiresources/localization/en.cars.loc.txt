@@ -1,8 +1,0 @@
-brand_hina_drift_club=Hina's Drift Club
-hdc_honda_s2000_ap1_01_hina_s_drift_club_s2000=Hina's Drift Club - S2000
-hdc_honda_s2000_ap1_01_ap1_precision_na=AP1 Precision NA
-hdc_honda_s2000_ap1_01_two_tone=Two-Tone
-hdc_honda_s2000_ap1_01_standard=Standard
-hdc_honda_s2000_ap1_01_suzuka_blue=Suzuka Blue
-hdc_honda_s2000_ap1_01_hdc_na=HDC - NA
-hdc_honda_s2000_ap1_01_hdc=HDC
