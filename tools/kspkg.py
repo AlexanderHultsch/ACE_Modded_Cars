@@ -71,7 +71,17 @@ def path_hash(p):
     return h
 
 
+_TABLES = {}    # abspath -> ((size, mtime_ns), (key, entries, size)); parsed result only, not the 64 MiB raw table
+
+
 def read_table(f):
+    """Cached per (path, size, mtime_ns); the returned entries are shared between calls and must not be modified."""
+    st = os.fstat(f.fileno())
+    stamp = (st.st_size, st.st_mtime_ns)
+    path = os.path.abspath(f.name)
+    hit = _TABLES.get(path)
+    if hit and hit[0] == stamp:
+        return hit[1]
     f.seek(0, 2)
     size = f.tell()
     if size < HEADER + TBL:
@@ -88,6 +98,7 @@ def read_table(f):
             break
         entries.append(dict(path=e[:plen].decode("utf-8", "replace"), flags=flags,
                             hash=h, size=fsize, off=foff))
+    _TABLES[path] = (stamp, (key, entries, size))
     return key, entries, size
 
 

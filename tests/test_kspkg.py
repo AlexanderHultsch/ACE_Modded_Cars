@@ -316,6 +316,25 @@ class Packed(unittest.TestCase):
         self.assertEqual(lines[0], f"key={KEY.hex()} entries={len(self.entries)} pkgsize={self.size}")
         self.assertEqual(len(lines), 1 + len(self.entries))
 
+    def test_read_table_parses_the_table_once_per_unchanged_package(self):
+        with tmp() as d:
+            pkg = d / "cache.kspkg"
+            build_package(pkg, [(CAR + "a.bin", 0, b"one")])
+            real, calls = kspkg.xor, []
+            kspkg.xor = lambda buf, key: calls.append(1) or real(buf, key)
+            try:
+                for _ in range(2):
+                    with open(pkg, "rb") as f:
+                        key, entries, _ = kspkg.read_table(f)
+                self.assertEqual(len(calls), len(entries) + 1)
+                build_package(pkg, [(CAR + "a.bin", 0, b"one"), (CAR + "b.bin", 0, b"two")])
+                os.utime(pkg, ns=(0, os.stat(pkg).st_mtime_ns + 10 ** 9))
+                with open(pkg, "rb") as f:
+                    key, entries, _ = kspkg.read_table(f)
+            finally:
+                kspkg.xor = real
+            self.assertEqual(sorted(e["path"] for e in entries), [CAR + "a.bin", CAR + "b.bin"])
+
     def test_cli_verify_of_a_package_with_itself_is_identical(self):
         r = run_tool("kspkg.py", "verify", self.pkg, self.pkg)
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "IDENTICAL CONTENT"))
