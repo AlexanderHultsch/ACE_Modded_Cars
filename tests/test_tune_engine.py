@@ -1630,8 +1630,6 @@ class TestApply(CarCase):
         with open(installed, "rb") as f:
             self.assertEqual(f.read(), b"INSTALLED")
 
-    # R3-009: the error shown to the user must not drag along an implicit "during handling of" chain
-    @unittest.expectedFailure
     def test_self_check_failure_error_is_not_chained(self):
         def failing(*a, **k):
             raise SystemExit(1)
@@ -1643,29 +1641,21 @@ class TestApply(CarCase):
 
 # --------------------------------------------------------------------------------------------- error chains (R3-009 / R2-006)
 class TestErrorChains(Base):
-    # R2-006
-    @unittest.expectedFailure
     def test_to_f32_error_is_not_chained(self):
         with self.assertRaises(ValueError) as cm:
             tune.to_f32(1e300)
         not_chained(self, cm.exception)
 
-    # R2-006
-    @unittest.expectedFailure
     def test_coerce_float_error_is_not_chained(self):
         with self.assertRaises(ValueError) as cm:
             tune.coerce(mini_setting("f"), "abc")
         not_chained(self, cm.exception)
 
-    # R2-006
-    @unittest.expectedFailure
     def test_load_msg_read_error_is_not_chained(self):
         with self.assertRaises(ValueError) as cm:
             tune.load_msg(os.path.join(self.work, "missing.car"))
         not_chained(self, cm.exception)
 
-    # R2-006
-    @unittest.expectedFailure
     def test_save_msg_encode_error_is_not_chained(self):
         self.patch(tune, "schema", lambda: {})
 
@@ -1676,15 +1666,11 @@ class TestErrorChains(Base):
             tune.save_msg(os.path.join(self.work, "x.car"), "CarData", {})
         not_chained(self, cm.exception)
 
-    # R3-009
-    @unittest.expectedFailure
     def test_find_ci_listing_error_is_not_chained(self):
         with self.assertRaises(ValueError) as cm:
             tune.find_ci(os.path.join(self.work, "no_such_folder"), "a/b")
         not_chained(self, cm.exception)
 
-    # R3-009
-    @unittest.expectedFailure
     def test_tyre_found_error_is_not_chained(self):
         os.makedirs(self.work)
         with self.assertRaises(ValueError) as cm:

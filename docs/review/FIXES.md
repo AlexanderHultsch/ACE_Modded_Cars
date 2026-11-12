@@ -33,6 +33,11 @@ Findings: `R1.md` .. `R5.md` in this folder (IDs like R1-005). Owner decisions o
 - Comment/docstring-only batches (T1) must leave the code AST identical (docstrings and comments excluded); the planner checks this with a script.
 - Do not commit; do not touch files outside the batch.
 
+## Findings found wrong or partly wrong during the fixes
+
+- R3-019 (a)+(c): not applied; the `{stock_display_name}` placeholder is used (tests `test_default_template_placeholders`, `test_incomplete_stock_info_is_used_as_far_as_it_goes`, `test_stock_name_comes_from_the_mechanical_preset_without_stock_info`). Part (b) applied.
+- R3-029: the finding's FIX wording was superseded by the test's range format (README says `136-142`).
+
 ## Status
 
 Updated by the planner after each verified batch (see git log for the commits).

@@ -150,7 +150,7 @@ def run_job(kind, task):
 def init_task(car):
     def task():
         log_line("extracting the stock car from the game package (about 20 s) ...")
-        res = tune.init(CONFIG["work"], car, os.path.expandvars(tune.DEFAULT_GAME))
+        res = tune.init(CONFIG["work"], car, tune.DEFAULT_GAME)
         log_line("base already present" if res["present"] else "extracted the stock car")
         log_line("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
         return res
@@ -233,7 +233,7 @@ def api_set(car, body):
         try:
             res = tune.set_value(work, car, setting_id, value, cat)
         except ValueError as e:
-            raise ApiError(400, str(e))
+            raise ApiError(400, str(e)) from None
         return {"row": row_of(work, car, cat, setting_id), "warnings": res["warnings"]}
 
 
@@ -247,7 +247,7 @@ def api_unset(car, body):
         try:
             tune.unset_value(work, car, setting_id, cat)
         except ValueError as e:
-            raise ApiError(400, str(e))
+            raise ApiError(400, str(e)) from None
         return {"row": row_of(work, car, cat, setting_id)}
 
 
@@ -270,7 +270,7 @@ def check_new_id(new_id, car_id, work):
     try:
         clone_car.validate(car_id, new_id, os.path.join(tune.build_dir(work, car_id), "unused"))
     except ValueError as e:
-        raise ApiError(400, str(e))
+        raise ApiError(400, str(e)) from None
     return new_id
 
 
@@ -295,7 +295,7 @@ def request_car(value, query):
     try:
         return tune.pick_car(tune.load_cars(), value, tune.load_cars_index(CONFIG["work"]))
     except ValueError as e:
-        raise ApiError(400, str(e))
+        raise ApiError(400, str(e)) from None
 
 
 GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings}
@@ -331,7 +331,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
-            raise ApiError(400, "bad Content-Length")
+            raise ApiError(400, "bad Content-Length") from None
         if length < 0 or length > MAX_BODY:
             raise ApiError(400, "request body too large")
         raw = self.rfile.read(length)
@@ -340,7 +340,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             body = json.loads(raw.decode("utf-8"))
         except ValueError:
-            raise ApiError(400, "body is not valid JSON")
+            raise ApiError(400, "body is not valid JSON") from None
         if not isinstance(body, dict):
             raise ApiError(400, "body must be a JSON object")
         return body
@@ -388,9 +388,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     # the page polls /api/state every few seconds; keep that out of the console
-    def log_message(self, fmt, *args):
-        if "/api/state" not in getattr(self, "path", ""):
-            http.server.BaseHTTPRequestHandler.log_message(self, fmt, *args)
+    def log_request(self, code="-", size="-"):
+        if getattr(self, "path", "").partition("?")[0] == "/api/state" and str(code) == "200":
+            return
+        http.server.BaseHTTPRequestHandler.log_request(self, code, size)
 
 
 def parse_port(text):
@@ -412,8 +413,8 @@ def main():
         if moved:
             print("moved the old single-car layout of %s into %s: %s" % (
                 CONFIG["work"], tune.car_work(CONFIG["work"], default_car), ", ".join(moved)))
-        tune.load_cars_index(CONFIG["work"])
         server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        tune.load_cars_index(CONFIG["work"])
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)
     print("tuner running on http://127.0.0.1:%d/" % port, flush=True)

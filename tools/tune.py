@@ -137,7 +137,7 @@ DOC_NOT_COVERED = (
     "covered)", "coilover bump stop force and length values, rear caster", "damper limits",
     "engine map (`maps[]`) values", "further turbo settings (lag, wastegate, controllers)")
 CARS_TABLE = "system\\cars.table"
-STOCK_LOC = "uiresources\\localization\\en.cars.loc"
+STOCK_LOC = "\\".join(clone_car.LOC_PATH)
 STOCK_PROPERTIES = ("property_1", "property_2", "property_3")
 # apply fallback for the default car when stock_info.json is missing and the game is not reachable: the values of the BMW M3 E46 CSL
 CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
@@ -258,7 +258,7 @@ def migrate_old_layout(work, default_car):
 
 def save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
@@ -350,7 +350,7 @@ def to_f32(x):
     try:
         y = struct.unpack("<f", struct.pack("<f", x))[0]
     except OverflowError:
-        raise ValueError("float out of range: %r" % (x,))
+        raise ValueError("float out of range: %r" % (x,)) from None
     v = car_json.F32(y)
     v.text = car_json.f32_text(y)
     return v
@@ -400,7 +400,7 @@ def coerce(s, v):
                 raise ValueError
             v = float(v)
         except ValueError:
-            raise ValueError("%s expects a number, got %r" % (s["id"], v))
+            raise ValueError("%s expects a number, got %r" % (s["id"], v)) from None
         if not math.isfinite(v):
             raise ValueError("%s expects a finite number, got %r" % (s["id"], v))
     elif s.get("handler") == "name_suffix":
@@ -565,7 +565,7 @@ def load_msg(path):
         with open(kspkg.long_path(path), "rb") as f:
             data = f.read()
     except OSError as e:
-        raise ValueError("%s: %s" % (path, e.strerror or e))
+        raise ValueError("%s: %s" % (path, e.strerror or e)) from None
     obj, err = car_json.roundtrip(schema(), name, data)
     if err:
         raise ValueError("%s: %s" % (path, err))
@@ -576,7 +576,7 @@ def save_msg(path, name, obj):
     try:
         data = car_json.encode_msg(schema(), name, obj)
     except ValueError as e:
-        raise ValueError("%s: %s" % (path, e))
+        raise ValueError("%s: %s" % (path, e)) from None
     with open(kspkg.long_path(path), "wb") as f:
         f.write(data)
 
@@ -679,7 +679,7 @@ def write_stock_info(work, car_id, game=DEFAULT_GAME):
     data = read_game_file(work, game, CARS_TABLE)
     ensure_stock_loc(work, game)
     lines = car_json.decode_msg(schema(), "TableData", data).get("preset", {}).get("lines", [])
-    rows = [l["car_content"] for l in lines if l.get("car_content", {}).get("name") == car_id]
+    rows = [line["car_content"] for line in lines if line.get("car_content", {}).get("name") == car_id]
     if len(rows) != 1:
         raise ValueError("%s has %d rows for %s, expected 1" % (CARS_TABLE, len(rows), car_id))
     info = {"car_id": car_id, "display_name": rows[0].get("display_name"), "brand": rows[0].get("brand"),
@@ -690,9 +690,7 @@ def write_stock_info(work, car_id, game=DEFAULT_GAME):
     for i, key in enumerate(STOCK_PROPERTIES, 1):
         info[key] = rows[0].get(key) or schema()["enums"]["CarContentData.Property%d" % i][1][0]
     info["variant_name"] = clone_car.stock_variant(stock_loc_path(work), car_id)
-    os.makedirs(car_work(work, car_id), exist_ok=True)
-    with open(stock_info_path(work, car_id), "w", encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(info, indent=2, ensure_ascii=False) + "\n")
+    save_json(stock_info_path(work, car_id), info)
     return "written"
 
 
@@ -739,8 +737,8 @@ def load_cars_index(work, game=DEFAULT_GAME):
     except (ValueError, OSError):
         return None
     rows = {}
-    for l in lines:
-        c = l.get("car_content", {})
+    for line in lines:
+        c = line.get("car_content", {})
         if isinstance(c.get("name"), str) and c["name"]:
             rows[c["name"]] = {"id": c["name"], "display_name": c.get("display_name") or c["name"],
                                "brand": c.get("brand", ""), "year": c.get("year")}
@@ -764,8 +762,9 @@ def preset_display_name(car_root):
 def init(work, car_id, game=DEFAULT_GAME):
     base = base_dir(work, car_id)
     car_root = car_root_of(base, car_id)
-    if os.path.isdir(kspkg.long_path(car_root)) and count_tree(car_root)["files"]:
-        res = dict(count_tree(car_root), present=True, dir=car_root)
+    present = count_tree(car_root) if os.path.isdir(kspkg.long_path(car_root)) else None
+    if present and present["files"]:
+        res = dict(present, present=True, dir=car_root)
     else:
         if not os.path.isfile(game):
             raise ValueError("game package not found: %s" % game)
@@ -807,7 +806,7 @@ def find_ci(base, rel):
         try:
             names = {n.lower(): n for n in os.listdir(kspkg.long_path(cur))}
         except OSError as e:
-            raise ValueError("%s: %s" % (cur, e.strerror or e))
+            raise ValueError("%s: %s" % (cur, e.strerror or e)) from None
         if part.lower() not in names:
             raise ValueError("%s not found in %s" % (part, cur))
         cur = os.path.join(cur, names[part.lower()])
@@ -912,7 +911,7 @@ def tyre_found(root, text):
     try:
         return find_ci(root, text)
     except ValueError:
-        raise ValueError(TYRE_UNAVAILABLE)
+        raise ValueError(TYRE_UNAVAILABLE) from None
 
 
 def referenced_tyres(root, car_id, cache):
@@ -1138,7 +1137,7 @@ def build_tyre(root, car_id, new_id, car_root, role, items, cache):
             if hits:
                 save_msg(os.path.join(folder, n), preset_name, preset)
                 in_presets += hits
-    return "tyre %s: own file %s replaces %s in %d .car entry(ies) and %d compatibletyres entry(ies)" % (
+    return "note: tyre %s: own file %s replaces %s in %d .car entry(ies) and %d compatibletyres entry(ies)" % (
         axle, new_text, stock_text, in_car, in_presets)
 
 
@@ -1164,10 +1163,8 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     if os.path.exists(kspkg.long_path(out_dir)):
         remove_tree(work, out_dir)
     meta = {s["handler"]: r["value"] for s, r in zip(cat["settings"], rows) if s["kind"] == "meta"}
-    try:
+    with contextlib.suppress(ValueError, OSError):
         ensure_stock_loc(work, game)
-    except (ValueError, OSError):
-        pass
     stock_loc = stock_loc_path(work) if os.path.isfile(stock_loc_path(work)) else None
     car_name = (info.get("display_name") or preset_display_name(car_root_of(root, car_id))) + meta["name_suffix"]
     log = io.StringIO()
@@ -1179,7 +1176,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
                                     meta["variant_name"], stock_loc, {k: info.get(k) for k in STOCK_PROPERTIES},
                                     pack=False)
     except SystemExit:
-        raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip())
+        raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip()) from None
     car_root = car_root_of(out_dir, new_id)
     edits, tyre_edits, applied = {}, {}, []
     # flags last: a flag wins over a value on the same field
@@ -1187,8 +1184,8 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         item = {"id": s["id"], "old": r["default"], "new": r["value"], "files": []}
         applied.append(item)
         if s["kind"] == "meta":
-            item["files"].append(new_id + ".moddedcarcontent" if s["handler"] == "name_suffix"
-                                 else "uiresources/localization/en.cars.loc")
+            item["files"].append(new_id + "." + clone_car.MODDED_TYPE if s["handler"] == "name_suffix"
+                                 else "/".join(clone_car.LOC_PATH))
         elif s["kind"] == "curve_scale":
             text, _ = get_value(load_msg(car_path(car_root, renamed(r["targets"][0]["rel"], car_id, new_id)))[0],
                                 s["curve_from"]["path"])
@@ -1270,8 +1267,10 @@ def parse_args(args, flags, switches=()):
             opts[args[i][2:]] = True
             i += 1
         elif args[i].startswith("--"):
-            if args[i][2:] not in flags or i + 1 >= len(args):
+            if args[i][2:] not in flags:
                 raise ValueError("bad option %s" % args[i])
+            if i + 1 >= len(args):
+                raise ValueError("option %s needs a value" % args[i])
             opts[args[i][2:]] = args[i + 1]
             i += 2
         else:
@@ -1288,8 +1287,6 @@ def table(headers, rows):
 
 
 def consistency_text(row):
-    if not row["targets"]:
-        return "yes"
     if row["consistent"]:
         return "yes"
     return "NO (%s)" % " / ".join(fmt(t["value"]) for t in row["targets"] if t["resolved"])

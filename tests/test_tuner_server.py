@@ -1049,14 +1049,10 @@ class TestLogging(ServerCase):
         self.assertIn('"GET /api/settings HTTP/1.1" 200 -', log)
         self.assertIn('"GET /nothing HTTP/1.1" 404 -', log)
 
-    # R4-009: a failing /api/state request (400 unknown car) leaves nothing in the console, only the 200 poll should be silent
-    @unittest.expectedFailure
     def test_a_failing_state_request_is_logged(self):
         self.assertEqual(self.get("/api/state?car=nope").status, 400)
         self.assertIn("/api/state?car=nope", self.err.getvalue())
 
-    # R4-009: a forbidden /api/state request is not logged either
-    @unittest.expectedFailure
     def test_a_forbidden_state_request_is_logged(self):
         self.assertEqual(self.get("/api/state", host="evil.example").status, 403)
         self.assertIn("/api/state", self.err.getvalue())
@@ -1427,8 +1423,6 @@ class TestMain(Env):
         self.assertIsNone(self.run_main(*self.argv, "--game", "game.kspkg"))
         self.assertEqual(ts.CONFIG.get("game"), os.path.expandvars("game.kspkg"))
 
-    # R4-006: load_cars_index (slow without the cache) runs before the socket listens, the browser is refused meanwhile
-    @unittest.expectedFailure
     def test_the_listening_server_is_created_before_the_car_index_is_loaded(self):
         self.run_main(*self.argv)
         self.assertIn("server", StubServer.log)
