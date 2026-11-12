@@ -20,6 +20,7 @@ import kspkg
 import tune
 
 REAL_LOAD_CATALOGUE = tune.load_catalogue
+REAL_RENAME = os.rename
 USAGE = tune.__doc__.split("\n\n")[1]
 GAME_SHARED = "content\\cars\\common_phsx\\"
 
@@ -903,6 +904,109 @@ class TestResolveDefaults(CarCase):
         self.assertEqual(tune.renamed("data/KS_X_engine.car", "ks_x", "ax_x"), "data/ax_x_engine.car")
 
 
+# --------------------------------------------------------------------------------------------- resolve cache, effective_row (R3-011)
+class TestResolveCache(CarCase):
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(tune._resolved.clear)
+        self.stock_info()
+        self.cat = mini_catalogue(*metas(), limiter())
+        self.reads = []
+        real = tune.load_msg
+        self.patch(tune, "load_msg", lambda path: (self.reads.append(path), real(path))[1])
+
+    def resolve(self, cat=None, **kw):
+        return tune.resolve_defaults(self.work, "ks_x", cat or self.cat, **kw)
+
+    def reads_after(self, call):
+        call()
+        return len(self.reads)
+
+    def test_a_second_resolve_of_an_unchanged_car_reads_no_file(self):
+        first = self.resolve()
+        reads = len(self.reads)
+        self.assertGreater(reads, 0)
+        self.assertEqual(self.resolve(), first)
+        self.assertEqual(self.resolve(hidden=True)[:len(first)], first)
+        self.assertEqual(len(self.reads), reads)
+
+    def test_a_changed_stamp_of_a_car_file_resolves_again(self):
+        self.resolve()
+        reads = len(self.reads)
+        path = os.path.join(self.fc.car_root, "data", "x.car")
+        st = os.stat(path)
+        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1000000))
+        self.resolve()
+        self.assertGreater(len(self.reads), reads)
+
+    def test_a_changed_stock_info_resolves_again(self):
+        self.resolve()
+        reads = len(self.reads)
+        path = tune.stock_info_path(self.work, "ks_x")
+        st = os.stat(path)
+        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1000000))
+        self.resolve()
+        self.assertGreater(len(self.reads), reads)
+
+    def test_init_forgets_the_cached_rows(self):
+        self.write(tune.stock_loc_path(self.work), "loc")
+        self.resolve()
+        reads = self.reads_after(lambda: tune.init(self.work, "ks_x", os.path.join(self.work, "none.kspkg")))
+        self.resolve()
+        self.assertGreater(len(self.reads), reads)
+
+    def test_ensure_tyre_files_forgets_the_cached_rows_when_it_extracts(self):
+        game = self.write(os.path.join(self.work, "g.kspkg"), b"x", binary=True)
+        self.patch(kspkg, "cmd_extract", lambda pkg, outdir, prefix=None: self.fc.add_shared("tyres/road/a.tyre"))
+        self.resolve()
+        os.remove(os.path.join(self.fc.shared, "tyres", "road", "a.tyre"))
+        reads = self.reads_after(lambda: self.assertEqual(tune.ensure_tyre_files(self.work, "ks_x", game), "extracted 1 file(s)"))
+        self.resolve()
+        self.assertGreater(len(self.reads), reads)
+
+    def test_ensure_tyre_files_keeps_the_cached_rows_when_nothing_is_extracted(self):
+        game = os.path.join(self.work, "none.kspkg")
+        self.resolve()
+        reads = self.reads_after(lambda: self.assertEqual(tune.ensure_tyre_files(self.work, "ks_x", game), "present"))
+        self.resolve()
+        self.assertEqual(len(self.reads), reads)
+
+    def test_the_caller_gets_its_own_copy_of_the_rows(self):
+        expected = json.dumps(self.resolve(hidden=True), sort_keys=True)
+        for _ in range(2):
+            rows = self.resolve(hidden=True)
+            rows[0]["default"] = "changed"
+            rows[0]["targets"].append({})
+            rows[-1]["targets"].clear()
+            rows.pop(1)
+        self.assertEqual(json.dumps(self.resolve(hidden=True), sort_keys=True), expected)
+
+    def test_a_different_catalogue_is_resolved_on_its_own(self):
+        self.resolve()
+        self.assertEqual([r["id"] for r in self.resolve(mini_catalogue(*metas()))], ["name_suffix", "variant_name"])
+        self.assertEqual([r["id"] for r in self.resolve(mini_catalogue(limiter()))], ["limiter"])
+
+    def test_rows_are_not_cached_when_the_stock_info_is_missing(self):
+        os.remove(tune.stock_info_path(self.work, "ks_x"))
+        self.resolve()
+        reads = len(self.reads)
+        self.resolve()
+        self.assertGreater(len(self.reads), reads)
+
+    def test_effective_row_resolves_only_its_setting(self):
+        cat = mini_catalogue(*metas(), limiter(), mini_setting("tc", type="int", targets=[("@setup", "electronics.tc1")]))
+        tune.save_state(self.work, "ks_x", {"limiter": 8000})
+        row = tune.effective_row(self.work, "ks_x", "limiter", cat)
+        self.assertNotIn("setup.carsetup", [os.path.basename(p) for p in self.reads])
+        self.assertEqual((row["id"], row["value"], row["default"], row["changed"]), ("limiter", 8000, 7000, True))
+        every = {r["id"]: r for r in tune.effective_rows(self.work, "ks_x", cat, hidden=True)}
+        self.assertEqual(row, every["limiter"])
+
+    def test_effective_row_of_an_unknown_setting(self):
+        with self.assertRaisesRegex(ValueError, "unknown setting 'nope'"):
+            tune.effective_row(self.work, "ks_x", "nope", self.cat)
+
+
 # --------------------------------------------------------------------------------------------- stock info, car list
 class TestStockInfo(Base):
     def info(self, **kw):
@@ -1141,6 +1245,20 @@ class TestListCars(Base):
         self.assertEqual(tune.display_name_of(self.work, "ks_a"), "Stock A")
         self.assertEqual(tune.display_name_of(self.work, "ks_b"), "Beta")
 
+    def test_without_sizes_no_tree_is_walked(self):
+        self.extract("ks_a", 10)
+        walked = []
+        real = tune.count_tree
+        self.patch(tune, "count_tree", lambda path: walked.append(path) or real(path))
+        rows = {r["id"]: r for r in tune.list_cars(self.work, self.mods, game=self.game, sizes=False)}
+        self.assertEqual((walked, rows["ks_a"]["extracted"], rows["ks_a"]["bytes"]), ([], True, None))
+        rows = {r["id"]: r for r in tune.list_cars(self.work, self.mods, game=self.game)}
+        self.assertEqual((len(walked), rows["ks_a"]["bytes"]), (1, 10))
+
+    def test_an_unexpandable_mods_folder_is_an_error(self):
+        with self.assertRaisesRegex(ValueError, "cannot expand"):
+            tune.list_cars(self.work, "%ACE_TEST_NO_SUCH_VAR%" + os.sep + "m", game=self.game)
+
     def test_note_untested(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -1296,6 +1414,14 @@ class TestApply(CarCase):
         self.notes = ["note: from build"]
         self.build_error = None
         self.pack_error = None
+        self.patch(os, "rename", self.rename)
+
+    def rename(self, src, dst):
+        """os.rename that also moves the stub contents of the files below src, like the files themselves."""
+        old, new = self.fc.key(src), self.fc.key(dst)
+        moved = [k for k in self.fc.store if k.startswith(old + os.sep)]
+        REAL_RENAME(src, dst)
+        self.fc.store.update({new + k[len(old):]: self.fc.store.pop(k) for k in moved})
 
     def build(self, car_dir, new_id, out_dir, name, year, brand, variant, stock_loc, props, pack=True):
         self.calls.append(("build", car_dir, new_id, out_dir, name, year, brand, variant, stock_loc, props, pack))
@@ -1333,9 +1459,10 @@ class TestApply(CarCase):
         self.assertEqual((res["new_id"], res["applied"], res["notes"], res["installed"], res["backup"], res["size"]),
                          ("ax_x", [], ["note: from build"], None, None, 7))
         build = self.calls[0]
-        self.assertEqual(build[1:], (self.fc.car_root, "ax_x", os.path.join(self.work, "ks_x", "build", "ax_x"), "Car X_MY", 1999, "Brand", "Base",
+        self.assertEqual(build[1:], (self.fc.car_root, "ax_x", os.path.join(self.work, "ks_x", "build", "ax_x.partial"), "Car X_MY", 1999, "Brand", "Base",
                                      None, {"property_1": "P1", "property_2": "P2", "property_3": "P3"}, False))
-        self.assertEqual(self.calls[1], ("pack", res["build_dir"], res["package"]))
+        part = res["build_dir"] + ".partial"
+        self.assertEqual(self.calls[1], ("pack", part, os.path.join(part, "ax_x.kspkg")))
         self.assertEqual(res["package"], os.path.join(res["build_dir"], "ax_x.kspkg"))
 
     def test_build_and_pack_output_stays_out_of_stdout(self):
@@ -1492,6 +1619,23 @@ class TestApply(CarCase):
         self.assertFalse(os.path.exists(old))
         self.assertTrue(os.path.isfile(res["package"]))
 
+    def test_a_stale_partial_build_is_removed_at_the_start(self):
+        stale = self.write(os.path.join(self.work, "ks_x", "build", "ax_x.partial", "stale.txt"), "old")
+        self.apply(self.settings())
+        self.assertFalse(os.path.exists(stale))
+        self.assertEqual(os.listdir(os.path.join(self.work, "ks_x", "build")), ["ax_x"])
+
+    def test_a_failed_build_leaves_only_the_partial_folder_and_the_next_run_removes_it(self):
+        builds = os.path.join(self.work, "ks_x", "build")
+        self.apply(self.settings())
+        self.build_error = ValueError("disk full")
+        with self.assertRaises(ValueError):
+            self.apply(self.settings())
+        self.assertEqual(sorted(os.listdir(builds)), ["ax_x", "ax_x.partial"])
+        self.build_error = None
+        self.apply(self.settings())
+        self.assertEqual(os.listdir(builds), ["ax_x"])
+
     def test_other_builds_are_left_alone(self):
         other = self.write(os.path.join(self.work, "ks_x", "build", "ax_other", "keep.txt"), "keep")
         self.apply(self.settings())
@@ -1517,6 +1661,24 @@ class TestApply(CarCase):
             self.assertEqual(f.read(), b"OLD PACKAGE")
         with open(res["installed"], "rb") as f:
             self.assertEqual(f.read(), b"PKG-NEW")
+
+    def test_the_backup_is_the_path_install_returns(self):
+        mods, seen = str(self.d / "mods"), []
+
+        def install(pkg, mods_dir, backups):
+            seen.append((pkg, mods_dir, backups))
+            return "elsewhere" + os.sep + "backup.kspkg"
+        self.patch(clone_car, "install", install)
+        res = self.apply(self.settings(), install=True, mods_dir=mods)
+        self.assertEqual(res["backup"], "elsewhere" + os.sep + "backup.kspkg")
+        self.assertEqual(seen, [(res["package"], os.path.abspath(mods), os.path.join(self.work, "backups"))])
+        self.assertEqual(res["installed"], os.path.join(os.path.abspath(mods), "ax_x.kspkg"))
+
+    def test_an_unexpandable_mods_folder_is_an_error_before_anything_is_built(self):
+        with self.assertRaisesRegex(ValueError, "cannot expand"):
+            self.apply(self.settings(), install=True, mods_dir="%ACE_TEST_NO_SUCH_VAR%" + os.sep + "m")
+        self.assertEqual(self.calls, [])
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "build")))
 
     def test_without_install_the_mods_folder_is_not_touched(self):
         mods = self.d / "mods"
@@ -1547,6 +1709,15 @@ class TestApply(CarCase):
         self.assertIn("tyre front: own file content\\cars\\ax_x\\data\\tyres\\ax_x_front.tyre replaces", res["notes"][-1])
         self.assertIn("in 1 .car entry(ies) and 1 compatibletyres entry(ies)", res["notes"][-1])
 
+    def test_a_tyre_file_inside_the_car_folder_is_refused_before_building(self):
+        self.fc.add("data/tyres/own.tyre", {"modelData": {"Dy0": 1.0}})
+        self.car["frontTyreCompounds"] = [self.fc.game_path("data/tyres/own.tyre")]
+        s = mini_setting("dy", targets=[("@tyre_front", "modelData.Dy0")])
+        with self.assertRaisesRegex(ValueError, "^@tyre_front: the tyre file is inside the car folder, not supported yet$"):
+            self.apply(self.settings(s), {"dy": 1.4})
+        self.assertEqual(self.calls, [])
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "build")))
+
     def test_the_shared_tyre_file_and_the_other_axle_stay_untouched(self):
         s = self.tyre_world()
         res = self.apply(self.settings(s), {"dy": 1.4})
@@ -1570,8 +1741,6 @@ class TestApply(CarCase):
         item = [a for a in res["applied"] if a["id"] == "th"][0]
         self.assertEqual((item["old"], item["new"]), ("road", "slick"))
 
-    # R3-001: a failing build must keep the previous good build
-    @unittest.expectedFailure
     def test_failed_build_keeps_the_previous_build(self):
         res = self.apply(self.settings())
         self.build_error = ValueError("disk full while copying")
@@ -1581,8 +1750,6 @@ class TestApply(CarCase):
         with open(res["package"], "rb") as f:
             self.assertEqual(f.read(), b"PKG-NEW")
 
-    # R3-001: so must a failing pack
-    @unittest.expectedFailure
     def test_failed_pack_keeps_the_previous_build(self):
         res = self.apply(self.settings())
         self.pack_error = OSError(28, "No space left on device")
@@ -1832,6 +1999,21 @@ class TestCommands(CarCase):
         self.assertRegex(lines[2], r"\d+\.\d MB$")
         self.assertEqual(lines[-1], "note: the game package is not available and there is no car index, only the tested cars are listed")
 
+    def test_apply_is_refused_while_the_game_runs(self):
+        self.patch(tune, "game_running", lambda: True)
+        built = []
+        self.patch(clone_car, "build", lambda *a, **k: built.append(a))
+        code, out, err = self.main("apply", "--no-install")
+        self.assertEqual((code, out, err, built), (1, "", "error: the game is running, close it first\n", []))
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "build")))
+
+    def test_init_is_not_refused_while_the_game_runs(self):
+        self.patch(tune, "game_running", lambda: True)
+        self.patch(tune, "init", lambda work, car_id, game=None: {"present": True, "dir": "d", "files": 1, "dirs": 0, "bytes": 2, "stock_loc": "present",
+                                                                  "stock_info": "present", "tyre_files": "present"})
+        code, out, err = self.main("init")
+        self.assertEqual((code, err, out.splitlines()[0]), (0, "", "base already present"))
+
     def test_cars_tested_has_no_note(self):
         code, out, err = self.run_main("cars", "--tested", "--work", self.work, "--game", os.path.join(self.work, "none.kspkg"))
         self.assertNotIn("note:", out)
@@ -1852,6 +2034,29 @@ class TestCommands(CarCase):
             code, out, err = self.run_main("show", "--work", self.work)
         self.assertEqual(code, 0)
         self.assertEqual(len(opened), 1)
+
+
+class TestGameRunning(unittest.TestCase):
+    def running(self, **kw):
+        with mock.patch.object(tune.subprocess, "run", **kw) as run:
+            return tune.game_running(), run
+
+    def done(self, code, out):
+        return mock.Mock(return_value=tune.subprocess.CompletedProcess([], code, stdout=out, stderr=b""))
+
+    def test_the_image_name_is_looked_up_with_tasklist(self):
+        found, run = self.running(new=self.done(0, b'"AssettoCorsaEVO.exe","1234","Console","1","9,999 K"\r\n'))
+        self.assertTrue(found)
+        self.assertEqual(run.call_args[0][0], ["tasklist", "/FI", "IMAGENAME eq AssettoCorsaEVO.exe", "/NH", "/FO", "CSV"])
+
+    def test_no_matching_task_is_not_running(self):
+        self.assertFalse(self.running(new=self.done(0, b"INFO: No tasks are running which match the specified criteria.\r\n"))[0])
+
+    def test_a_failing_tasklist_is_not_running(self):
+        self.assertFalse(self.running(new=self.done(1, b'"AssettoCorsaEVO.exe"'))[0])
+
+    def test_a_missing_tasklist_is_not_running(self):
+        self.assertFalse(self.running(side_effect=FileNotFoundError("tasklist"))[0])
 
 
 class TestUsageText(unittest.TestCase):

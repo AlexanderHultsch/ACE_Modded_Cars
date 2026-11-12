@@ -44,17 +44,19 @@ defaults: reads every applicable setting of tuner/catalogue.json from <work>/<ca
 set/unset/show: edit and print <work>/<car>/tune_state.json ({setting id: value}). show lists applicable settings
           only, set refuses a setting that is not applicable to the car. Entries of the state whose id is not in the
           catalogue are ignored with a warning (show, apply) and kept in the file (remove them with unset).
-apply:    always starts from the pristine <work>/<car>/base: clones the car under the new id into
-          <work>/<car>/build/<new_id>, writes every changed setting into ALL its resolved target files, packs
-          <new_id>.kspkg and (unless --no-install) installs it to the mods folder (default
-          %USERPROFILE%\\Saved Games\\ACE\\mods) with a backup of the previous package in <work>/backups. Only changed
+apply:    refuses to run while AssettoCorsaEVO.exe runs. Always starts from the pristine <work>/<car>/base: clones the car
+          under the new id into <work>/<car>/build/<new_id>.partial, writes every changed setting into ALL its resolved
+          target files, packs <new_id>.kspkg, renames the folder to build/<new_id> (a failed run keeps the previous
+          build and leaves only the .partial folder, removed by the next run) and (unless --no-install) installs the
+          package to the mods folder (default %USERPROFILE%\\Saved Games\\ACE\\mods) with a backup of the previous package in <work>/backups. Only changed
           settings must be applicable. For a car other than the default car, the stock info must exist. Tyres: for each
           axle (front, rear) that has at least one changed tyre setting, the stock tyre file (shared, from base) is
           copied to content/cars/<new_id>/data/tyres/<new_id>_front.tyre (_rear), the changed values are written there,
           and the references to the stock file are pointed at the copy: the entries of the .car's frontTyreCompounds
           (rearTyreCompounds) and the front_tyre_data_path (rear_tyre_data_paths) of every presets/*.compatibletyres
           that name the stock file (compared case-insensitively). Other compounds and the shared files stay untouched;
-          an axle without a changed tyre setting gets no file and no changed reference.
+          an axle without a changed tyre setting gets no file and no changed reference. A changed tyre setting of a
+          car whose tyre file is inside the car folder (not shared) is refused: not supported yet.
 doc:      writes a Markdown reference of the settings applicable to the car with their defaults from
           <work>/<car>/base to <file> (default docs/settings/<car>.md in the repository); the car must be extracted.
           --all writes that file for every tested car of tuner/cars.json, extracting the cars that are not extracted
@@ -100,6 +102,7 @@ for the web page (it shows the setting in its header, not in the table).
 Stdlib only. Needs schemas/acevo.desc (see tools/extract_protos.py).
 """
 import contextlib
+import copy
 import difflib
 import io
 import json
@@ -109,6 +112,7 @@ import pathlib
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import threading
 
@@ -123,6 +127,7 @@ CATALOGUE = REPO / "tuner" / "catalogue.json"
 CARS_JSON = REPO / "tuner" / "cars.json"
 DEFAULT_WORK = "%USERPROFILE%\\ace_modded_cars_work"
 DEFAULT_GAME = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Assetto Corsa EVO\\content.kspkg"
+GAME_EXE = "AssettoCorsaEVO.exe"
 OLD_LAYOUT = ("base", "build", "tune_state.json", "stock_info.json", "defaults.json")
 DOC_DIR = REPO / "docs" / "settings"
 DOC_INTRO = (
@@ -160,6 +165,8 @@ TYRE_UNAVAILABLE = "shared tyre files not extracted"
 
 _index_error = []
 _tyre_lock = threading.Lock()
+_resolve_lock = threading.Lock()
+_resolved = {}
 _stdout_lock = threading.Lock()
 
 
@@ -172,6 +179,15 @@ def work_dir(arg=None):
         return clone_car.expand(arg or DEFAULT_WORK)
     except ValueError:
         raise ValueError("cannot expand the work directory %r" % (arg or DEFAULT_WORK)) from None
+
+
+def game_running():
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq " + GAME_EXE, "/NH", "/FO", "CSV"],
+                             capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return out.returncode == 0 and GAME_EXE.lower() in out.stdout.decode("ascii", "replace").lower()
 
 
 def inside(root, path):
@@ -623,10 +639,6 @@ def count_tree(path):
     return {"files": files, "dirs": dirs, "bytes": size}
 
 
-def listing(path):
-    return set(os.listdir(path)) if os.path.isdir(path) else set()
-
-
 def stock_info_path(work, car_id):
     return os.path.join(car_work(work, car_id), "stock_info.json")
 
@@ -796,6 +808,7 @@ def init(work, car_id, game=DEFAULT_GAME):
         if os.path.exists(kspkg.long_path(base)):
             remove_tree(work, base)
         os.rename(kspkg.long_path(part), kspkg.long_path(base))
+        forget_resolved(work, car_id)
         res = dict(count_tree(car_root), present=False, dir=car_root)
     res["stock_loc"] = ensure_stock_loc(work, game)
     res["stock_info"] = write_stock_info(work, car_id, game)
@@ -803,6 +816,7 @@ def init(work, car_id, game=DEFAULT_GAME):
         res["tyre_files"] = ensure_tyre_files(work, car_id, game)
     except (ValueError, OSError) as e:
         res["tyre_files"] = "not extracted (%s)" % e
+    forget_resolved(work, car_id)
     return res
 
 
@@ -981,6 +995,7 @@ def ensure_tyre_files(work, car_id, game=DEFAULT_GAME, cache=None):
             # kspkg and clone_car print their progress: keep it out of this command's output
             with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
                 kspkg.cmd_extract(game, root, p)
+        forget_resolved(work, car_id)
         gone = [p for p in missing if not tyre_present(root, p)]
         if gone:
             raise ValueError("%s not found in %s" % (gone[0], game))
@@ -1041,14 +1056,57 @@ def resolve_target(s, t, root, car_id, cache):
     return out
 
 
+def forget_resolved(work, car_id):
+    """Drop the cached rows of resolve_defaults for a car (its base or its shared tyre files changed)."""
+    with _resolve_lock:
+        for key in [k for k in _resolved if k[:2] == (work, car_id)]:
+            del _resolved[key]
+
+
+def resolve_stamp(work, car_id):
+    # init rewrites every .car file when it extracts, so their (mtime_ns, size) changes whenever what resolve_defaults reads can have changed
+    try:
+        data = find_ci(car_root_of(base_dir(work, car_id), car_id), "data")
+        paths = [os.path.join(data, n) for n in sorted(os.listdir(kspkg.long_path(data))) if n.lower().endswith(".car")]
+        paths.append(stock_info_path(work, car_id))
+        return [(st.st_mtime_ns, st.st_size) if st else None for st in map(stat_or_none, paths)]
+    except (ValueError, OSError):
+        return None
+
+
+def stat_or_none(path):
+    try:
+        return os.stat(kspkg.long_path(path))
+    except FileNotFoundError:
+        return None
+
+
 def resolve_defaults(work, car_id, catalogue=None, game=DEFAULT_GAME, hidden=False):
     """Every setting with its default; hidden=False keeps only the settings applicable to the car, hidden=True
-    returns all of them, each with applicable and reason (None when applicable)."""
+    returns all of them, each with applicable and reason (None when applicable). The resolved rows are cached per
+    (work, car, catalogue) while resolve_stamp is unchanged (not when the tyre files or the stock info could not be
+    read); the caller gets its own copy."""
     cat = catalogue or load_catalogue()
     root = base_dir(work, car_id)
-    car_root = car_root_of(root, car_id)
-    if not os.path.isdir(kspkg.long_path(car_root)):
+    if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
         raise ValueError("no base car in %s, run init first" % root)
+    key, stamp = (work, car_id, json.dumps(cat, sort_keys=True)), resolve_stamp(work, car_id)
+    with _resolve_lock:
+        hit = _resolved.get(key)
+    if hit and stamp is not None and hit[0] == stamp:
+        rows = copy.deepcopy(hit[1])
+    else:
+        rows, cacheable = resolve_rows(work, car_id, cat, game)
+        if cacheable and stamp is not None and resolve_stamp(work, car_id) == stamp:
+            with _resolve_lock:
+                _resolved[key] = (stamp, copy.deepcopy(rows))
+    return rows if hidden else [r for r in rows if r["applicable"]]
+
+
+def resolve_rows(work, car_id, cat, game):
+    """All rows of resolve_defaults and whether they may be cached."""
+    root = base_dir(work, car_id)
+    car_root = car_root_of(root, car_id)
     info = stock_name = stock_variant = None
     if any("default_template" in s for s in cat["settings"]):
         info = stock_info_or_none(work, car_id, game)
@@ -1099,7 +1157,7 @@ def resolve_defaults(work, car_id, catalogue=None, game=DEFAULT_GAME, hidden=Fal
             row["reason"] = None
         row["applicable"] = row["reason"] is None
         rows.append(row)
-    return rows if hidden else [r for r in rows if r["applicable"]]
+    return rows, tyre_error is None and (stock_name is None or complete_stock_info(info))
 
 
 def effective_rows(work, car_id, catalogue=None, hidden=False):
@@ -1111,6 +1169,12 @@ def effective_rows(work, car_id, catalogue=None, hidden=False):
         row["value"] = coerce(s, state[s["id"]]) if s["id"] in state else row["default"]
         row["changed"] = s["id"] in state and not same(s, row["value"], row["default"])
     return rows
+
+
+def effective_row(work, car_id, setting_id, catalogue=None):
+    """The row of one setting as effective_rows(hidden=True) gives it, resolving only that setting."""
+    cat = catalogue or load_catalogue()
+    return effective_rows(work, car_id, dict(cat, settings=[find_setting(cat, setting_id)]), hidden=True)[0]
 
 
 def scale_curve(curve, factor):
@@ -1175,6 +1239,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     root = base_dir(work, car_id)
     if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
         raise ValueError("no base car in %s, run init first" % root)
+    mods = clone_car.expand(mods_dir or clone_car.DEFAULT_MODS) if install else None
     # ids only: the "unused" folder never exists, an old build of the same id is replaced below
     clone_car.validate(car_id, new_id, os.path.join(build_dir(work, car_id), "unused"))
     rows = effective_rows(work, car_id, cat, hidden=True)
@@ -1182,14 +1247,19 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     bad = ["%s (%s)" % (s["id"], r["reason"]) for s, r in changed if not r["applicable"]]
     if bad:
         raise ValueError("cannot apply the changed setting(s), not applicable to %s: %s" % (car_id, ", ".join(bad)))
+    for s, r in changed:
+        for t in r["targets"] if s["kind"] == "value" else []:
+            if t["resolved"] and t["file"][1:] in TYRE_ROLES and not t["rel"].startswith(SHARED):
+                raise ValueError("%s: the tyre file is inside the car folder, not supported yet" % t["file"])
     info = load_stock_info(work, car_id)
     if info is None and car_id != load_cars()["default"]:
         raise ValueError("stock info missing, run init with the game installed")
     info = info or {}
     out_dir = os.path.join(build_dir(work, car_id), new_id)
-    # the build always starts from the pristine base, a leftover build of this id is replaced
-    if os.path.exists(kspkg.long_path(out_dir)):
-        remove_tree(work, out_dir)
+    # the build always starts from the pristine base, in <new_id>.partial: the previous build of this id stays until the new one is complete
+    part = out_dir + ".partial"
+    if os.path.exists(kspkg.long_path(part)):
+        remove_tree(work, part)
     meta = {s["handler"]: r["value"] for s, r in zip(cat["settings"], rows) if s["kind"] == "meta"}
     with contextlib.suppress(ValueError, OSError):
         ensure_stock_loc(work, game)
@@ -1199,7 +1269,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     try:
         # kspkg and clone_car print their progress: keep it out of this command's output
         with _stdout_lock, contextlib.redirect_stdout(log):
-            notes = clone_car.build(car_root_of(root, car_id), new_id, out_dir, car_name,
+            notes = clone_car.build(car_root_of(root, car_id), new_id, part, car_name,
                                     info.get("year", CLONE_YEAR), info.get("brand", CLONE_BRAND),
                                     meta["variant_name"], stock_loc, {k: info.get(k) for k in STOCK_PROPERTIES},
                                     pack=False)
@@ -1207,7 +1277,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         if not str(e).startswith("self-check failed"):
             raise
         raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip()) from None
-    car_root = car_root_of(out_dir, new_id)
+    car_root = car_root_of(part, new_id)
     edits, tyre_edits, applied = {}, {}, []
     # flags last: a flag wins over a value on the same field
     for s, r in sorted(changed, key=lambda sr: sr[0]["kind"] == "flag"):
@@ -1219,7 +1289,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         elif s["kind"] == "curve_scale":
             text, _ = get_value(load_msg(car_path(car_root, renamed(r["targets"][0]["rel"], car_id, new_id)))[0],
                                 s["curve_from"]["path"])
-            path = curve_path(out_dir, text)
+            path = curve_path(part, text)
             curve, name = load_msg(path)
             scale_curve(curve, r["value"])
             save_msg(path, name, curve)
@@ -1248,31 +1318,28 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     cache = {}
     for role, items in tyre_edits.items():
         notes.append(build_tyre(root, car_id, new_id, car_root, role, items, cache))
-    pkg = os.path.join(out_dir, new_id + ".kspkg")
     # kspkg and clone_car print their progress: keep it out of this command's output
     with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
-        kspkg.cmd_pack(out_dir, pkg)
+        kspkg.cmd_pack(part, os.path.join(part, new_id + ".kspkg"))
+    if os.path.exists(kspkg.long_path(out_dir)):
+        remove_tree(work, out_dir)
+    os.rename(kspkg.long_path(part), kspkg.long_path(out_dir))
+    pkg = os.path.join(out_dir, new_id + ".kspkg")
     result = {"new_id": new_id, "build_dir": out_dir, "package": pkg, "size": os.path.getsize(pkg),
               "applied": applied, "notes": notes, "installed": None, "backup": None}
     if install:
-        mods = os.path.abspath(os.path.expandvars(mods_dir or clone_car.DEFAULT_MODS))
-        backups = os.path.join(work, "backups")
-        # clone_car.install only prints the backup name, so find it as the new file in the backups folder
-        before = listing(backups)
         # kspkg and clone_car print their progress: keep it out of this command's output
         with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
-            clone_car.install(pkg, mods, backups)
-        new = sorted(listing(backups) - before)
+            result["backup"] = clone_car.install(pkg, mods, os.path.join(work, "backups"))
         result["installed"] = os.path.join(mods, os.path.basename(pkg))
-        result["backup"] = os.path.join(backups, new[0]) if new else None
     return result
 
 
-def list_cars(work, mods_dir=None, tested_only=False, game=DEFAULT_GAME):
+def list_cars(work, mods_dir=None, tested_only=False, game=DEFAULT_GAME, sizes=True):
     """Every car of the game (the tested cars only when the car index is not available or tested_only), sorted by
-    display name."""
+    display name. sizes=False leaves bytes None without walking the car folders."""
     cars = load_cars()
-    mods = os.path.abspath(os.path.expandvars(mods_dir or clone_car.DEFAULT_MODS))
+    mods = clone_car.expand(mods_dir or clone_car.DEFAULT_MODS)
     labels = {c["id"]: c["label"] for c in cars["cars"]}
     names = {c["id"]: c["display_name"] for c in load_cars_index(work, game) or []}
     rows = []
@@ -1288,7 +1355,7 @@ def list_cars(work, mods_dir=None, tested_only=False, game=DEFAULT_GAME):
         rows.append({"id": car_id, "default": car_id == cars["default"], "label": labels.get(car_id, display_name),
                      "display_name": display_name, "extracted": extracted, "tested": car_id in labels,
                      "new_id": new_id, "installed": os.path.isfile(os.path.join(mods, new_id + ".kspkg")),
-                     "bytes": count_tree(car_root)["bytes"] if extracted else None})
+                     "bytes": count_tree(car_root)["bytes"] if extracted and sizes else None})
     return sorted(rows, key=lambda r: (r["display_name"].lower(), r["id"]))
 
 
@@ -1333,7 +1400,8 @@ def display_name_of(work, car_id):
     info = load_stock_info(work, car_id)
     if info:
         return info["display_name"]
-    return next(r["display_name"] for r in list_cars(work) if r["id"] == car_id)
+    # only the name is needed: any expandable folder will do for the mods folder
+    return next(r["display_name"] for r in list_cars(work, work, sizes=False) if r["id"] == car_id)
 
 
 def note_untested(car_id):
@@ -1476,6 +1544,8 @@ def main():
             pos, opts = cli_args(("car", "new-id", "mods", "work"), ("no-install",))
             if pos:
                 usage()
+            if game_running():
+                raise ValueError("the game is running, close it first")
             work, car_id = start(opts)
             note_untested(car_id)
             cat = load_catalogue()
