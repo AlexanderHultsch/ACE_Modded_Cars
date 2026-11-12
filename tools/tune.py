@@ -32,7 +32,10 @@ init:    extracts the stock car from the game package into <work>/<car>/base (sk
           stock en.cars.loc into <work>/stock_loc once, and writes <work>/<car>/stock_info.json (car id, display name,
           brand, year, property_1..3 as enum names from the game's system/cars.table, variant_name = stock text of the
           car's *_preset_base line in en.cars.loc or "") when missing or incomplete. The other commands create that file
-          on first need; without it the name is derived from the car's preset.
+          on first need; without it the name is derived from the car's preset. Also extracts the shared tyre files the
+          car names (see below) next to the car folder, into <work>/<car>/base/content/cars/common_phsx/...; defaults,
+          set, show and apply do that on first need for bases extracted earlier. Without the game package the tyre
+          settings are hidden ("shared tyre files not extracted").
 defaults: reads every applicable setting of tuner/catalogue.json from <work>/<car>/base, prints the table and writes
           <work>/<car>/defaults.json. A setting is applicable when all its required targets resolve for the car; the
           others are hidden: their number is printed, --hidden lists each with its reason. When the copies of a value of
@@ -45,7 +48,13 @@ apply:    always starts from the pristine <work>/<car>/base: clones the car unde
           <work>/<car>/build/<new_id>, writes every changed setting into ALL its resolved target files, packs
           <new_id>.kspkg and (unless --no-install) installs it to the mods folder (default
           %USERPROFILE%\\Saved Games\\ACE\\mods) with a backup of the previous package in <work>/backups. Only changed
-          settings must be applicable. For a car other than the default car, the stock info must exist.
+          settings must be applicable. For a car other than the default car, the stock info must exist. Tyres: for each
+          axle (front, rear) that has at least one changed tyre setting, the stock tyre file (shared, from base) is
+          copied to content/cars/<new_id>/data/tyres/<new_id>_front.tyre (_rear), the changed values are written there,
+          and the references to the stock file are pointed at the copy: the entries of the .car's frontTyreCompounds
+          (rearTyreCompounds) and the front_tyre_data_path (rear_tyre_data_paths) of every presets/*.compatibletyres
+          that name the stock file (compared case-insensitively). Other compounds and the shared files stay untouched;
+          an axle without a changed tyre setting gets no file and no changed reference.
 doc:      writes a Markdown reference of the settings applicable to the car with their defaults from
           <work>/<car>/base to <file> (default docs/settings/<car>.md in the repository); the car must be extracted.
           --all writes that file for every tested car of tuner/cars.json, extracting the cars that are not extracted
@@ -54,20 +63,34 @@ doc:      writes a Markdown reference of the settings applicable to the car with
 operations on car trees use extended-length paths (kspkg.long_path), so deep Windows paths work.
 
 Catalogue field paths (inside the JSON that car_json decodes): dot-separated names, name[3] = list element by index,
-name[key=VALUE] = the list element whose field key equals VALUE, e.g. gears[1].ratio or
-car_specs.items[key=CarSpecs_KeyEnum_POWER].value. A missing last field reads as the proto3 default (flagged absent)
-and is created on write; missing objects on the way are created on write; a missing list element is an error.
+name[key=VALUE] = the list element whose field key equals VALUE, name[*] = every element of the list (all existing
+elements; the default and the consistency check read all of them and require them equal, like several targets; an
+empty or absent list resolves to nothing, so a required target makes the setting not applicable), e.g. gears[1].ratio,
+car_specs.items[key=CarSpecs_KeyEnum_POWER].value or performance_modes[*].electronics_settings.tc1. A missing last
+field reads as the proto3 default (flagged absent) and is created on write; missing objects on the way are created on
+write; a missing list element is an error. A setting with "create_missing": true also counts missing objects on the
+way as resolved-absent (value = default 0) and creates them on write; without it they make the setting not applicable.
 
 Catalogue target files ("file" of a target and of curve_from) are roles, resolved per car and case-insensitively from
-its .car manifest: @engine, @drivetrain, @gearbox, @brakes (engine_path ... brakes_path), @setup (stock_setup), @limits
-(setupLimits), @car (the .car file in data; with several, the one that decodes as CarData and has engine_path),
-@mech_preset (first presets/*.mechanicalcarpreset in sorted order), @turbo[N] (the file named by turbos_to_load[N] of
-the engine file). A target with "optional": true is written when it resolves and skipped otherwise; every other
-target is required. A setting is applicable to a car when all its required targets resolve (an absent last field
-counts as resolved, a missing object or list element on the way does not). "needs" is a list of further targets that
-must resolve for the setting to be applicable but are never written and not compared. "hide_if_absent": true hides
-the setting when the last field of all its required targets is absent in the stock data. meta settings: variant_name,
-applicable only when the stock car has a variant name, and name_suffix (default _MY, 1 to 30 characters without
+its .car manifest: @engine, @drivetrain, @gearbox, @clutch, @brakes (engine_path ... brakes_path), @setup
+(stock_setup), @limits (setupLimits), @coilover_front, @coilover_rear (suspensions.coilover_front_path and
+suspensions.coilover_rear_path, the standalone .coilover files), @car (the .car file in data; with several, the one
+that decodes as CarData and has engine_path), @mech_preset (first presets/*.mechanicalcarpreset in sorted order),
+@turbo[N] (the file named by turbos_to_load[N] of the engine file), @tyre_front, @tyre_rear (the .tyre file named by
+frontTyreCompounds[0] / rearTyreCompounds[0] of the .car; a shared game file in <base>/content/cars/common_phsx, reached
+as "../common_phsx/..." relative to the car folder; apply never writes to it, see apply). A target with
+"optional": true is written when it resolves and skipped otherwise; every other target is required. A setting is applicable to a car when all its required
+targets resolve (an absent last field counts as resolved, a missing object or list element on the way does not).
+"needs" is a list of further targets that must resolve for the setting to be applicable but are never written and not
+compared. "hide_if_absent": true hides the setting when the last field of all its required targets is absent in the
+stock data. Settings of kind "flag" have type bool, the default false and a fixed "value" (a number, 0 for the driver
+aids switch): when a flag is true, apply writes that value into all its resolved targets (wildcards allowed, targets may
+be optional) and nothing when it is false; a target whose field is absent in the data is skipped when the value is 0
+(absent already reads as 0). The targets of a flag are neither compared nor give a default. Flags are applied after all
+other settings, so a flag wins over a value on the same field. set accepts true/false, yes/no, 1/0, on/off for bool
+(case-insensitive). An enum setting with "choice_values" (choice -> text) stores text in its field: the default is the
+choice whose text equals the field (case-insensitive, slash and backslash alike; any other text makes the setting not
+applicable), apply writes the text of the chosen choice. meta settings: variant_name, applicable only when the stock car has a variant name, and name_suffix (default _MY, 1 to 30 characters without
 control characters, not trimmed): apply names the tuned car "<stock display name><name_suffix>" (stock_info.json, else
 the car's mechanical preset), so the default lists it next to the stock car. "ui": "header" on a setting is only a hint
 for the web page (it shows the setting in its header, not in the table).
@@ -85,6 +108,7 @@ import re
 import shutil
 import struct
 import sys
+import threading
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import car_json  # noqa: E402
@@ -105,23 +129,33 @@ DOC_INTRO = (
     "meaning is guessed from the field name and not confirmed in the game. The display values change only text. "
     "Setting limits is not yet tested in the game.")
 DOC_NOT_COVERED = (
-    "tyre model and compound data (shared game files, not in the car folder)", "aero",
-    "electronics (TC/ABS)", "bump stops and caster", "damper limits", "engine map (`maps[]`) values",
-    "further turbo settings (lag, wastegate, controllers)")
+    "tyre data beyond the per-axle values and the thermal curve family (compound tables, wear curves; the other "
+    "compounds a player can pick stay stock)", "aero",
+    "electronics tables (TC / ABS / ESC slip ratios and gains; only the default levels and the all-off switch are "
+    "covered)", "coilover bump stop force and length values, rear caster", "damper limits",
+    "engine map (`maps[]`) values", "further turbo settings (lag, wastegate, controllers)")
 CARS_TABLE = "system\\cars.table"
 STOCK_LOC = "uiresources\\localization\\en.cars.loc"
 STOCK_PROPERTIES = ("property_1", "property_2", "property_3")
 CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
 NAME_SUFFIX_MAX = 30
-KINDS = ("value", "curve_scale", "meta")
-VALUE_TYPES = ("int", "float", "string", "enum")
+KINDS = ("value", "curve_scale", "meta", "flag")
+VALUE_TYPES = ("int", "float", "string", "enum", "bool")
 HANDLERS = ("variant_name", "name_suffix")
 REQUIRED = ("id", "group", "label", "kind", "type", "unit", "description", "verified")
 MANIFEST_ROLES = {"engine": "engine_path", "drivetrain": "drivetrain_path", "gearbox": "gearbox_path",
-                  "brakes": "brakes_path", "setup": "stock_setup", "limits": "setupLimits"}
-ROLE = re.compile(r"@(car|mech_preset|%s|turbo\[\d+\])" % "|".join(MANIFEST_ROLES))
+                  "clutch": "clutch_path", "brakes": "brakes_path", "setup": "stock_setup", "limits": "setupLimits",
+                  "coilover_front": "suspensions.coilover_front_path",
+                  "coilover_rear": "suspensions.coilover_rear_path"}
+TYRE_ROLES = {"tyre_front": "frontTyreCompounds", "tyre_rear": "rearTyreCompounds"}
+ROLE = re.compile(r"@(car|mech_preset|%s|turbo\[\d+\])" % "|".join(list(MANIFEST_ROLES) + list(TYRE_ROLES)))
+SHARED_DIR = "common_phsx"
+SHARED = "../%s/" % SHARED_DIR
+GAME_SHARED = "content\\cars\\%s\\" % SHARED_DIR
+TYRE_UNAVAILABLE = "shared tyre files not extracted"
 
 _schema = []
+_tyre_lock = threading.Lock()
 
 
 def schema():
@@ -239,8 +273,20 @@ def load_catalogue(path=CATALOGUE):
         seen.add(s["id"])
         if s["kind"] not in KINDS or s["type"] not in VALUE_TYPES:
             raise ValueError("%s: setting %r has an unknown kind or type" % (path, s["id"]))
-        if s["kind"] == "value" and not (s.get("targets") and all("file" in t and "path" in t for t in s["targets"])):
+        if (s["kind"] == "flag") != (s["type"] == "bool"):
+            raise ValueError("%s: setting %r: kind flag and type bool belong together" % (path, s["id"]))
+        if s["kind"] in ("value", "flag") and not (s.get("targets") and all("file" in t and "path" in t
+                                                                              for t in s["targets"])):
             raise ValueError("%s: setting %r needs targets with file and path" % (path, s["id"]))
+        if s["kind"] == "flag" and type(s.get("value")) not in (int, float):
+            raise ValueError("%s: setting %r needs a numeric value to write" % (path, s["id"]))
+        if type(s.get("create_missing", False)) is not bool:
+            raise ValueError("%s: setting %r has a create_missing that is not true or false" % (path, s["id"]))
+        cv = s.get("choice_values")
+        if cv is not None and not (s["type"] == "enum" and isinstance(cv, dict) and set(cv) == set(s.get("choices", []))
+                                   and all(isinstance(x, str) and x for x in cv.values())):
+            raise ValueError("%s: setting %r needs choice_values to be an enum's text for every choice"
+                             % (path, s["id"]))
         if s["kind"] == "curve_scale" and not ("default" in s and {"file", "path"} <= set(s.get("curve_from", {}))):
             raise ValueError("%s: setting %r needs default and curve_from with file and path" % (path, s["id"]))
         needs = s.get("needs", [])
@@ -321,11 +367,21 @@ def fmt(v):
 def zero(s):
     if s["type"] == "enum" and s.get("choices"):
         return s["choices"][0]
-    return {"int": 0, "float": 0.0}.get(s["type"], "")
+    return {"int": 0, "float": 0.0, "bool": False}.get(s["type"], "")
+
+
+BOOL_WORDS = {"true": True, "yes": True, "1": True, "on": True, "false": False, "no": False, "0": False, "off": False}
 
 
 def coerce(s, v):
     t = s["type"]
+    if t == "bool":
+        if type(v) is bool:
+            return v
+        word = str(v).strip().lower() if type(v) in (int, str) else None
+        if word not in BOOL_WORDS:
+            raise ValueError("%s expects true or false (also yes/no, 1/0, on/off), got %r" % (s["id"], v))
+        return BOOL_WORDS[word]
     if t == "int":
         if isinstance(v, str):
             if not re.fullmatch(r"[+-]?\d+", v.strip()):
@@ -401,6 +457,8 @@ def parse_path(path):
         for sel in re.findall(r"\[([^\]]*)\]", m.group(2)):
             if sel.isdigit():
                 moves.append(("idx", int(sel)))
+            elif sel == "*":
+                moves.append(("all",))
             elif "=" in sel:
                 moves.append(("find",) + tuple(sel.split("=", 1)))
             else:
@@ -420,6 +478,8 @@ def text_of(v):
 
 
 def list_index(cur, move, path):
+    if move[0] == "all":
+        raise ValueError("%s: [*] must be expanded before use" % path)
     if not isinstance(cur, list):
         raise ValueError("%s: expected a list before [%s]" % (path, "=".join(map(str, move[1:]))))
     if move[0] == "idx":
@@ -438,8 +498,9 @@ def add_key(d, key, value):
         d["_order"].append(key)
 
 
-def locate(obj, path, create=False):
-    """Return (container, key) of the field named by path; create adds missing objects on the way."""
+def locate(obj, path, create=False, missing_ok=False):
+    """Return (container, key) of the field named by path; create adds missing objects on the way, missing_ok
+    returns (None, None) for a missing object on the way."""
     moves = parse_path(path)
     cur = obj
     for i, move in enumerate(moves):
@@ -450,6 +511,8 @@ def locate(obj, path, create=False):
             if last:
                 return cur, move[1]
             if move[1] not in cur:
+                if missing_ok:
+                    return None, None
                 if not create:
                     raise ValueError("%s: missing field %r" % (path, move[1]))
                 add_key(cur, move[1], {})
@@ -461,11 +524,25 @@ def locate(obj, path, create=False):
             cur = cur[idx]
 
 
-def get_value(obj, path):
-    container, key = locate(obj, path)
-    if isinstance(container, dict) and key not in container:
+def get_value(obj, path, missing_ok=False):
+    container, key = locate(obj, path, missing_ok=missing_ok)
+    if container is None or (isinstance(container, dict) and key not in container):
         return None, True
     return container[key], False
+
+
+def expand_path(obj, path, missing_ok=False):
+    """The concrete paths a path with [*] stands for (one per existing list element), [path] without one. An absent or
+    empty list gives no paths."""
+    if "[*]" not in path:
+        return [path]
+    prefix, _, rest = path.partition("[*]")
+    items, absent = get_value(obj, prefix, missing_ok)
+    if absent:
+        return []
+    if not isinstance(items, list):
+        raise ValueError("%s: [*] needs a list at %s" % (path, prefix))
+    return [p for i in range(len(items)) for p in expand_path(obj, "%s[%d]%s" % (prefix, i, rest), missing_ok)]
 
 
 def put_value(obj, path, value):
@@ -503,6 +580,9 @@ def car_root_of(root, car_id):
 
 
 def car_path(car_root, rel):
+    if rel.startswith(SHARED):
+        shared = os.path.join(os.path.dirname(car_root), SHARED_DIR)
+        return inside(shared, os.path.join(shared, *rel[len(SHARED):].split("/")))
     return inside(car_root, os.path.join(car_root, *rel.split("/")))
 
 
@@ -697,6 +777,10 @@ def init(work, car_id, game=DEFAULT_GAME):
         res = dict(count_tree(car_root), present=False, dir=car_root)
     res["stock_loc"] = ensure_stock_loc(work, game)
     res["stock_info"] = write_stock_info(work, car_id, game)
+    try:
+        res["tyre_files"] = ensure_tyre_files(work, car_id, game)
+    except (ValueError, OSError) as e:
+        res["tyre_files"] = "not extracted (%s)" % e
     return res
 
 
@@ -779,11 +863,99 @@ def resolve_file(file, root, car_id, cache):
             if int(index) >= len(paths):
                 raise ValueError("the engine file lists %d turbo file(s), no turbos_to_load[%s]" % (len(paths), index))
             cache[key] = manifest_file(root, car_id, paths[int(index)], "turbos_to_load[%s]" % index)
+        elif name in TYRE_ROLES:
+            cache[key] = tyre_file(root, car_id, name, cache)
         else:
             field = MANIFEST_ROLES[name]
             car = read_file(car_root, resolve_file("@car", root, car_id, cache), cache)
-            cache[key] = manifest_file(root, car_id, car.get(field), "%s in the car file" % field)
+            cache[key] = manifest_file(root, car_id, get_value(car, field)[0], "%s in the car file" % field)
     return cache[key]
+
+
+def game_path_key(text):
+    return text.replace("/", "\\").lower()
+
+
+def tyre_text(root, car_id, name, cache):
+    """The path text of frontTyreCompounds[0] / rearTyreCompounds[0] (name tyre_front / tyre_rear) in the .car file."""
+    car = read_file(car_root_of(root, car_id), resolve_file("@car", root, car_id, cache), cache)
+    paths = car.get(TYRE_ROLES[name])
+    if not paths or not isinstance(paths[0], str) or not paths[0]:
+        raise ValueError("no %s in the car file" % TYRE_ROLES[name])
+    return paths[0]
+
+
+def tyre_file(root, car_id, name, cache):
+    """Path relative to the car folder of the tyre file of a role: inside the car folder, or SHARED + the path below
+    common_phsx for a shared game file."""
+    found = tyre_found(root, tyre_text(root, car_id, name, cache))
+    rel = os.path.relpath(found, car_root_of(root, car_id)).replace(os.sep, "/")
+    if rel.split("/")[0] != "..":
+        return rel
+    shared = os.path.relpath(found, os.path.join(root, "content", "cars", SHARED_DIR)).replace(os.sep, "/")
+    if shared.split("/")[0] == "..":
+        raise ValueError("%s is neither in the car folder nor in the shared folder" % found)
+    return SHARED + shared
+
+
+def tyre_found(root, text):
+    try:
+        return find_ci(root, text)
+    except ValueError:
+        raise ValueError(TYRE_UNAVAILABLE)
+
+
+def referenced_tyres(root, car_id, cache):
+    """The shared tyre files (game paths below content\\cars\\common_phsx, lower case) that the car's .car
+    (frontTyreCompounds, rearTyreCompounds) and presets/*.compatibletyres name, each once."""
+    car_root = car_root_of(root, car_id)
+    car = read_file(car_root, resolve_file("@car", root, car_id, cache), cache)
+    texts = list(car.get("frontTyreCompounds", [])) + list(car.get("rearTyreCompounds", []))
+    try:
+        folder = find_ci(car_root, "presets")
+    except ValueError:
+        folder = None
+    for n in sorted(os.listdir(kspkg.long_path(folder))) if folder else []:
+        if n.lower().endswith(".compatibletyres"):
+            for pc in load_msg(os.path.join(folder, n))[0].get("physic_compounds", []):
+                texts += [pc.get("front_tyre_data_path"), pc.get("rear_tyre_data_paths")]
+    keys = [game_path_key(t) for t in texts if isinstance(t, str)]
+    return list(dict.fromkeys(k for k in keys if k.startswith(GAME_SHARED)))
+
+
+def tyre_present(root, text):
+    try:
+        find_ci(root, text)
+        return True
+    except ValueError:
+        return False
+
+
+def ensure_tyre_files(work, car_id, game=DEFAULT_GAME, cache=None):
+    """Make sure the shared tyre files the car names are in <work>/<car>/base next to the car folder (extracted from
+    the game package, nothing else); returns "present" or "extracted N file(s)"."""
+    root = base_dir(work, car_id)
+    with _tyre_lock:
+        missing = [p for p in referenced_tyres(root, car_id, {} if cache is None else cache)
+                   if not tyre_present(root, p)]
+        if not missing:
+            return "present"
+        if not os.path.isfile(game):
+            raise ValueError("game package not found: %s" % game)
+        for p in missing:
+            with contextlib.redirect_stdout(io.StringIO()):
+                kspkg.cmd_extract(game, root, p)
+        gone = [p for p in missing if not tyre_present(root, p)]
+        if gone:
+            raise ValueError("%s not found in %s" % (gone[0], game))
+    return "extracted %d file(s)" % len(missing)
+
+
+def choice_of(s, text):
+    for name, written in s["choice_values"].items():
+        if game_path_key(written) == game_path_key(text):
+            return name
+    raise ValueError("%s is not one of the choices of %s" % (text, s["id"]))
 
 
 def resolve_curve(s, root, car_id, cache):
@@ -807,16 +979,29 @@ def resolve_curve(s, root, car_id, cache):
 
 
 def resolve_target(s, t, root, car_id, cache):
-    out = {"file": t["file"], "path": t["path"], "resolved": False}
+    """The resolved copies of one catalogue target: one entry, or one per list element when the path has [*] (the
+    path of each entry is the concrete one). A target that does not resolve gives one entry with the error."""
+    base = {"file": t["file"], "path": t["path"], "resolved": False}
     if t.get("optional"):
-        out["optional"] = True
+        base["optional"] = True
+    missing_ok = bool(s.get("create_missing"))
     try:
-        out["rel"] = resolve_file(t["file"], root, car_id, cache)
-        value, absent = get_value(read_file(car_root_of(root, car_id), out["rel"], cache), t["path"])
+        base["rel"] = resolve_file(t["file"], root, car_id, cache)
+        obj = read_file(car_root_of(root, car_id), base["rel"], cache)
+        paths = expand_path(obj, t["path"], missing_ok)
+        if not paths:
+            raise ValueError("%s: the list has no elements" % t["path"])
+        out = []
+        for path in paths:
+            value, absent = get_value(obj, path, missing_ok)
+            value = plain(zero(s) if absent else value)
+            if s["type"] == "int" and isinstance(value, float) and value.is_integer():
+                value = int(value)
+            if s.get("choice_values") and not absent:
+                value = choice_of(s, value)
+            out.append(dict(base, path=path, resolved=True, absent=absent, value=value))
     except (ValueError, OSError) as e:
-        out["error"] = str(e)
-        return out
-    out.update(resolved=True, absent=absent, value=plain(zero(s) if absent else value))
+        return [dict(base, error=str(e))]
     return out
 
 
@@ -834,6 +1019,11 @@ def resolve_defaults(work, car_id, catalogue=None, game=DEFAULT_GAME, hidden=Fal
         stock_name = info["display_name"] if info else preset_display_name(car_root)
         stock_variant = (info or {}).get("variant_name") or stock_name
     cache, rows = {}, []
+    if any(t["file"].startswith("@tyre_") for s in cat["settings"] for t in s.get("targets", [])):
+        try:
+            ensure_tyre_files(work, car_id, game, cache)
+        except (ValueError, OSError):
+            pass
     for s in cat["settings"]:
         row = {k: s[k] for k in REQUIRED if k != "description"}
         row.update({k: s[k] for k in ("min", "max", "description") if k in s})
@@ -842,9 +1032,9 @@ def resolve_defaults(work, car_id, catalogue=None, game=DEFAULT_GAME, hidden=Fal
         elif s["kind"] == "curve_scale":
             targets = [resolve_curve(s, root, car_id, cache)]
         else:
-            targets = [resolve_target(s, t, root, car_id, cache) for t in s["targets"]]
-        needs = [resolve_target(s, t, root, car_id, cache) for t in s.get("needs", [])]
-        values = [t["value"] for t in targets if t["resolved"]]
+            targets = [c for t in s["targets"] for c in resolve_target(s, t, root, car_id, cache)]
+        needs = [c for t in s.get("needs", []) for c in resolve_target(s, t, root, car_id, cache)]
+        values = [t["value"] for t in targets if t["resolved"]] if s["kind"] != "flag" else []
         row["targets"] = targets
         row["resolved"] = all(t["resolved"] or t.get("optional") for t in targets)
         row["consistent"] = all(same(s, v, values[0]) for v in values)
@@ -852,11 +1042,11 @@ def resolve_defaults(work, car_id, catalogue=None, game=DEFAULT_GAME, hidden=Fal
         if row["copies_differ"]:
             row["copy_values"] = [{"target": "%s %s" % (t["file"], t["path"]), "value": t["value"]}
                                   for t in targets if t["resolved"]]
-        row["default"] = (s["default"] if "default" in s
+        row["default"] = (False if s["kind"] == "flag" else s["default"] if "default" in s
                           else s["default_template"].replace("{stock_display_name}", stock_name)
                                                     .replace("{stock_variant_name}", stock_variant)
                           if "default_template" in s else values[0] if values else None)
-        row["absent"] = any(t.get("absent") for t in targets)
+        row["absent"] = s["kind"] != "flag" and any(t.get("absent") for t in targets)
         row["ok"] = row["resolved"] and row["consistent"]
         missing = [t for t in targets + needs if not t["resolved"] and not t.get("optional")]
         required = [t for t in targets if not t.get("optional")]
@@ -889,6 +1079,56 @@ def scale_curve(curve, factor):
     for p in curve.get("points", []):
         if "value" in p:
             p["value"] = to_f32(p["value"] * factor)
+
+
+def repoint(obj, field, old_text, new_text):
+    """Replace, in the text (or list of texts) field of obj, every value equal to old_text; returns how many."""
+    hits = 0
+    values = obj.get(field)
+    for i, v in enumerate(values if isinstance(values, list) else [values]):
+        if isinstance(v, str) and game_path_key(v) == game_path_key(old_text):
+            if isinstance(values, list):
+                values[i] = new_text
+            else:
+                obj[field] = new_text
+            hits += 1
+    return hits
+
+
+def build_tyre(root, car_id, new_id, car_root, role, items, cache):
+    """Give the tuned car its own copy of the stock tyre file of an axle (role tyre_front / tyre_rear): copy it from
+    base to data/tyres/<new_id>_<axle>.tyre, write the changed values (items: (item, field, value)) and point the
+    references of the stock file at the copy. Returns a note for the build log."""
+    axle = role[len("tyre_"):]
+    stock_text = tyre_text(root, car_id, role, cache)
+    rel = "data/tyres/%s_%s.tyre" % (new_id, axle)
+    new_text = "content\\cars\\%s\\%s" % (new_id, rel.replace("/", "\\"))
+    path = car_path(car_root, rel)
+    obj, name = load_msg(car_path(car_root_of(root, car_id), resolve_file("@" + role, root, car_id, cache)))
+    for item, field, v in items:
+        put_value(obj, field, v)
+        if rel not in item["files"]:
+            item["files"].append(rel)
+    os.makedirs(kspkg.long_path(os.path.dirname(path)), exist_ok=True)
+    save_msg(path, name, obj)
+    car_rel = renamed(resolve_file("@car", root, car_id, cache), car_id, new_id)
+    car_file = car_path(car_root, car_rel)
+    car, car_name = load_msg(car_file)
+    in_car = repoint(car, TYRE_ROLES[role], stock_text, new_text)
+    if in_car:
+        save_msg(car_file, car_name, car)
+    in_presets = 0
+    folder = os.path.join(car_root, "presets")
+    for n in sorted(os.listdir(kspkg.long_path(folder))) if os.path.isdir(kspkg.long_path(folder)) else []:
+        if n.lower().endswith(".compatibletyres"):
+            preset, preset_name = load_msg(os.path.join(folder, n))
+            hits = sum(repoint(pc, "front_tyre_data_path" if axle == "front" else "rear_tyre_data_paths",
+                               stock_text, new_text) for pc in preset.get("physic_compounds", []))
+            if hits:
+                save_msg(os.path.join(folder, n), preset_name, preset)
+                in_presets += hits
+    return "tyre %s: own file %s replaces %s in %d .car entry(ies) and %d compatibletyres entry(ies)" % (
+        axle, new_text, stock_text, in_car, in_presets)
 
 
 def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None, game=DEFAULT_GAME):
@@ -927,8 +1167,8 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     except SystemExit:
         raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip())
     car_root = car_root_of(out_dir, new_id)
-    edits, applied = {}, []
-    for s, r in changed:
+    edits, tyre_edits, applied = {}, {}, []
+    for s, r in sorted(changed, key=lambda sr: sr[0]["kind"] == "flag"):
         item = {"id": s["id"], "old": r["default"], "new": r["value"], "files": []}
         applied.append(item)
         if s["kind"] == "meta":
@@ -942,10 +1182,18 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
             scale_curve(curve, r["value"])
             save_msg(path, name, curve)
             item["files"].append(os.path.relpath(path, car_root).replace(os.sep, "/"))
+        elif s["kind"] == "flag":
+            for t in r["targets"]:
+                if t["resolved"] and not (t["absent"] and s["value"] == 0):
+                    edits.setdefault(renamed(t["rel"], car_id, new_id), []).append((item, t["path"], s["value"]))
         else:
             v = to_f32(r["value"]) if s["type"] == "float" else r["value"]
+            if s.get("choice_values"):
+                v = s["choice_values"][v]
             for t in r["targets"]:
-                if t["resolved"]:
+                if t["resolved"] and t["file"][1:] in TYRE_ROLES:
+                    tyre_edits.setdefault(t["file"][1:], []).append((item, t["path"], v))
+                elif t["resolved"]:
                     edits.setdefault(renamed(t["rel"], car_id, new_id), []).append((item, t["path"], v))
     for rel, items in edits.items():
         path = car_path(car_root, rel)
@@ -955,6 +1203,9 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
             if rel not in item["files"]:
                 item["files"].append(rel)
         save_msg(path, name, obj)
+    cache = {}
+    for role, items in tyre_edits.items():
+        notes.append(build_tyre(root, car_id, new_id, car_root, role, items, cache))
     pkg = os.path.join(out_dir, new_id + ".kspkg")
     with contextlib.redirect_stdout(io.StringIO()):
         kspkg.cmd_pack(out_dir, pkg)
@@ -1135,6 +1386,7 @@ def main():
             print("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
             print("stock localization %s" % res["stock_loc"])
             print("stock info %s" % res["stock_info"])
+            print("shared tyre files %s" % res["tyre_files"])
         elif cmd == "defaults":
             pos, opts = parse_args(sys.argv[2:], ("car", "work"), ("hidden",))
             if pos:

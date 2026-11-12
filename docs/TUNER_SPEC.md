@@ -8,7 +8,8 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 |---|---|
 | Goal | Change the driving settings of a car in a table page, install an own tuned copy, drive, close, repeat. No cosmetics. |
 | Cars | **Five tested:** BMW M3 E46 CSL, Toyota GR86, Mazda RX-7 FD, Alfa Romeo Giulia GTAm, Porsche 992 GT3 R Rennsport (all extracted in the user's work folder). **All 71 game cars are listed** (from the game's `cars.table`, cached in `cars_index.json`), the 66 others shown as "not extracted" and untested; only cars the user picks are extracted. Six untested cars (Ferrari F40 LM, Audi Sport Quattro, Alpine A290 Beta (electric), Dallara EXP, MX-5 NA, 992 GT3 RS) extract, resolve defaults, build and pass the codec check without errors; whether they load or drive is unknown. For the electric car the combustion-engine settings are still shown. |
-| Tuner | **Built.** 81 settings in the catalogue, 75-80 applicable per tested car; local web page with car selector; Apply (update my car) and Save as new copy; backup on every install. |
+| First car | The BMW is installed as `BMW M3 E46 CSL_MY` with Hina's Drift Club drift setup recreated (90 settings changed against stock: differential, steering incl. rod ratio, soft springs/dampers/anti-roll bars, ride height, camber/toe/pressure, tyres, power curve, driver aids off) plus the user's own 29 L start fuel. The values were read from her package and checked value by value against it (136 of 137 settings match; the one mismatch is the five low-rpm points of the coast curve, which she left unscaled). The settings list is kept only in the user's local work folder, not in the repo. Not reproduced: her front strut hard points (version drift), her single "Drift" driving mode (we switch aids off in the stock modes), her narrow setup limit windows, the wear curve and some unnamed tyre fields. Untested in the game. |
+| Tuner | **Built.** 143 settings in the catalogue, 136-142 applicable per tested car; local web page with car selector; Apply (update my car) and Save as new copy; backup on every install. |
 | Verified against the real game files | **All five cars:** extracted from the game, defaults resolved, unchanged build equals stock apart from the id rename, edits change exactly the expected values in every copy, codec check has no failures, no stock id remains in the packages. |
 | Verified in the game | BMW only so far (laptop): the car appears and loads, physics log identical to stock, the +20 hp display value shows in the selector. Effects of edits on driving are **not tested yet**; the other four cars have not been loaded in the game. |
 
@@ -18,7 +19,7 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 |---|---|---|
 | Package tool | `tools/kspkg.py` | list / extract (path prefix) / pack / verify `.kspkg`; long Windows paths |
 | Schema extractor | `tools/extract_protos.py` | protobuf field names out of the SDK Editor exe into `schemas/` (kept local) |
-| Codec | `tools/car_json.py` | lossless decode/encode of car files to JSON with real names; 30 file types |
+| Codec | `tools/car_json.py` | lossless decode/encode of car files to JSON with real names; 31 file types (incl. `.tyre`) |
 | Clone tool | `tools/clone_car.py` | copy a stock car under a same-length id, register it as a mod, names, pack, install with backup |
 | Settings engine | `tools/tune.py`, `tuner/catalogue.json`, `tuner/cars.json` | car list, settings list, defaults from the game files, state, apply, reference generator |
 | Web page | `tools/tuner_server.py`, `tuner/web/index.html`, `tuner/start_tuner.bat` | table with variable name, value, description, default; car selector |
@@ -56,7 +57,8 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 - Does `diff_type` Spool (fully locked) take effect? Do numbered copies load?
 - The RX-7 stock spring limits read 0 / 5 (looks like absent or unit-quirk data). The RX-7's real turbo cap seems to be the engine-level `max_turbo_boost`, not the per-turbo `max_boost`.
 - About a third of the settings are marked unverified.
-- Not covered yet: tyres (shared game files; a new compound would need its own file), aero, TC/ABS, bump stops, caster, damper limits, engine map values, further turbo settings (lag, wastegate, controllers).
+- Tyres: the build creates the car's own tyre files only for a changed axle and rewires the `.car` and the `compatibletyres` entry of the starting compound; the other compounds stay stock, and the game's choice between the `.car` and the preset entry is untested. The rear thermal curve of the recreated Hina setup is a near match of the supercar family.
+- Not covered yet: aero, the performance-mode list itself (modes cannot be removed, only switched to aids off), TC/ABS/ESP tables, damper limits and curves, engine map values, further turbo settings (lag, wastegate, controllers), tyre fields without a setting (groove, brush, combined factor, speed sensitivity, wear curve), suspension hard points, `controls.steerRatio` and `ffMult` in the `.car`.
 
 ## 6b. Cars, variants and names (researched in the game files)
 
@@ -68,6 +70,6 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 ## 7. Next steps
 
 1. Test in the game on the gaming PC: load each of the five cars, drive, confirm that edits take effect, test Spool, the limits, numbered copies.
-2. Close the gaps found by the analyses ([settings/coverage.md](settings/coverage.md): about 85 % of the game's data values are not in the table; [drift-setup-comparison.md](drift-setup-comparison.md): what Hina changed for drifting). In order of value for drifting: tyres (grip, load sensitivity, thermal window; shared game files, a changed tyre needs its own file), steering rod ratio (`controls.linearSteerRodRatio`), electronics (TC / ESC levels and performance modes), the hardware differential (preload, torque bias), ride height targets and bump stops, the physical coilover spring / damper values and anti-roll bar stiffness (which layer wins over the setup values is open), caster, brake bias in the brake file, clutch maximum torque; then aero and more turbo settings.
+2. The gaps found by the analyses ([settings/coverage.md](settings/coverage.md), [drift-setup-comparison.md](drift-setup-comparison.md)) are closed for tyres, steering rod ratio, driver aids, hardware differential, ride height and bump stops, physical coilover / anti-roll values, caster, brake bias and clutch torque. Open: which layer wins (setup values or physical values), and the not-covered list in section 6. Then aero, more turbo settings, remaining tyre fields.
 3. Polish: live build log in the page, job state per car, a guard against very long custom work paths; hide combustion settings for electric cars.
 4. More tested cars: add an id to `tuner/cars.json`; run the per-car checks (defaults, unchanged build, edit test) before trusting it.

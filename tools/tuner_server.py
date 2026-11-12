@@ -11,6 +11,8 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765) and 
                         (copies_differ, plus copy_values when the copies of the value differ in the stock data;
                         "ui": "header" on name_suffix: the page shows it under its title, not in the table)
   POST /api/set         {"id": ..., "value": ...}          POST /api/unset  {"id": ...}
+                        (value: text, number, or true/false for the settings of type bool, which are on/off switches
+                        and appear in the rows with type "bool" and true/false as default and value)
   POST /api/reset_all   clears every changed value         POST /api/init   extracts the stock car (background job)
   POST /api/apply       {"mode": "update" | "new_copy", "new_id": ...}   builds and installs (background job)
 Every route takes an optional car id of the game (the list is cached in <work>/cars_index.json, see tune.py; without it
@@ -219,8 +221,8 @@ def api_settings(car):
 def api_set(car, body):
     work, cat = CONFIG["work"], tune.load_catalogue()
     setting_id, value = body.get("id"), body.get("value")
-    if not isinstance(setting_id, str) or type(value) not in (str, int, float):
-        raise ApiError(400, "need id (text) and value (text or number)")
+    if not isinstance(setting_id, str) or type(value) not in (str, int, float, bool):
+        raise ApiError(400, "need id (text) and value (text, number or true/false)")
     require_base(work, car)
     with STATE_LOCK:
         try:

@@ -67,6 +67,7 @@ TYPES = {
     "rimmesh": "RimMeshData",
     "suspension": "SuspensionGeometryData",
     "turbo": "TurboData",
+    "tyre": "TyresCompoundData",
     "visualcarpreset": "VisualCarPresetData",
     "wing": "WingData",
 }

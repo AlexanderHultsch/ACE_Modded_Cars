@@ -148,6 +148,8 @@ tr.changed td { background: var(--changed-bg); }
   background: var(--panel); color: var(--text);
 }
 .valuewrap select { width: auto; max-width: 100%; }
+.valuewrap label.flag { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.valuewrap input[type="checkbox"] { width: auto; padding: 0; margin: 0; }
 .unit { color: var(--muted); font-size: 13px; }
 button.reset { padding: 2px 8px; font-size: 12px; }
 .msg { margin-top: 4px; font-size: 12.5px; }
@@ -319,6 +321,7 @@ function fmtTime(iso) {
 
 function fmtVal(type, v) {
   if (v === null || v === undefined) return "-";
+  if (typeof v === "boolean") return v ? "on" : "off";
   if (type === "float" && typeof v === "number" && Number.isInteger(v)) return v.toFixed(1);
   return String(v);
 }
@@ -510,10 +513,19 @@ function setMsg(r, text, kind) {
   if (text && kind === "err") r.msgTimer = setTimeout(() => setMsg(r, "", ""), 8000);
 }
 
+function setField(r) {
+  if (r.data.type === "bool") {
+    r.field.checked = r.data.value === true;
+    if (r.state) r.state.textContent = fmtVal(r.data.type, r.data.value);
+  } else {
+    r.field.value = r.shown;
+  }
+}
+
 function showRow(r, data) {
   r.data = data;
   r.shown = fmtVal(data.type, data.value);
-  r.field.value = r.shown;
+  setField(r);
   r.tr.classList.toggle("changed", data.changed);
   r.reset.hidden = !data.changed;
   applyFilter();
@@ -525,7 +537,7 @@ async function sendSet(r, text) {
     showRow(r, res.row);
     setMsg(r, res.warnings.join(" "), "warn");
   } catch (e) {
-    r.field.value = r.shown;
+    setField(r);
     setMsg(r, e.message, "err");
   }
 }
@@ -542,6 +554,13 @@ async function sendUnset(r) {
 
 function commit(r) {
   clearTimeout(r.timer);
+  if (r.data.type === "bool") {
+    if (r.field.checked === (r.data.value === true)) return;
+    const on = r.field.checked;
+    setMsg(r, "", "");
+    queue = queue.then(() => sendSet(r, on));
+    return;
+  }
   const text = r.data.id === "name_suffix" ? r.field.value : r.field.value.trim();
   if (text === r.shown) return;
   setMsg(r, "", "");
@@ -551,7 +570,10 @@ function commit(r) {
 function buildField(r) {
   const d = r.data;
   let f;
-  if (Array.isArray(d.choices) && d.choices.length) {
+  if (d.type === "bool") {
+    f = el("input");
+    f.type = "checkbox";
+  } else if (Array.isArray(d.choices) && d.choices.length) {
     f = el("select");
     for (const c of d.choices) {
       const o = el("option", "", c);
@@ -582,7 +604,7 @@ function buildField(r) {
       commit(r);
     } else if (ev.key === "Escape") {
       clearTimeout(r.timer);
-      f.value = r.shown;
+      setField(r);
     }
   });
   return f;
@@ -638,7 +660,14 @@ function buildRow(data, car) {
   const valueCell = el("td");
   const wrap = el("div", "valuewrap");
   r.field = buildField(r);
-  wrap.appendChild(r.field);
+  if (data.type === "bool") {
+    const box = el("label", "flag");
+    r.state = el("span");
+    box.append(r.field, r.state);
+    wrap.appendChild(box);
+  } else {
+    wrap.appendChild(r.field);
+  }
   if (data.unit) wrap.appendChild(el("span", "unit", data.unit));
   r.reset = buildReset(r);
   wrap.appendChild(r.reset);

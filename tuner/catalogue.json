@@ -320,6 +320,51 @@
       ]
     },
     {
+      "id": "diff_hw_preload", "group": "Differential (hardware)", "label": "Diff preload (hardware)", "kind": "value", "type": "float", "unit": "Nm",
+      "description": "Preload torque of the differential model (DifferentialData.preload), written to the drivetrain file and the car's inline copy. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "verified": false, "min": 0, "max": 300,
+      "targets": [
+        {"file": "@drivetrain", "path": "differential_data.preload"},
+        {"file": "@car", "path": "drivetrain.differential_data.preload", "optional": true}
+      ]
+    },
+    {
+      "id": "diff_hw_bias_power", "group": "Differential (hardware)", "label": "Diff torque bias power", "kind": "value", "type": "float", "unit": "",
+      "description": "Torque bias ratio under power of the differential model (DifferentialData.torque_bias_ratio_power); assumed: a higher ratio locks the axle harder under power. Stock: BMW 2.3, GR86 4.1, RX-7 4, not stored by the Giulia and the Porsche (shown as absent). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "verified": false, "min": 1, "max": 10,
+      "targets": [
+        {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_power"},
+        {"file": "@car", "path": "drivetrain.differential_data.torque_bias_ratio_power", "optional": true}
+      ]
+    },
+    {
+      "id": "diff_hw_bias_coast", "group": "Differential (hardware)", "label": "Diff torque bias coast", "kind": "value", "type": "float", "unit": "",
+      "description": "Torque bias ratio on coast of the differential model (DifferentialData.torque_bias_ratio_coast); assumed: a higher ratio locks the axle harder off throttle. Stock: BMW 0.5, GR86 4.1, RX-7 4, not stored by the Giulia and the Porsche (shown as absent). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "verified": false, "min": 0, "max": 10,
+      "targets": [
+        {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_coast"},
+        {"file": "@car", "path": "drivetrain.differential_data.torque_bias_ratio_coast", "optional": true}
+      ]
+    },
+    {
+      "id": "diff_hw_power", "group": "Differential (hardware)", "label": "Diff lock power (hardware)", "kind": "value", "type": "float", "unit": "",
+      "description": "Lock factor under power of the differential model (DifferentialData.power), assumed 0 (open) to 1 (locked). The BMW and the RX-7 do not store it (shown as absent, created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "verified": false, "min": 0, "max": 1, "create_missing": true,
+      "targets": [
+        {"file": "@drivetrain", "path": "differential_data.power"},
+        {"file": "@car", "path": "drivetrain.differential_data.power", "optional": true}
+      ]
+    },
+    {
+      "id": "diff_hw_coast", "group": "Differential (hardware)", "label": "Diff lock coast (hardware)", "kind": "value", "type": "float", "unit": "",
+      "description": "Lock factor on coast of the differential model (DifferentialData.coast), assumed 0 (open) to 1 (locked). The BMW and the RX-7 do not store it (shown as absent, created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "verified": false, "min": 0, "max": 1, "create_missing": true,
+      "targets": [
+        {"file": "@drivetrain", "path": "differential_data.coast"},
+        {"file": "@car", "path": "drivetrain.differential_data.coast", "optional": true}
+      ]
+    },
+    {
       "id": "steer_ratio", "group": "Steering & brakes", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle.",
       "verified": true, "min": 5, "max": 30,
@@ -344,6 +389,23 @@
       ]
     },
     {
+      "id": "steer_rod_ratio", "group": "Steering & brakes", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
+      "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022; Hina's drift E46 uses 0.0025). Effect in the game not confirmed.",
+      "verified": false, "min": 0.0005, "max": 0.005,
+      "targets": [
+        {"file": "@car", "path": "controls.linearSteerRodRatio"}
+      ]
+    },
+    {
+      "id": "caster_front", "group": "Steering & brakes", "label": "Front caster", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Default setup: caster angle of the front wheels (both wheels). The stock values are small negative numbers and the unit is assumed to be degrees, not confirmed; the effect on the steering in the game is not confirmed.",
+      "verified": false, "min": -2, "max": 2,
+      "targets": [
+        {"file": "@setup", "path": "alignments[0].caster"},
+        {"file": "@setup", "path": "alignments[1].caster"}
+      ]
+    },
+    {
       "id": "brake_bias", "group": "Steering & brakes", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
       "description": "Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner.",
       "verified": true, "min": 0, "max": 100,
@@ -365,6 +427,24 @@
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.brakes.front_bias.max"}
+      ]
+    },
+    {
+      "id": "brake_bias_hw", "group": "Steering & brakes", "label": "Brake bias front (brake file)", "kind": "value", "type": "float", "unit": "%",
+      "description": "Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Most cars store a percentage (BMW 68), the Alfa Romeo Giulia stores a fraction (0.75); which of the two the game reads is not confirmed.",
+      "verified": false, "min": 0, "max": 100,
+      "targets": [
+        {"file": "@brakes", "path": "frontBias"},
+        {"file": "@car", "path": "brakes.frontBias", "optional": true}
+      ]
+    },
+    {
+      "id": "clutch_max_torque", "group": "Steering & brakes", "label": "Clutch max torque", "kind": "value", "type": "float", "unit": "Nm",
+      "description": "Maximum torque the clutch transmits before it slips (ClutchData.clutch_max_torque), written to the clutch file and the car's inline copy. A lower value should let the clutch slip earlier, a higher one hold more torque; effect in the game not confirmed.",
+      "verified": false, "min": 50, "max": 5000,
+      "targets": [
+        {"file": "@clutch", "path": "clutch_max_torque"},
+        {"file": "@car", "path": "clutch.clutch_max_torque", "optional": true}
       ]
     },
     {
@@ -504,6 +584,112 @@
       ]
     },
     {
+      "id": "ride_height_front", "group": "Ride height & bump stops", "label": "Front ride height", "kind": "value", "type": "float", "unit": "mm",
+      "description": "Default setup: target ride height of the front axle (setup aero.front_target_height). The spring collar positions (collar_front) realise the target height, so change them together; the effect on the handling is not confirmed.",
+      "verified": false, "min": 30, "max": 300,
+      "targets": [
+        {"file": "@setup", "path": "aero.front_target_height"}
+      ]
+    },
+    {
+      "id": "ride_height_rear", "group": "Ride height & bump stops", "label": "Rear ride height", "kind": "value", "type": "float", "unit": "mm",
+      "description": "Default setup: target ride height of the rear axle (setup aero.rear_target_height). The spring collar positions (collar_rear) realise the target height, so change them together; the effect on the handling is not confirmed.",
+      "verified": false, "min": 30, "max": 300,
+      "targets": [
+        {"file": "@setup", "path": "aero.rear_target_height"}
+      ]
+    },
+    {
+      "id": "collar_front", "group": "Ride height & bump stops", "label": "Front spring collar position", "kind": "value", "type": "float", "unit": "mm",
+      "description": "Default setup: position of the front spring collars (setup aero.collar_positions_mm, both front wheels), the values that realise the target ride height. Change it together with ride_height_front; the relation between the two is not verified.",
+      "verified": false, "min": 0, "max": 300,
+      "targets": [
+        {"file": "@setup", "path": "aero.collar_positions_mm[0]"},
+        {"file": "@setup", "path": "aero.collar_positions_mm[1]"}
+      ]
+    },
+    {
+      "id": "collar_rear", "group": "Ride height & bump stops", "label": "Rear spring collar position", "kind": "value", "type": "float", "unit": "mm",
+      "description": "Default setup: position of the rear spring collars (setup aero.collar_positions_mm, both rear wheels), the values that realise the target ride height. Change it together with ride_height_rear; the relation between the two is not verified.",
+      "verified": false, "min": 0, "max": 300,
+      "targets": [
+        {"file": "@setup", "path": "aero.collar_positions_mm[2]"},
+        {"file": "@setup", "path": "aero.collar_positions_mm[3]"}
+      ]
+    },
+    {
+      "id": "bump_stop_up_rate_front", "group": "Ride height & bump stops", "label": "Front bump stop up rate", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the front axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "verified": false, "min": 0, "max": 10000,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[0].bump_stop_up.rate"},
+        {"file": "@setup", "path": "suspensions[1].bump_stop_up.rate"}
+      ]
+    },
+    {
+      "id": "bump_stop_up_rate_rear", "group": "Ride height & bump stops", "label": "Rear bump stop up rate", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the rear axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "verified": false, "min": 0, "max": 10000,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[2].bump_stop_up.rate"},
+        {"file": "@setup", "path": "suspensions[3].bump_stop_up.rate"}
+      ]
+    },
+    {
+      "id": "bump_stop_down_rate_front", "group": "Ride height & bump stops", "label": "Front bump stop down rate", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the front axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "verified": false, "min": 0, "max": 10000,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[0].bump_stop_down.rate"},
+        {"file": "@setup", "path": "suspensions[1].bump_stop_down.rate"}
+      ]
+    },
+    {
+      "id": "bump_stop_down_rate_rear", "group": "Ride height & bump stops", "label": "Rear bump stop down rate", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the rear axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "verified": false, "min": 0, "max": 10000,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[2].bump_stop_down.rate"},
+        {"file": "@setup", "path": "suspensions[3].bump_stop_down.rate"}
+      ]
+    },
+    {
+      "id": "bump_stop_up_range_front", "group": "Ride height & bump stops", "label": "Front bump stop up range", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: travel at which the \"up\" bump stop of the front axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "verified": false, "min": -0.2, "max": 0.3,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[0].bump_stop_up.range"},
+        {"file": "@setup", "path": "suspensions[1].bump_stop_up.range"}
+      ]
+    },
+    {
+      "id": "bump_stop_up_range_rear", "group": "Ride height & bump stops", "label": "Rear bump stop up range", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: travel at which the \"up\" bump stop of the rear axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "verified": false, "min": -0.2, "max": 0.3,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[2].bump_stop_up.range"},
+        {"file": "@setup", "path": "suspensions[3].bump_stop_up.range"}
+      ]
+    },
+    {
+      "id": "bump_stop_down_range_front", "group": "Ride height & bump stops", "label": "Front bump stop down range", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: travel at which the \"down\" bump stop of the front axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "verified": false, "min": -0.2, "max": 0.3,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[0].bump_stop_down.range"},
+        {"file": "@setup", "path": "suspensions[1].bump_stop_down.range"}
+      ]
+    },
+    {
+      "id": "bump_stop_down_range_rear", "group": "Ride height & bump stops", "label": "Rear bump stop down range", "kind": "value", "type": "float", "unit": "",
+      "description": "Default setup: travel at which the \"down\" bump stop of the rear axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "verified": false, "min": -0.2, "max": 0.3,
+      "targets": [
+        {"file": "@setup", "path": "suspensions[2].bump_stop_down.range"},
+        {"file": "@setup", "path": "suspensions[3].bump_stop_down.range"}
+      ]
+    },
+    {
       "id": "damper_front_slow_bump", "group": "Dampers", "label": "Front damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
       "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
@@ -573,6 +759,112 @@
       "targets": [
         {"file": "@setup", "path": "dampers[2].fast_rebound"},
         {"file": "@setup", "path": "dampers[3].fast_rebound"}
+      ]
+    },
+    {
+      "id": "coilover_spring_front", "group": "Suspension (physical)", "label": "Front coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Spring rate of the front coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 5000, "max": 500000,
+      "targets": [
+        {"file": "@coilover_front", "path": "springRate"},
+        {"file": "@car", "path": "suspensions.coilover_front.springRate", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_spring_rear", "group": "Suspension (physical)", "label": "Rear coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Spring rate of the rear coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 5000, "max": 500000,
+      "targets": [
+        {"file": "@coilover_rear", "path": "springRate"},
+        {"file": "@car", "path": "suspensions.coilover_rear.springRate", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_front_slow_bump", "group": "Suspension (physical)", "label": "Front coilover damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for slow wheel movements upwards of the front coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_front", "path": "damper.slow.bump"},
+        {"file": "@car", "path": "suspensions.coilover_front.damper.slow.bump", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_front_fast_bump", "group": "Suspension (physical)", "label": "Front coilover damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for fast wheel movements upwards of the front coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_front", "path": "damper.fast.bump"},
+        {"file": "@car", "path": "suspensions.coilover_front.damper.fast.bump", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_front_slow_rebound", "group": "Suspension (physical)", "label": "Front coilover damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for slow wheel movements downwards of the front coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_front", "path": "damper.slow.rebound"},
+        {"file": "@car", "path": "suspensions.coilover_front.damper.slow.rebound", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_front_fast_rebound", "group": "Suspension (physical)", "label": "Front coilover damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for fast wheel movements downwards of the front coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_front", "path": "damper.fast.rebound"},
+        {"file": "@car", "path": "suspensions.coilover_front.damper.fast.rebound", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_rear_slow_bump", "group": "Suspension (physical)", "label": "Rear coilover damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for slow wheel movements upwards of the rear coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_rear", "path": "damper.slow.bump"},
+        {"file": "@car", "path": "suspensions.coilover_rear.damper.slow.bump", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_rear_fast_bump", "group": "Suspension (physical)", "label": "Rear coilover damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for fast wheel movements upwards of the rear coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_rear", "path": "damper.fast.bump"},
+        {"file": "@car", "path": "suspensions.coilover_rear.damper.fast.bump", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_rear_slow_rebound", "group": "Suspension (physical)", "label": "Rear coilover damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for slow wheel movements downwards of the rear coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_rear", "path": "damper.slow.rebound"},
+        {"file": "@car", "path": "suspensions.coilover_rear.damper.slow.rebound", "optional": true}
+      ]
+    },
+    {
+      "id": "coilover_damper_rear_fast_rebound", "group": "Suspension (physical)", "label": "Rear coilover damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
+      "description": "Physical damper rate for fast wheel movements downwards of the rear coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 30000,
+      "targets": [
+        {"file": "@coilover_rear", "path": "damper.fast.rebound"},
+        {"file": "@car", "path": "suspensions.coilover_rear.damper.fast.rebound", "optional": true}
+      ]
+    },
+    {
+      "id": "arb_stiffness_front", "group": "Suspension (physical)", "label": "Front anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Physical stiffness of the front anti-roll bar (suspensions.arbFront.stiffness, stored in the .car only); the stock BMW does not store it (shown as absent, created when you set it). This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 200000, "create_missing": true,
+      "targets": [
+        {"file": "@car", "path": "suspensions.arbFront.stiffness"}
+      ]
+    },
+    {
+      "id": "arb_stiffness_rear", "group": "Suspension (physical)", "label": "Rear anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Physical stiffness of the rear anti-roll bar (suspensions.arbRear.stiffness, stored in the .car only); the stock BMW does not store it (shown as absent, created when you set it). This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "verified": false, "min": 0, "max": 200000, "create_missing": true,
+      "targets": [
+        {"file": "@car", "path": "suspensions.arbRear.stiffness"}
       ]
     },
     {
@@ -710,11 +1002,283 @@
       ]
     },
     {
+      "id": "tyre_grip_lateral_front", "group": "Tyres", "label": "Front tyre lateral grip", "kind": "value", "type": "float", "unit": "mu",
+      "description": "Peak lateral (sideways) friction coefficient of the front tyre (TyresCompoundData.modelData.Dy0, a unitless mu; the stock road tyres of the BMW have about 1.2, the supercar tyres about 1.27). Assumed from the field name: a higher value gives the front axle more sideways grip; the real grip also depends on load, temperature, pressure and wear. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0.5, "max": 2.5,
+      "targets": [
+        {"file": "@tyre_front", "path": "modelData.Dy0"}
+      ]
+    },
+    {
+      "id": "tyre_grip_longitudinal_front", "group": "Tyres", "label": "Front tyre longitudinal grip", "kind": "value", "type": "float", "unit": "mu",
+      "description": "Peak longitudinal friction coefficient of the front tyre (modelData.Dx0, a unitless mu). Assumed from the field name: a higher value gives the front axle more grip when accelerating and braking. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0.5, "max": 2.5,
+      "targets": [
+        {"file": "@tyre_front", "path": "modelData.Dx0"}
+      ]
+    },
+    {
+      "id": "tyre_peak_slip_angle_front", "group": "Tyres", "label": "Front tyre peak slip angle", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Slip angle at which the front tyre reaches its friction limit (modelData.friction_limit_angle, degrees, about 8 on the stock tyres of the BMW). Assumed from the field name: a larger angle lets the front axle keep gripping at bigger slip angles, so a slide builds up more progressively. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 3, "max": 15,
+      "targets": [
+        {"file": "@tyre_front", "path": "modelData.friction_limit_angle"}
+      ]
+    },
+    {
+      "id": "tyre_load_reference_front", "group": "Tyres", "label": "Front tyre load reference", "kind": "value", "type": "float", "unit": "N",
+      "description": "Reference vertical load of the front tyre model (modelData.Fz0, newtons; 3930 front and 4320 rear on the stock tyres of the BMW). Assumed from the field name: the grip coefficients are valid at this load and the grip changes with the load around it, so a different value moves the load at which the front tyre works best. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 1000, "max": 10000,
+      "targets": [
+        {"file": "@tyre_front", "path": "modelData.Fz0"}
+      ]
+    },
+    {
+      "id": "tyre_pressure_ref_front", "group": "Tyres", "label": "Front tyre inflation pressure in the tyre file", "kind": "value", "type": "float", "unit": "psi",
+      "description": "Inflation pressure stored in the front tyre file (TyresCompoundData.pressure, 30 psi on the stock tyres of the BMW, between 23 and 30 on the other tested cars). The pressure you run is the setup value (tyre_pressure_front); how the two interact in the game is not confirmed. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 15, "max": 50,
+      "targets": [
+        {"file": "@tyre_front", "path": "pressure"}
+      ]
+    },
+    {
+      "id": "tyre_flex_lateral_front", "group": "Tyres", "label": "Front tyre lateral flex stiffness", "kind": "value", "type": "float", "unit": "",
+      "description": "Lateral flex stiffness of the front tyre (tyreData.lateralFlexK; the unit is not known, the stock tyres of the BMW have 30000 road and 38000 supercar). Assumed from the field name: a higher value makes the sidewall stiffer sideways, so the front tyre gives less. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 5000, "max": 100000,
+      "targets": [
+        {"file": "@tyre_front", "path": "tyreData.lateralFlexK"}
+      ]
+    },
+    {
+      "id": "tyre_flex_longitudinal_front", "group": "Tyres", "label": "Front tyre longitudinal flex stiffness", "kind": "value", "type": "float", "unit": "",
+      "description": "Longitudinal flex stiffness of the front tyre (tyreData.longitudinalFlexK; the unit is not known, the stock tyres of the BMW have 18000 road and 20000 supercar). Assumed from the field name: a higher value makes the tyre stiffer in the driving direction, so the front tyre gives less under power and braking. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 5000, "max": 100000,
+      "targets": [
+        {"file": "@tyre_front", "path": "tyreData.longitudinalFlexK"}
+      ]
+    },
+    {
+      "id": "tyre_stiffness_rate_front", "group": "Tyres", "label": "Front tyre vertical stiffness", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Vertical stiffness of the front tyre (tyreData.rate; the unit is assumed to be N/m, the stock road tyres of the BMW have 282100 front and 322400 rear). Assumed from the field name: a higher value is a stiffer tyre that compresses less under load, which also changes the ride of the front axle. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 100000, "max": 600000,
+      "targets": [
+        {"file": "@tyre_front", "path": "tyreData.rate"}
+      ]
+    },
+    {
+      "id": "tyre_heat_partition_front", "group": "Tyres", "label": "Front tyre heat partition", "kind": "value", "type": "float", "unit": "",
+      "description": "Heat partition coefficient of the front tyre (thermalData.heat_partition_coeff; 0.7 on the stock road tyres and 0.9 on the supercar tyres of the BMW, 1.4 on the Porsche slicks, so it is not a plain fraction). Assumed from the field name: it sets how much of the friction heat goes into the tyre, so a higher value heats the front tyre faster when it slides. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0, "max": 2,
+      "targets": [
+        {"file": "@tyre_front", "path": "thermalData.heat_partition_coeff"}
+      ]
+    },
+    {
+      "id": "tyre_grain_gain_front", "group": "Tyres", "label": "Front tyre graining gain", "kind": "value", "type": "float", "unit": "",
+      "description": "Strength of the graining (rubber balling on the surface) of the front tyre. Written to both thermalData.grainGain and thermalData.grainGamma, which are equal in every tyre of the game (0.27 on the stock road tyres of the BMW, 0.47 on the supercar tyres). Assumed from the field names: a higher value makes the front tyre grain up more when it slides. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0, "max": 2,
+      "targets": [
+        {"file": "@tyre_front", "path": "thermalData.grainGain"},
+        {"file": "@tyre_front", "path": "thermalData.grainGamma"}
+      ]
+    },
+    {
+      "id": "tyre_grain_slip_angle_gain_front", "group": "Tyres", "label": "Front tyre graining slip angle gain", "kind": "value", "type": "float", "unit": "",
+      "description": "Graining caused by slip angle on the front tyre (thermalData.grainSlipAngleGain, 0.265 on the stock road tyres of the BMW, 0.565 on the supercar tyres). Assumed from the field name: a higher value makes sliding sideways grain the front tyre more. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0, "max": 2,
+      "targets": [
+        {"file": "@tyre_front", "path": "thermalData.grainSlipAngleGain"}
+      ]
+    },
+    {
+      "id": "tyre_grip_lateral_rear", "group": "Tyres", "label": "Rear tyre lateral grip", "kind": "value", "type": "float", "unit": "mu",
+      "description": "Peak lateral (sideways) friction coefficient of the rear tyre (TyresCompoundData.modelData.Dy0, a unitless mu; the stock road tyres of the BMW have about 1.2, the supercar tyres about 1.27). Assumed from the field name: a higher value gives the rear axle more sideways grip; the real grip also depends on load, temperature, pressure and wear. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0.5, "max": 2.5,
+      "targets": [
+        {"file": "@tyre_rear", "path": "modelData.Dy0"}
+      ]
+    },
+    {
+      "id": "tyre_grip_longitudinal_rear", "group": "Tyres", "label": "Rear tyre longitudinal grip", "kind": "value", "type": "float", "unit": "mu",
+      "description": "Peak longitudinal friction coefficient of the rear tyre (modelData.Dx0, a unitless mu). Assumed from the field name: a higher value gives the rear axle more grip when accelerating and braking. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0.5, "max": 2.5,
+      "targets": [
+        {"file": "@tyre_rear", "path": "modelData.Dx0"}
+      ]
+    },
+    {
+      "id": "tyre_peak_slip_angle_rear", "group": "Tyres", "label": "Rear tyre peak slip angle", "kind": "value", "type": "float", "unit": "deg",
+      "description": "Slip angle at which the rear tyre reaches its friction limit (modelData.friction_limit_angle, degrees, about 8 on the stock tyres of the BMW). Assumed from the field name: a larger angle lets the rear axle keep gripping at bigger slip angles, so a slide builds up more progressively. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 3, "max": 15,
+      "targets": [
+        {"file": "@tyre_rear", "path": "modelData.friction_limit_angle"}
+      ]
+    },
+    {
+      "id": "tyre_load_reference_rear", "group": "Tyres", "label": "Rear tyre load reference", "kind": "value", "type": "float", "unit": "N",
+      "description": "Reference vertical load of the rear tyre model (modelData.Fz0, newtons; 3930 front and 4320 rear on the stock tyres of the BMW). Assumed from the field name: the grip coefficients are valid at this load and the grip changes with the load around it, so a different value moves the load at which the rear tyre works best. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 1000, "max": 10000,
+      "targets": [
+        {"file": "@tyre_rear", "path": "modelData.Fz0"}
+      ]
+    },
+    {
+      "id": "tyre_pressure_ref_rear", "group": "Tyres", "label": "Rear tyre inflation pressure in the tyre file", "kind": "value", "type": "float", "unit": "psi",
+      "description": "Inflation pressure stored in the rear tyre file (TyresCompoundData.pressure, 30 psi on the stock tyres of the BMW, between 23 and 30 on the other tested cars). The pressure you run is the setup value (tyre_pressure_rear); how the two interact in the game is not confirmed. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 15, "max": 50,
+      "targets": [
+        {"file": "@tyre_rear", "path": "pressure"}
+      ]
+    },
+    {
+      "id": "tyre_flex_lateral_rear", "group": "Tyres", "label": "Rear tyre lateral flex stiffness", "kind": "value", "type": "float", "unit": "",
+      "description": "Lateral flex stiffness of the rear tyre (tyreData.lateralFlexK; the unit is not known, the stock tyres of the BMW have 30000 road and 38000 supercar). Assumed from the field name: a higher value makes the sidewall stiffer sideways, so the rear tyre gives less. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 5000, "max": 100000,
+      "targets": [
+        {"file": "@tyre_rear", "path": "tyreData.lateralFlexK"}
+      ]
+    },
+    {
+      "id": "tyre_flex_longitudinal_rear", "group": "Tyres", "label": "Rear tyre longitudinal flex stiffness", "kind": "value", "type": "float", "unit": "",
+      "description": "Longitudinal flex stiffness of the rear tyre (tyreData.longitudinalFlexK; the unit is not known, the stock tyres of the BMW have 18000 road and 20000 supercar). Assumed from the field name: a higher value makes the tyre stiffer in the driving direction, so the rear tyre gives less under power and braking. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 5000, "max": 100000,
+      "targets": [
+        {"file": "@tyre_rear", "path": "tyreData.longitudinalFlexK"}
+      ]
+    },
+    {
+      "id": "tyre_stiffness_rate_rear", "group": "Tyres", "label": "Rear tyre vertical stiffness", "kind": "value", "type": "float", "unit": "N/m",
+      "description": "Vertical stiffness of the rear tyre (tyreData.rate; the unit is assumed to be N/m, the stock road tyres of the BMW have 282100 front and 322400 rear). Assumed from the field name: a higher value is a stiffer tyre that compresses less under load, which also changes the ride of the rear axle. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 100000, "max": 600000,
+      "targets": [
+        {"file": "@tyre_rear", "path": "tyreData.rate"}
+      ]
+    },
+    {
+      "id": "tyre_heat_partition_rear", "group": "Tyres", "label": "Rear tyre heat partition", "kind": "value", "type": "float", "unit": "",
+      "description": "Heat partition coefficient of the rear tyre (thermalData.heat_partition_coeff; 0.7 on the stock road tyres and 0.9 on the supercar tyres of the BMW, 1.4 on the Porsche slicks, so it is not a plain fraction). Assumed from the field name: it sets how much of the friction heat goes into the tyre, so a higher value heats the rear tyre faster when it slides. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0, "max": 2,
+      "targets": [
+        {"file": "@tyre_rear", "path": "thermalData.heat_partition_coeff"}
+      ]
+    },
+    {
+      "id": "tyre_grain_gain_rear", "group": "Tyres", "label": "Rear tyre graining gain", "kind": "value", "type": "float", "unit": "",
+      "description": "Strength of the graining (rubber balling on the surface) of the rear tyre. Written to both thermalData.grainGain and thermalData.grainGamma, which are equal in every tyre of the game (0.27 on the stock road tyres of the BMW, 0.47 on the supercar tyres). Assumed from the field names: a higher value makes the rear tyre grain up more when it slides. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0, "max": 2,
+      "targets": [
+        {"file": "@tyre_rear", "path": "thermalData.grainGain"},
+        {"file": "@tyre_rear", "path": "thermalData.grainGamma"}
+      ]
+    },
+    {
+      "id": "tyre_grain_slip_angle_gain_rear", "group": "Tyres", "label": "Rear tyre graining slip angle gain", "kind": "value", "type": "float", "unit": "",
+      "description": "Graining caused by slip angle on the rear tyre (thermalData.grainSlipAngleGain, 0.265 on the stock road tyres of the BMW, 0.565 on the supercar tyres). Assumed from the field name: a higher value makes sliding sideways grain the rear tyre more. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "min": 0, "max": 2,
+      "targets": [
+        {"file": "@tyre_rear", "path": "thermalData.grainSlipAngleGain"}
+      ]
+    },
+    {
+      "id": "tyre_thermal_curve_front", "group": "Tyres", "label": "Front tyre thermal curve", "kind": "value", "type": "enum", "unit": "",
+      "description": "Thermal performance curve family of the front tyre (thermalData.thermalPerformanceCurve): a curve of the grip multiplier against tyre temperature in degrees Celsius. Each choice is one of the game's shared curve files, named without tcurve_ and .curve (content\\cars\\common_phsx\\tyres\\<folder>\\tcurve_<choice>.curve); the build points the tyre at that file, no curve is copied. Read from the curve files: road holds full grip at about 32 to 70 degrees, supercar at about 60 to 95, slick at about 70 to 105; the other families have their own windows. A hotter window suits a tyre that is heated by sliding. Stored in the car's own copy of the front tyre file (data/tyres/<car id>_front.tyre), which the build makes only when a front tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "choices": ["road", "supercar", "hypercar", "slick", "gt3_wet", "eco", "vintage_racing", "f12004_dry", "f12004_wet", "f12025_hard", "f12025_inters", "f12025_med", "f12025_soft", "f12025_wet", "f12026_hard", "f12026_inters", "f12026_med", "f12026_soft", "f12026_wet"],
+      "choice_values": {
+        "road": "content\\cars\\common_phsx\\tyres\\road\\tcurve_road.curve",
+        "supercar": "content\\cars\\common_phsx\\tyres\\supercar\\tcurve_supercar.curve",
+        "hypercar": "content\\cars\\common_phsx\\tyres\\hypercar\\tcurve_hypercar.curve",
+        "slick": "content\\cars\\common_phsx\\tyres\\racing_slicks\\tcurve_slick.curve",
+        "gt3_wet": "content\\cars\\common_phsx\\tyres\\racing_wet\\tcurve_gt3_wet.curve",
+        "eco": "content\\cars\\common_phsx\\tyres\\eco\\tcurve_eco.curve",
+        "vintage_racing": "content\\cars\\common_phsx\\tyres\\vintage\\tcurve_vintage_racing.curve",
+        "f12004_dry": "content\\cars\\common_phsx\\tyres\\f1_2004\\tcurve_f12004_dry.curve",
+        "f12004_wet": "content\\cars\\common_phsx\\tyres\\f1_2004\\tcurve_f12004_wet.curve",
+        "f12025_hard": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_hard.curve",
+        "f12025_inters": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_inters.curve",
+        "f12025_med": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_med.curve",
+        "f12025_soft": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_soft.curve",
+        "f12025_wet": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_wet.curve",
+        "f12026_hard": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_hard.curve",
+        "f12026_inters": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_inters.curve",
+        "f12026_med": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_med.curve",
+        "f12026_soft": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_soft.curve",
+        "f12026_wet": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_wet.curve"
+      },
+      "targets": [
+        {"file": "@tyre_front", "path": "thermalData.thermalPerformanceCurve"}
+      ]
+    },
+    {
+      "id": "tyre_thermal_curve_rear", "group": "Tyres", "label": "Rear tyre thermal curve", "kind": "value", "type": "enum", "unit": "",
+      "description": "Thermal performance curve family of the rear tyre (thermalData.thermalPerformanceCurve): a curve of the grip multiplier against tyre temperature in degrees Celsius. Each choice is one of the game's shared curve files, named without tcurve_ and .curve (content\\cars\\common_phsx\\tyres\\<folder>\\tcurve_<choice>.curve); the build points the tyre at that file, no curve is copied. Read from the curve files: road holds full grip at about 32 to 70 degrees, supercar at about 60 to 95, slick at about 70 to 105; the other families have their own windows. A hotter window suits a tyre that is heated by sliding. Stored in the car's own copy of the rear tyre file (data/tyres/<car id>_rear.tyre), which the build makes only when a rear tyre setting is changed. It changes the compound the car starts on; the other compounds in the game's tyre list stay stock. The effect on driving is not tested in the game.",
+      "verified": false, "choices": ["road", "supercar", "hypercar", "slick", "gt3_wet", "eco", "vintage_racing", "f12004_dry", "f12004_wet", "f12025_hard", "f12025_inters", "f12025_med", "f12025_soft", "f12025_wet", "f12026_hard", "f12026_inters", "f12026_med", "f12026_soft", "f12026_wet"],
+      "choice_values": {
+        "road": "content\\cars\\common_phsx\\tyres\\road\\tcurve_road.curve",
+        "supercar": "content\\cars\\common_phsx\\tyres\\supercar\\tcurve_supercar.curve",
+        "hypercar": "content\\cars\\common_phsx\\tyres\\hypercar\\tcurve_hypercar.curve",
+        "slick": "content\\cars\\common_phsx\\tyres\\racing_slicks\\tcurve_slick.curve",
+        "gt3_wet": "content\\cars\\common_phsx\\tyres\\racing_wet\\tcurve_gt3_wet.curve",
+        "eco": "content\\cars\\common_phsx\\tyres\\eco\\tcurve_eco.curve",
+        "vintage_racing": "content\\cars\\common_phsx\\tyres\\vintage\\tcurve_vintage_racing.curve",
+        "f12004_dry": "content\\cars\\common_phsx\\tyres\\f1_2004\\tcurve_f12004_dry.curve",
+        "f12004_wet": "content\\cars\\common_phsx\\tyres\\f1_2004\\tcurve_f12004_wet.curve",
+        "f12025_hard": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_hard.curve",
+        "f12025_inters": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_inters.curve",
+        "f12025_med": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_med.curve",
+        "f12025_soft": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_soft.curve",
+        "f12025_wet": "content\\cars\\common_phsx\\tyres\\f1_2025\\tcurve_f12025_wet.curve",
+        "f12026_hard": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_hard.curve",
+        "f12026_inters": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_inters.curve",
+        "f12026_med": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_med.curve",
+        "f12026_soft": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_soft.curve",
+        "f12026_wet": "content\\cars\\common_phsx\\tyres\\f1_2026\\tcurve_f12026_wet.curve"
+      },
+      "targets": [
+        {"file": "@tyre_rear", "path": "thermalData.thermalPerformanceCurve"}
+      ]
+    },
+    {
       "id": "fuel_start", "group": "Fuel", "label": "Starting fuel", "kind": "value", "type": "float", "unit": "L",
       "description": "Default setup: fuel in the tank at the start. More fuel adds weight.",
       "verified": true, "min": 1, "max": 100,
       "targets": [
         {"file": "@setup", "path": "fuel_strategy.fuel"}
+      ]
+    },
+    {
+      "id": "tc_level", "group": "Electronics", "label": "Traction control level", "kind": "value", "type": "int", "unit": "",
+      "description": "Default setup: traction control level (setup electronics.tc1), an index into the car's traction control levels; 0 is assumed to be off, not confirmed. The performance (driving) modes store their own levels: driver_aids_off switches them off too. Only shown for cars whose stock setup stores this field.",
+      "verified": false, "min": 0, "max": 12, "hide_if_absent": true,
+      "targets": [
+        {"file": "@setup", "path": "electronics.tc1"}
+      ]
+    },
+    {
+      "id": "tc2_level", "group": "Electronics", "label": "Traction control 2 level", "kind": "value", "type": "int", "unit": "",
+      "description": "Default setup: level of the second traction control channel (setup electronics.tc2); 0 is assumed to be off, not confirmed. Only shown for cars whose stock setup stores this field.",
+      "verified": false, "min": 0, "max": 12, "hide_if_absent": true,
+      "targets": [
+        {"file": "@setup", "path": "electronics.tc2"}
+      ]
+    },
+    {
+      "id": "abs_level", "group": "Electronics", "label": "ABS level", "kind": "value", "type": "int", "unit": "",
+      "description": "Default setup: ABS level (setup electronics.abs), an index into the car's ABS levels; 0 is assumed to be off, not confirmed. driver_aids_off does not change it. Only shown for cars whose stock setup stores this field.",
+      "verified": false, "min": 0, "max": 12, "hide_if_absent": true,
+      "targets": [
+        {"file": "@setup", "path": "electronics.abs"}
+      ]
+    },
+    {
+      "id": "driver_aids_off", "group": "Electronics", "label": "Driver aids off", "kind": "flag", "type": "bool", "unit": "",
+      "description": "Switch: when on, traction control (tc1, tc2) and stability control (esc) are set to 0 in every performance (driving) mode of the car and in the setup defaults, so no driver aid steps in; ABS is not touched. 0 is assumed to mean off, not confirmed; fields the car does not store are not added.",
+      "verified": false, "value": 0,
+      "targets": [
+        {"file": "@car", "path": "performance_modes[*].electronics_settings.tc1", "optional": true},
+        {"file": "@car", "path": "performance_modes[*].electronics_settings.tc2", "optional": true},
+        {"file": "@car", "path": "performance_modes[*].electronics_settings.esc", "optional": true},
+        {"file": "@setup", "path": "electronics.tc1", "optional": true},
+        {"file": "@setup", "path": "electronics.tc2", "optional": true}
       ]
     }
   ]
