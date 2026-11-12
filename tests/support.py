@@ -3,7 +3,10 @@
 tmp() is a context manager yielding a pathlib.Path that is removed on exit; run_tool() runs a tools/ script with `python -B -I`.
 """
 import contextlib
+import copy
+import os
 import pathlib
+import re
 import struct
 import subprocess
 import sys
@@ -121,3 +124,103 @@ def desc_file(name, package="", deps=(), messages=(), enums=(), services=(), ext
 def desc_set(*files):
     """FileDescriptorSet (the layout of schemas/acevo.desc) from FileDescriptorProto bodies."""
     return b"".join(pb_bytes(1, f) for f in files)
+
+
+def mini_setting(sid, kind="value", type="float", targets=None, **extra):
+    """A catalogue setting with every required key; targets = [(file, path)] or [(file, path, True)] for an optional one."""
+    s = {"id": sid, "group": "G", "label": "L " + sid, "kind": kind, "type": type, "unit": "", "description": "d " + sid,
+         "verified": False}
+    if kind in ("value", "flag"):
+        s["targets"] = [dict(file=t[0], path=t[1], **({"optional": True} if len(t) > 2 else {})) for t in targets or ()]
+    s.update(extra)
+    return s
+
+
+def mini_catalogue(*settings, car_id="ks_x"):
+    return {"car_id": car_id, "settings": list(settings)}
+
+
+class FakeCar:
+    """A synthetic extracted car below <work>/<car_id>/base for tune.py. The files on disk are empty placeholders; what
+    tune.load_msg / save_msg decode and encode comes from self.store (absolute path -> object, or an exception instance
+    to raise). install(test) patches tune.load_msg and tune.save_msg for the test and restores them afterwards."""
+
+    def __init__(self, work, car_id="ks_x"):
+        import tune
+        self.tune, self.work, self.car_id = tune, str(work), car_id
+        self.root = tune.base_dir(self.work, car_id)
+        self.car_root = tune.car_root_of(self.root, car_id)
+        self.shared = os.path.join(self.root, "content", "cars", "common_phsx")
+        self.store, self.saved = {}, []
+
+    def _put(self, base, rel, obj):
+        path = os.path.join(base, *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb"):
+            pass
+        if obj is not None:
+            self.store[self.key(path)] = obj
+        return path
+
+    @staticmethod
+    def key(path):
+        return os.path.realpath(path)
+
+    def add(self, rel, obj=None):
+        """A file below the car folder (rel with /), e.g. data/x.car."""
+        return self._put(self.car_root, rel, obj)
+
+    def add_shared(self, rel, obj=None):
+        """A shared game file below content/cars/common_phsx."""
+        return self._put(self.shared, rel, obj)
+
+    def game_path(self, rel):
+        return "content\\cars\\%s\\%s" % (self.car_id, rel.replace("/", "\\"))
+
+    def install(self, test):
+        from unittest import mock
+        import car_json
+
+        def load_msg(path):
+            name = car_json.message_for(path)
+            obj = self.store.get(self.key(path))
+            if obj is None:
+                raise ValueError("%s: no stub content" % path)
+            if isinstance(obj, Exception):
+                raise obj
+            return copy.deepcopy(obj), name
+
+        def save_msg(path, name, obj):
+            self.store[self.key(path)] = copy.deepcopy(obj)
+            self.saved.append(self.key(path))
+
+        for attr, fn in (("load_msg", load_msg), ("save_msg", save_msg)):
+            p = mock.patch.object(self.tune, attr, fn)
+            p.start()
+            test.addCleanup(p.stop)
+        return self
+
+    def clone_into(self, out_dir, new_id):
+        """What clone_car.build does to the tree: copy base's car folder to <out_dir>/content/cars/<new_id> with the car id
+        replaced in names and in text values (case-insensitive) and the stub contents copied along."""
+        dst_root = os.path.join(out_dir, "content", "cars", new_id)
+        for dp, _, names in os.walk(self.car_root):
+            for n in names:
+                src = os.path.join(dp, n)
+                rel = os.path.relpath(src, self.car_root)
+                dst = os.path.join(dst_root, re.sub(re.escape(self.car_id), new_id, rel, flags=re.IGNORECASE))
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                with open(dst, "wb"):
+                    pass
+                if self.key(src) in self.store:
+                    self.store[self.key(dst)] = self._renamed(self.store[self.key(src)], new_id)
+        return dst_root
+
+    def _renamed(self, obj, new_id):
+        if isinstance(obj, str):
+            return re.sub(re.escape(self.car_id), new_id, obj, flags=re.IGNORECASE)
+        if isinstance(obj, list):
+            return [self._renamed(v, new_id) for v in obj]
+        if isinstance(obj, dict):
+            return {k: self._renamed(v, new_id) for k, v in obj.items()}
+        return copy.deepcopy(obj)
