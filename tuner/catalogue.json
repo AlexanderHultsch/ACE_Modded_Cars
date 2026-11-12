@@ -1,0 +1,119 @@
+{
+  "car_id": "ks_bmw_m3_e46_csl",
+  "settings": [
+    {
+      "id": "car_name", "group": "Meta", "label": "Car name", "kind": "meta", "type": "string", "unit": "",
+      "description": "Name of the tuned car in the game's car list (display_name of the .moddedcarcontent file written by the build).",
+      "verified": true, "default": "Alex E46 Drift", "handler": "car_name", "targets": []
+    },
+    {
+      "id": "variant_name", "group": "Meta", "label": "Variant name", "kind": "meta", "type": "string", "unit": "",
+      "description": "Name of the car's preset/variant (text in en.cars.loc written by the build). Where exactly the game shows it is not confirmed.",
+      "verified": false, "default": "E46 CSL Drift", "handler": "variant_name", "targets": []
+    },
+    {
+      "id": "display_power_ps", "group": "Display", "label": "Displayed power", "kind": "value", "type": "float", "unit": "PS",
+      "description": "Power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. The file stores the unit as HORSEPOWER_US.",
+      "verified": false, "min": 0, "max": 2000,
+      "targets": [
+        {"file": "presets/preset_e46csl_mech_1.mechanicalcarpreset", "path": "car_specs.items[key=CarSpecs_KeyEnum_POWER].value"}
+      ]
+    },
+    {
+      "id": "display_torque_nm", "group": "Display", "label": "Displayed torque", "kind": "value", "type": "float", "unit": "Nm",
+      "description": "Torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine.",
+      "verified": false, "min": 0, "max": 2000,
+      "targets": [
+        {"file": "presets/preset_e46csl_mech_1.mechanicalcarpreset", "path": "car_specs.items[key=CarSpecs_KeyEnum_TORQUE].value"}
+      ]
+    },
+    {
+      "id": "limiter", "group": "Engine", "label": "Rev limiter", "kind": "value", "type": "int", "unit": "rpm",
+      "description": "Engine rev limiter (EngineData.limiter). The engine cuts power when it reaches this speed. The stock value also appears in nominal_rpm, which is not changed.",
+      "verified": true, "min": 3000, "max": 12000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "limiter"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.limiter"}
+      ]
+    },
+    {
+      "id": "idle_rpm", "group": "Engine", "label": "Idle rpm", "kind": "value", "type": "int", "unit": "rpm",
+      "description": "Lowest engine speed (EngineData.minimum). Assumed to be the idle/stall speed, not confirmed in the game.",
+      "verified": false, "min": 300, "max": 3000,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "minimum"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "engine.minimum"}
+      ]
+    },
+    {
+      "id": "power_scale", "group": "Engine", "label": "Power scale", "kind": "curve_scale", "type": "float", "unit": "x",
+      "description": "Multiplies the torque value of every point of the engine power curve. 1.0 is stock, 1.056 is about +20 hp.",
+      "verified": true, "default": 1.0, "min": 0.5, "max": 2.0,
+      "curve_from": {"file": "data/ks_bmw_m3_e46_engine_1.carengine", "path": "powerCurve"},
+      "targets": []
+    },
+    {
+      "id": "final_ratio", "group": "Gearing", "label": "Final drive ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Final drive ratio. A higher number shortens every gear: stronger acceleration, lower top speed.",
+      "verified": true, "min": 2.0, "max": 6.0,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "final_ratio"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.final_ratio"}
+      ]
+    },
+    {
+      "id": "gear_1", "group": "Gearing", "label": "Gear 1 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Gear ratio of 1st gear. A higher number gives shorter gearing.",
+      "verified": true, "min": 0.5, "max": 8.0,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gears[2].ratio"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gears[2].ratio"}
+      ]
+    },
+    {
+      "id": "gear_2", "group": "Gearing", "label": "Gear 2 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Gear ratio of 2nd gear. A higher number gives shorter gearing.",
+      "verified": true, "min": 0.5, "max": 8.0,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gears[3].ratio"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gears[3].ratio"}
+      ]
+    },
+    {
+      "id": "gear_3", "group": "Gearing", "label": "Gear 3 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Gear ratio of 3rd gear. A higher number gives shorter gearing.",
+      "verified": true, "min": 0.5, "max": 8.0,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gears[4].ratio"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gears[4].ratio"}
+      ]
+    },
+    {
+      "id": "gear_4", "group": "Gearing", "label": "Gear 4 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Gear ratio of 4th gear. A higher number gives shorter gearing.",
+      "verified": true, "min": 0.5, "max": 8.0,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gears[5].ratio"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gears[5].ratio"}
+      ]
+    },
+    {
+      "id": "gear_5", "group": "Gearing", "label": "Gear 5 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Gear ratio of 5th gear. A higher number gives shorter gearing.",
+      "verified": true, "min": 0.5, "max": 8.0,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gears[6].ratio"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gears[6].ratio"}
+      ]
+    },
+    {
+      "id": "gear_6", "group": "Gearing", "label": "Gear 6 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "description": "Gear ratio of 6th gear. A higher number gives shorter gearing.",
+      "verified": true, "min": 0.5, "max": 8.0,
+      "targets": [
+        {"file": "data/ks_bmw_m3_e46_1.gearbox", "path": "gears[7].ratio"},
+        {"file": "data/ks_bmw_m3_e46_csl.car", "path": "gearbox.gears[7].ratio"}
+      ]
+    }
+  ]
+}

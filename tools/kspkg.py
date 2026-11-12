@@ -2,7 +2,7 @@
 
 usage:
   python tools/kspkg.py list    <pkg>
-  python tools/kspkg.py extract <pkg> <outdir>
+  python tools/kspkg.py extract <pkg> <outdir> [prefix]   # prefix e.g. content\\cars\\ks_bmw_m3_e46_csl (case-insensitive)
   python tools/kspkg.py pack    <indir> <pkg>      # indir contains content/cars/<car_id>/...
   python tools/kspkg.py verify  <pkgA> <pkgB>     # same entries + same file contents?
 
@@ -80,12 +80,20 @@ def cmd_list(pkg):
         print(f"{kind} {e['size']:>10} {e['path']}")
 
 
-def cmd_extract(pkg, outdir):
+def cmd_extract(pkg, outdir, prefix=None):
     root = pathlib.Path(outdir)
     root.mkdir(parents=True, exist_ok=True)
+    if prefix is not None:
+        prefix = prefix.lower().rstrip("\\")
+    count = 0
     with open(pkg, "rb") as f:
         key, entries, _ = read_table(f)
         for e in entries:
+            if prefix is not None:
+                p = e["path"].lower()
+                if p != prefix and not p.startswith(prefix + "\\"):
+                    continue
+            count += 1
             dst = safe_path(root, e["path"])
             if e["flags"] & FLAG_DIR:
                 dst.mkdir(parents=True, exist_ok=True)
@@ -96,7 +104,7 @@ def cmd_extract(pkg, outdir):
             if e["flags"] & FLAG_XOR:
                 data = xor(data, key)
             dst.write_bytes(data)
-    print(f"extracted {len(entries)} entries to {root}")
+    print(f"extracted {count} entries to {root}")
 
 
 def cmd_pack(indir, pkg):
@@ -173,7 +181,7 @@ def main():
     if cmd == "list":
         cmd_list(sys.argv[2])
     elif cmd == "extract":
-        cmd_extract(sys.argv[2], sys.argv[3])
+        cmd_extract(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None)
     elif cmd == "pack":
         cmd_pack(sys.argv[2], sys.argv[3])
     elif cmd == "verify":

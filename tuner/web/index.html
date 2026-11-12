@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BMW E46 CSL drift tuner</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4f6f9;
+  --panel: #ffffff;
+  --text: #1c2430;
+  --muted: #667085;
+  --border: #d9dee7;
+  --head-bg: #eef1f6;
+  --accent: #1f6feb;
+  --accent-text: #ffffff;
+  --changed-bg: #fff6dc;
+  --ok-bg: #e7f6ec;
+  --ok-text: #14532d;
+  --err-bg: #fdecec;
+  --err-text: #8a1c1c;
+  --warn-text: #b45309;
+  --badge-bg: #e4e7ec;
+  --focus: #1f6feb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151b;
+    --panel: #1a2029;
+    --text: #e6eaf0;
+    --muted: #98a2b3;
+    --border: #2d3643;
+    --head-bg: #232b37;
+    --accent: #3b82f6;
+    --accent-text: #ffffff;
+    --changed-bg: #3a3115;
+    --ok-bg: #12301f;
+    --ok-text: #9be3b4;
+    --err-bg: #3b1a1a;
+    --err-text: #f5a3a3;
+    --warn-text: #f0b429;
+    --badge-bg: #2d3643;
+    --focus: #7db0ff;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; }
+.page { max-width: 1280px; margin: 0 auto; padding: 0 20px 40px; }
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 0 8px;
+}
+.bar h1 { margin: 0; font-size: 22px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 1px;
+}
+.strip {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 8px 12px; margin-bottom: 12px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+}
+.strip .label { color: var(--muted); margin-right: 6px; }
+.strip .ok { color: var(--ok-text); }
+.strip .bad { color: var(--err-text); }
+.strip .warn { color: var(--warn-text); }
+.panel {
+  margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel);
+}
+.panel h2 { margin: 0 0 6px; font-size: 15px; }
+.panel pre {
+  margin: 6px 0 0; padding: 8px 10px; max-height: 220px; overflow: auto; white-space: pre-wrap;
+  background: var(--head-bg); border-radius: 6px; font-size: 12.5px;
+}
+.panel.ok { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-text); }
+.panel.err { background: var(--err-bg); color: var(--err-text); border-color: var(--err-text); }
+.panel ul { margin: 4px 0 8px; padding-left: 20px; }
+.panel p { margin: 6px 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
+.toolbar input[type="search"] {
+  font: inherit; padding: 7px 10px; min-width: 260px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--panel); color: var(--text);
+}
+.toolbar label { display: flex; align-items: center; gap: 6px; }
+.toolbar .spacer { flex: 1; }
+.tablewrap { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+thead th {
+  position: sticky; top: 0; z-index: 2; text-align: left; font-size: 13px; padding: 9px 12px;
+  background: var(--head-bg); border-bottom: 1px solid var(--border);
+}
+thead th:first-child { border-top-left-radius: 8px; }
+thead th:last-child { border-top-right-radius: 8px; }
+col.c-name { width: 22%; }
+col.c-value { width: 24%; }
+col.c-desc { width: 38%; }
+col.c-default { width: 16%; }
+td { padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+tr.group th {
+  text-align: left; padding: 8px 12px; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--muted); background: var(--head-bg); border-bottom: 1px solid var(--border);
+}
+tr.changed td { background: var(--changed-bg); }
+.name b { display: block; }
+.name .id { display: block; font-size: 12px; color: var(--muted); }
+.valuewrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.valuewrap input, .valuewrap select {
+  font: inherit; width: 8.5em; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text);
+}
+.valuewrap select { width: auto; max-width: 100%; }
+.unit { color: var(--muted); font-size: 13px; }
+button.reset { padding: 2px 8px; font-size: 12px; }
+.msg { margin-top: 4px; font-size: 12.5px; }
+.msg.warn { color: var(--warn-text); }
+.msg.err { color: var(--err-text); }
+.badge {
+  display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 10px; font-size: 11.5px;
+  background: var(--badge-bg); color: var(--muted); cursor: help; white-space: nowrap;
+}
+.default { font-size: 13.5px; }
+.empty { padding: 18px 14px; color: var(--muted); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); border: 0;
+}
+@media (max-width: 1000px) {
+  .page { padding: 0 12px 30px; }
+  td, thead th, tr.group th { padding-left: 8px; padding-right: 8px; }
+  .valuewrap input { width: 7em; }
+  .toolbar input[type="search"] { min-width: 180px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="bar">
+    <h1>BMW E46 CSL drift tuner</h1>
+    <div class="actions">
+      <button id="btn-apply" class="primary" type="button" disabled>Apply (update my BMW)</button>
+      <button id="btn-copy" type="button" disabled>Save as new copy&hellip;</button>
+    </div>
+  </header>
+
+  <div id="status" class="strip" role="status" aria-live="polite"></div>
+
+  <section id="progress" class="panel" hidden aria-live="polite"></section>
+
+  <section id="init-panel" class="panel" hidden>
+    <h2>Stock car not extracted yet</h2>
+    <p>The tuner needs the stock BMW from the game files as its starting point. This is done once.</p>
+    <button id="btn-init" class="primary" type="button">Extract stock car (one time, ~20 s)</button>
+  </section>
+
+  <section id="tuner" hidden>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
+      <label><input id="changed-only" type="checkbox"> changed only</label>
+      <span class="spacer"></span>
+      <button id="btn-reset-all" type="button">Reset all</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <caption class="sr-only">Settings of the BMW E46 CSL</caption>
+        <colgroup><col class="c-name"><col class="c-value"><col class="c-desc"><col class="c-default"></colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Variable name</th>
+            <th scope="col">Value</th>
+            <th scope="col">Description</th>
+            <th scope="col">Default (for the BMW)</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty" class="empty" hidden>No settings match.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+const DEBOUNCE_MS = 700;
+const POLL_BUSY_MS = 1500;
+const POLL_IDLE_MS = 5000;
+
+const $ = (id) => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+let info = null;
+let serverError = "";
+let localError = "";
+let rows = [];
+let groups = [];
+let tableLoaded = false;
+let queue = Promise.resolve();
+let pollTimer = null;
+let jobSig = "";
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Tuner": "1" },
+    body: JSON.stringify(body)
+  };
+  let res;
+  try {
+    res = await fetch(path, opts);
+  } catch (e) {
+    throw new Error("server not reachable");
+  }
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    data = null;
+  }
+  if (!res.ok) throw new Error((data && data.error) || ("HTTP " + res.status));
+  return data;
+}
+
+function fmtBytes(n) {
+  if (n === null || n === undefined) return "-";
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + " MB";
+  if (n >= 1024) return (n / 1024).toFixed(1) + " kB";
+  return n + " bytes";
+}
+
+function fmtTime(iso) {
+  return iso ? iso.replace("T", " ") : "-";
+}
+
+function fmtVal(type, v) {
+  if (v === null || v === undefined) return "-";
+  if (type === "float" && typeof v === "number" && Number.isInteger(v)) return v.toFixed(1);
+  return String(v);
+}
+
+/* ---------- status strip, buttons, panels ---------- */
+
+function addStat(box, label, value, cls, mono) {
+  const s = el("span");
+  s.appendChild(el("span", "label", label));
+  s.appendChild(el("span", (cls || "") + (mono ? " mono" : ""), value));
+  box.appendChild(s);
+}
+
+function renderStatus() {
+  const box = $("status");
+  box.replaceChildren();
+  if (!info) {
+    addStat(box, "Server", serverError || "not reachable", "bad");
+    return;
+  }
+  addStat(box, "Work folder", info.work, "", true);
+  addStat(box, "Base car present", info.base_present ? "yes" : "no", info.base_present ? "ok" : "bad");
+  addStat(box, "Game running", info.game_running ? "yes" : "no", info.game_running ? "warn" : "");
+  const inst = info.installed;
+  addStat(box, "Installed", inst.exists ? fmtBytes(inst.bytes) + ", " + fmtTime(inst.modified) : "not installed");
+}
+
+function renderButtons() {
+  const running = !!info && info.job.state === "running";
+  let why = "";
+  if (!info) why = "server not reachable";
+  else if (running) why = "a job is running";
+  else if (info.game_running) why = "close the game first";
+  else if (!info.base_present) why = "extract the stock car first";
+  for (const id of ["btn-apply", "btn-copy"]) {
+    $(id).disabled = why !== "";
+    $(id).title = why;
+  }
+  $("btn-init").disabled = !info || running;
+  const baseOk = !!info && info.base_present;
+  $("init-panel").hidden = !info || baseOk;
+  $("tuner").hidden = !baseOk || !tableLoaded;
+}
+
+function addLine(box, text, cls) {
+  box.appendChild(el("p", cls, text));
+}
+
+function summaryApply(box, res) {
+  addLine(box, res.applied.length ? "Settings applied:" : "No setting was changed, the stock values were built.");
+  if (res.applied.length) {
+    const ul = el("ul");
+    for (const a of res.applied) {
+      ul.appendChild(el("li", "", a.id + ": " + fmtVal("", a.old) + " -> " + fmtVal("", a.new)));
+    }
+    box.appendChild(ul);
+  }
+  addLine(box, "Package: " + res.package + " (" + fmtBytes(res.size) + ")");
+  addLine(box, "Installed to: " + (res.installed || "-"));
+  addLine(box, "Backup of the previous install: " + (res.backup || "none (first install)"));
+  addLine(box, "Close the game before applying again. Start the game and look for the car.");
+}
+
+function renderProgress() {
+  const box = $("progress");
+  const job = info ? info.job : { state: "idle", log: [], result: null, error: null, kind: null };
+  const sig = JSON.stringify([job, localError]);
+  if (sig === jobSig) return;
+  jobSig = sig;
+  box.replaceChildren();
+  box.className = "panel";
+  const show = job.state !== "idle" || localError !== "";
+  box.hidden = !show;
+  if (!show) return;
+  const title = job.kind === "init" ? "Extract stock car" : "Apply";
+  if (localError) {
+    box.classList.add("err");
+    box.appendChild(el("h2", "", "Error"));
+    addLine(box, localError);
+    if (job.state === "idle") return;
+    box.appendChild(el("h2", "", "Previous job: " + title));
+  }
+  if (job.state === "running") {
+    box.appendChild(el("h2", "", title + ": running ..."));
+  } else if (job.state === "done") {
+    if (!localError) box.classList.add("ok");
+    box.appendChild(el("h2", "", title + ": finished"));
+    if (job.kind === "apply" && job.result) summaryApply(box, job.result);
+    if (job.kind === "init") addLine(box, "The stock car is ready, the table is available.");
+  } else if (job.state === "error") {
+    if (!localError) box.classList.add("err");
+    box.appendChild(el("h2", "", title + ": failed"));
+    addLine(box, job.error || "unknown error");
+  }
+  if (job.log.length) {
+    const pre = el("pre", "mono", job.log.join("\n"));
+    box.appendChild(pre);
+    pre.scrollTop = pre.scrollHeight;
+  }
+}
+
+async function refresh() {
+  clearTimeout(pollTimer);
+  try {
+    info = await api("/api/state");
+    serverError = "";
+  } catch (e) {
+    info = null;
+    serverError = e.message;
+  }
+  if (info && info.base_present && !tableLoaded) await loadSettings();
+  renderStatus();
+  renderButtons();
+  renderProgress();
+  const busy = info && info.job.state === "running";
+  pollTimer = setTimeout(refresh, busy ? POLL_BUSY_MS : POLL_IDLE_MS);
+}
+
+/* ---------- table ---------- */
+
+function setMsg(r, text, kind) {
+  clearTimeout(r.msgTimer);
+  r.msg.textContent = text;
+  r.msg.className = "msg" + (text ? " " + kind : "");
+  r.msg.hidden = !text;
+  if (text && kind === "err") r.msgTimer = setTimeout(() => setMsg(r, "", ""), 8000);
+}
+
+function showRow(r, data) {
+  r.data = data;
+  r.shown = fmtVal(data.type, data.value);
+  r.field.value = r.shown;
+  r.tr.classList.toggle("changed", data.changed);
+  r.reset.hidden = !data.changed;
+  applyFilter();
+}
+
+async function sendSet(r, text) {
+  try {
+    const res = await api("/api/set", { id: r.data.id, value: text });
+    showRow(r, res.row);
+    setMsg(r, res.warnings.join(" "), "warn");
+  } catch (e) {
+    r.field.value = r.shown;
+    setMsg(r, e.message, "err");
+  }
+}
+
+async function sendUnset(r) {
+  try {
+    const res = await api("/api/unset", { id: r.data.id });
+    showRow(r, res.row);
+    setMsg(r, "", "");
+  } catch (e) {
+    setMsg(r, e.message, "err");
+  }
+}
+
+function commit(r) {
+  clearTimeout(r.timer);
+  const text = r.field.value.trim();
+  if (text === r.shown) return;
+  setMsg(r, "", "");
+  queue = queue.then(() => sendSet(r, text));
+}
+
+function buildField(r) {
+  const d = r.data;
+  let f;
+  if (Array.isArray(d.choices) && d.choices.length) {
+    f = el("select");
+    for (const c of d.choices) {
+      const o = el("option", "", c);
+      o.value = c;
+      f.appendChild(o);
+    }
+  } else {
+    f = el("input");
+    if (d.type === "int" || d.type === "float") {
+      f.type = "number";
+      f.step = "any";
+    } else {
+      f.type = "text";
+    }
+  }
+  f.setAttribute("aria-label", "Value of " + d.label);
+  if (d.min !== undefined || d.max !== undefined) {
+    f.title = "Suggested range: " + (d.min !== undefined ? d.min : "-") + " to " + (d.max !== undefined ? d.max : "-");
+  }
+  f.addEventListener("input", () => {
+    clearTimeout(r.timer);
+    r.timer = setTimeout(() => commit(r), DEBOUNCE_MS);
+  });
+  f.addEventListener("change", () => commit(r));
+  f.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      commit(r);
+    } else if (ev.key === "Escape") {
+      clearTimeout(r.timer);
+      f.value = r.shown;
+    }
+  });
+  return f;
+}
+
+function buildRow(data) {
+  const r = { data: data, shown: "", timer: null, msgTimer: null };
+  r.tr = el("tr");
+
+  const nameCell = el("td", "name");
+  nameCell.appendChild(el("b", "", data.label));
+  nameCell.appendChild(el("span", "id mono", data.id));
+
+  const valueCell = el("td");
+  const wrap = el("div", "valuewrap");
+  r.field = buildField(r);
+  wrap.appendChild(r.field);
+  if (data.unit) wrap.appendChild(el("span", "unit", data.unit));
+  r.reset = el("button", "reset", "reset");
+  r.reset.type = "button";
+  r.reset.title = "Back to the default";
+  r.reset.addEventListener("click", () => {
+    clearTimeout(r.timer);
+    queue = queue.then(() => sendUnset(r));
+  });
+  wrap.appendChild(r.reset);
+  valueCell.appendChild(wrap);
+  r.msg = el("div", "msg");
+  r.msg.hidden = true;
+  r.msg.setAttribute("role", "alert");
+  valueCell.appendChild(r.msg);
+
+  const descCell = el("td");
+  descCell.appendChild(document.createTextNode(data.description));
+  if (!data.verified) {
+    const b = el("span", "badge", "unverified");
+    b.title = "meaning guessed from the field name, not confirmed";
+    descCell.appendChild(b);
+  }
+
+  const defCell = el("td", "default mono", fmtVal(data.type, data.default) + (data.unit ? " " + data.unit : ""));
+
+  r.tr.append(nameCell, valueCell, descCell, defCell);
+  r.hay = (data.id + " " + data.label + " " + data.description).toLowerCase();
+  showRow(r, data);
+  return r;
+}
+
+function buildTable(list) {
+  const body = $("rows");
+  body.replaceChildren();
+  rows = [];
+  groups = [];
+  let current = null;
+  for (const data of list) {
+    if (!current || current.name !== data.group) {
+      current = groups.find((g) => g.name === data.group);
+      if (!current) {
+        const tr = el("tr", "group");
+        const th = el("th", "", data.group);
+        th.colSpan = 4;
+        th.scope = "colgroup";
+        tr.appendChild(th);
+        body.appendChild(tr);
+        current = { name: data.group, tr: tr, rows: [] };
+        groups.push(current);
+      }
+    }
+    const r = buildRow(data);
+    current.rows.push(r);
+    rows.push(r);
+    const after = current.rows.length > 1 ? current.rows[current.rows.length - 2].tr : current.tr;
+    body.insertBefore(r.tr, after.nextSibling);
+  }
+  applyFilter();
+}
+
+function applyFilter() {
+  const q = $("search").value.trim().toLowerCase();
+  const changedOnly = $("changed-only").checked;
+  let visible = 0;
+  for (const g of groups) {
+    let any = false;
+    for (const r of g.rows) {
+      const show = (!q || r.hay.includes(q)) && (!changedOnly || r.data.changed);
+      r.tr.hidden = !show;
+      if (show) any = true;
+    }
+    g.tr.hidden = !any;
+    if (any) visible += 1;
+  }
+  $("empty").hidden = visible > 0 || rows.length === 0;
+}
+
+async function loadSettings() {
+  try {
+    buildTable(await api("/api/settings"));
+    tableLoaded = true;
+  } catch (e) {
+    localError = e.message;
+  }
+}
+
+/* ---------- actions ---------- */
+
+async function startJob(path, body) {
+  localError = "";
+  try {
+    await api(path, body);
+  } catch (e) {
+    localError = e.message;
+  }
+  await refresh();
+}
+
+function askNewCopy() {
+  const n = info ? info.stock_id_length : 17;
+  const text = "New car id: exactly " + n + " characters, only lowercase a-z, 0-9 and _.\n" +
+    "It must differ from " + (info ? info.default_new_id : "the default id") + " (used by Apply).";
+  const id = window.prompt(text, "");
+  if (id === null) return;
+  startJob("/api/apply", { mode: "new_copy", new_id: id.trim() });
+}
+
+async function resetAll() {
+  if (!window.confirm("Reset all settings to their defaults?")) return;
+  queue = queue.then(async () => {
+    try {
+      await api("/api/reset_all", {});
+      await loadSettings();
+    } catch (e) {
+      localError = e.message;
+    }
+    await refresh();
+  });
+}
+
+$("btn-apply").addEventListener("click", () => startJob("/api/apply", { mode: "update" }));
+$("btn-copy").addEventListener("click", askNewCopy);
+$("btn-init").addEventListener("click", () => startJob("/api/init", {}));
+$("btn-reset-all").addEventListener("click", resetAll);
+$("search").addEventListener("input", applyFilter);
+$("changed-only").addEventListener("change", applyFilter);
+
+refresh();
+</script>
+</body>
+</html>

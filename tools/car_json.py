@@ -17,7 +17,8 @@ Reserved keys (start with "_", only present when needed for an exact round trip)
   _order    [field names, one per wire occurrence] when the wire order is not ascending field number
   _packed   [field names] of repeated scalars stored packed on the wire
   _unknown  [[field_number, wire_type, value]] fields not in the schema ("hex:.." for wire type 2)
-            (named "?<number>" in _order)
+            (named "?<number>" in _order); a known field whose wire type cannot hold its schema type
+            is kept here too, as [field_number, wire_type, value, {"mismatch": "<schema field name>"}]
 Files that cannot be reproduced exactly (e.g. a repeated field split into several packed chunks,
 or mixing packed and unpacked) are rejected with a reason instead of being approximated.
 """
@@ -34,18 +35,33 @@ DESC = pathlib.Path(__file__).resolve().parent.parent / "schemas" / "acevo.desc"
 # Only extensions where exactly one candidate message decoded every sample file strictly
 # (no wire-type mismatch, no unknown fields, exact round trip).
 TYPES = {
+    "aicardata": "AiCarData",
     "brakesystem": "BrakesData",
+    "car": "CarData",
     "caranalogicsystem": "CarAnalogicSystemData",
+    "cardesign": "CarDesignData",
     "carelectronics": "ElectronicsData",
     "carengine": "EngineData",
+    "carexhaustbackfire": "CarExhaustBackFireData",
     "carfinalstate": "CarFinalStateData",
+    "carledsystem": "CarLedSystemData",
+    "carlightingsystem": "CarLightingSystemData",
     "carsetup": "CarSetupData",
     "carsetuplimits": "CarSetupDataLimits",
     "cartests": "CarTestData",
+    "clutch": "ClutchData",
+    "coilover": "CoiloverData",
     "compatiblerim": "CompatibleRimData",
+    "compatibletyres": "CompatibleTyresData",
     "curve": "CurveDataEx",
+    "design": "DesignData",
+    "drivetrain": "DrivetrainData",
+    "gearbox": "GearBoxData",
     "mechanicalcarpreset": "MechanicalCarPresetData",
+    "moddedcarcontent": "ModdedCarContentData",
     "oemmultilayercolor": "OemMultilayerColorData",
+    "rimmesh": "RimMeshData",
+    "suspension": "SuspensionGeometryData",
     "visualcarpreset": "VisualCarPresetData",
     "wing": "WingData",
 }
@@ -182,16 +198,40 @@ def dec_value(sch, f, wt, raw):
     return dec_scalar(sch, f, raw)
 
 
+def packed_is_valid(f, raw):
+    n = {1: 8, 5: 4}.get(WIRE[f["type"]])
+    if n:
+        return len(raw) % n == 0
+    i = 0
+    try:
+        while i < len(raw):
+            _, i = ep.varint(raw, i)
+    except ValueError:
+        return False
+    return True
+
+
+def wire_conflict(f, wt, raw):
+    """True when this occurrence cannot be a value of the schema field's type."""
+    t = f["type"]
+    if wt == WIRE.get(t):
+        return False
+    if f["label"] == 3 and t not in (9, 11, 12) and wt == 2:
+        return not packed_is_valid(f, raw)
+    return True
+
+
 def decode_msg(sch, name, b):
     by_num = sch["msgs"][name][0]
     out, order, nums, unknown, packed = {}, [], [], [], []
     for fn, wt, raw in wire_fields(b):
         nums.append(fn)
         f = by_num.get(fn)
-        if f is None:
-            if wt == 2:
-                raw = "hex:" + raw.hex()
-            unknown.append([fn, wt, raw])
+        if f is None or wire_conflict(f, wt, raw):
+            entry = [fn, wt, "hex:" + raw.hex() if wt == 2 else raw]
+            if f is not None:
+                entry.append({"mismatch": f["name"]})
+            unknown.append(entry)
             order.append("?%d" % fn)
             continue
         key, t = f["name"], f["type"]
@@ -202,8 +242,6 @@ def decode_msg(sch, name, b):
                     raise ValueError("repeated field split into several chunks or mixed packed/unpacked")
                 out[key] = packed_values(sch, f, raw)
                 packed.append(key)
-            elif wt != WIRE.get(t):
-                raise ValueError("wire type %d does not match schema type %d" % (wt, t))
             elif f["label"] == 3:
                 if key in packed:
                     raise ValueError("repeated field mixes packed and unpacked")
@@ -214,7 +252,7 @@ def decode_msg(sch, name, b):
                 out[key] = dec_value(sch, f, wt, raw)
         except ValueError as e:
             raise ValueError("%s: %s" % (key, e))
-    if any(a > b for a, b in zip(nums, nums[1:])):
+    if any(a > b or (a == b and x != y) for a, b, x, y in zip(nums, nums[1:], order, order[1:])):
         out["_order"] = order
     if packed:
         out["_packed"] = packed
@@ -327,7 +365,7 @@ def encode_msg(sch, name, obj):
                 occ[key] = [(f["number"], occurrence(f, wt, enc_value(sch, f, val)))]
         except ValueError as e:
             raise ValueError("%s: %s" % (key, e))
-    for fn, wt, v in obj.get("_unknown", []):
+    for fn, wt, v, *_ in obj.get("_unknown", []):
         if wt == 0:
             body = ep.varint_bytes(v)
         elif wt in (1, 5):
@@ -352,11 +390,12 @@ def encode_msg(sch, name, obj):
     return b"".join(out)
 
 
-def count_unknown(obj):
+def count_unknown(obj, mismatch=False):
     if isinstance(obj, dict):
-        return len(obj.get("_unknown", [])) + sum(count_unknown(v) for v in obj.values())
+        own = [e for e in obj.get("_unknown", []) if len(e) > 3 or not mismatch]
+        return len(own) + sum(count_unknown(v, mismatch) for v in obj.values())
     if isinstance(obj, list):
-        return sum(count_unknown(v) for v in obj)
+        return sum(count_unknown(v, mismatch) for v in obj)
     return 0
 
 
@@ -423,7 +462,7 @@ def check(root):
             skipped[ext] = skipped.get(ext, 0) + 1
             continue
         obj, err = roundtrip(sch, TYPES[ext], p.read_bytes())
-        s = stats.setdefault(ext, [0, 0, 0, 0])
+        s = stats.setdefault(ext, [0, 0, 0, 0, 0])
         s[0] += 1
         if err:
             s[2] += 1
@@ -431,9 +470,10 @@ def check(root):
         else:
             s[1] += 1
             s[3] += count_unknown(obj)
-    print("%-20s %-28s %6s %6s %6s %8s" % ("extension", "message", "files", "ok", "failed", "unknown"))
-    for ext, (n, ok, bad, unk) in sorted(stats.items()):
-        print("%-20s %-28s %6d %6d %6d %8d" % ("." + ext, TYPES[ext], n, ok, bad, unk))
+            s[4] += count_unknown(obj, True)
+    print("%-20s %-28s %6s %6s %6s %8s %8s" % ("extension", "message", "files", "ok", "failed", "unknown", "mismatch"))
+    for ext, (n, ok, bad, unk, mis) in sorted(stats.items()):
+        print("%-20s %-28s %6d %6d %6d %8d %8d" % ("." + ext, TYPES[ext], n, ok, bad, unk, mis))
     for p, err in failed:
         print("FAILED %s\n  %s" % (p, err))
     print("total: ok %d, failed %d" % (sum(s[1] for s in stats.values()), len(failed)))

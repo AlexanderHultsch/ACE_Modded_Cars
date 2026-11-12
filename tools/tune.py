@@ -1,0 +1,637 @@
+"""Settings engine of the E46 tuner: read defaults, keep the chosen values, build and install the tuned car.
+
+usage:
+  python tools/tune.py init     [--game <content.kspkg>] [--work <dir>]
+  python tools/tune.py defaults [--work <dir>]
+  python tools/tune.py set      <id> <value> [--work <dir>]
+  python tools/tune.py unset    <id> [--work <dir>]
+  python tools/tune.py show     [--work <dir>]
+  python tools/tune.py apply    [--new-id ID] [--no-install] [--mods <dir>] [--work <dir>]
+
+init:     extracts the stock car from the game package into <work>/base (skipped when already there).
+defaults: reads every setting of tuner/catalogue.json from <work>/base, prints the table and writes
+          <work>/defaults.json. Exit 1 when a target cannot be resolved or the copies of a value disagree.
+set/unset/show: edit and print <work>/tune_state.json ({setting id: value}).
+apply:    always starts from the pristine <work>/base: clones the car under the new id into <work>/build/<new_id>,
+          writes every changed setting into ALL its target files, packs <new_id>.kspkg and (unless --no-install)
+          installs it to the mods folder (default %USERPROFILE%\\Saved Games\\ACE\\mods) with a backup of the previous
+          package in <work>/backups.
+<work> defaults to %USERPROFILE%\\ace_modded_cars_work. Writes nothing outside <work> and the mods folder.
+
+Catalogue field paths (inside the JSON that car_json decodes): dot-separated names, name[3] = list element by index,
+name[key=VALUE] = the list element whose field key equals VALUE, e.g. gears[1].ratio or
+car_specs.items[key=CarSpecs_KeyEnum_POWER].value. A missing last field reads as the proto3 default (flagged absent)
+and is created on write; missing objects on the way are created on write; a missing list element is an error.
+
+Stdlib only. Needs schemas/acevo.desc (see tools/extract_protos.py).
+"""
+import contextlib
+import io
+import json
+import math
+import os
+import pathlib
+import re
+import shutil
+import struct
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import car_json  # noqa: E402
+import clone_car  # noqa: E402
+import kspkg  # noqa: E402
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+CATALOGUE = REPO / "tuner" / "catalogue.json"
+DEFAULT_WORK = "%USERPROFILE%\\ace_modded_cars_work"
+DEFAULT_GAME = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Assetto Corsa EVO\\content.kspkg"
+DEFAULT_NEW_ID = "ax_bmw_m3_e46_csl"
+CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
+KINDS = ("value", "curve_scale", "meta")
+VALUE_TYPES = ("int", "float", "string", "enum")
+HANDLERS = ("car_name", "variant_name")
+REQUIRED = ("id", "group", "label", "kind", "type", "unit", "description", "verified")
+
+_schema = []
+
+
+def schema():
+    if not _schema:
+        _schema.append(car_json.load_schema())
+    return _schema[0]
+
+
+def work_dir(arg=None):
+    path = os.path.abspath(os.path.expandvars(arg or DEFAULT_WORK))
+    if "%" in path:
+        raise ValueError("cannot expand the work directory %r" % (arg or DEFAULT_WORK))
+    return path
+
+
+def inside(root, path):
+    root, path = os.path.realpath(root), os.path.realpath(path)
+    if os.path.commonpath([root, path]) != root:
+        raise ValueError("%s is not inside %s" % (path, root))
+    return path
+
+
+def remove_tree(work, path):
+    if inside(work, path) == os.path.realpath(work):
+        raise ValueError("refusing to remove the work directory itself")
+    shutil.rmtree(path)
+
+
+def save_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def load_catalogue(path=CATALOGUE):
+    with open(path, encoding="utf-8") as f:
+        cat = json.load(f)
+    if not isinstance(cat.get("car_id"), str) or not isinstance(cat.get("settings"), list):
+        raise ValueError("%s: needs car_id and settings" % path)
+    seen = set()
+    for s in cat["settings"]:
+        missing = [k for k in REQUIRED if k not in s]
+        if missing:
+            raise ValueError("%s: setting %r misses %s" % (path, s.get("id"), ", ".join(missing)))
+        if s["id"] in seen:
+            raise ValueError("%s: duplicate setting id %r" % (path, s["id"]))
+        seen.add(s["id"])
+        if s["kind"] not in KINDS or s["type"] not in VALUE_TYPES:
+            raise ValueError("%s: setting %r has an unknown kind or type" % (path, s["id"]))
+        if s["kind"] == "value" and not (s.get("targets") and all("file" in t and "path" in t for t in s["targets"])):
+            raise ValueError("%s: setting %r needs targets with file and path" % (path, s["id"]))
+        if s["kind"] == "curve_scale" and not ("default" in s and {"file", "path"} <= set(s.get("curve_from", {}))):
+            raise ValueError("%s: setting %r needs default and curve_from with file and path" % (path, s["id"]))
+        if s["kind"] == "meta" and not (s.get("handler") in HANDLERS and isinstance(s.get("default"), str)):
+            raise ValueError("%s: setting %r needs a handler (%s) and a string default" % (path, s["id"], "/".join(HANDLERS)))
+    return cat
+
+
+def find_setting(cat, setting_id):
+    for s in cat["settings"]:
+        if s["id"] == setting_id:
+            return s
+    raise ValueError("unknown setting %r" % setting_id)
+
+
+def state_path(work):
+    return os.path.join(work, "tune_state.json")
+
+
+def load_state(work):
+    path = state_path(work)
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        state = json.load(f)
+    if not isinstance(state, dict):
+        raise ValueError("%s: expected an object" % path)
+    return state
+
+
+def save_state(work, state):
+    save_json(state_path(work), state)
+
+
+def to_f32(x):
+    try:
+        y = struct.unpack("<f", struct.pack("<f", x))[0]
+    except OverflowError:
+        raise ValueError("float out of range: %r" % (x,))
+    v = car_json.F32(y)
+    v.text = car_json.f32_text(y)
+    return v
+
+
+def plain(v):
+    return float(v.text) if isinstance(v, car_json.F32) else v
+
+
+def fmt(v):
+    if v is None:
+        return "-"
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return v if isinstance(v, str) else repr(v) if isinstance(v, float) else str(v)
+
+
+def zero(s):
+    return {"int": 0, "float": 0.0}.get(s["type"], "")
+
+
+def coerce(s, v):
+    t = s["type"]
+    if t == "int":
+        if isinstance(v, str):
+            if not re.fullmatch(r"[+-]?\d+", v.strip()):
+                raise ValueError("%s expects an integer, got %r" % (s["id"], v))
+            v = int(v)
+        if type(v) is not int:
+            raise ValueError("%s expects an integer, got %r" % (s["id"], v))
+    elif t == "float":
+        try:
+            if type(v) is bool or not isinstance(v, (str, int, float)):
+                raise ValueError
+            v = float(v)
+        except ValueError:
+            raise ValueError("%s expects a number, got %r" % (s["id"], v))
+        if not math.isfinite(v):
+            raise ValueError("%s expects a finite number, got %r" % (s["id"], v))
+    else:
+        if not isinstance(v, str) or not v or re.search(r"[\x00-\x1f]", v):
+            raise ValueError("%s expects non-empty text without control characters" % s["id"])
+        if t == "enum" and v not in s.get("choices", [v]):
+            raise ValueError("%s must be one of: %s" % (s["id"], ", ".join(s["choices"])))
+    return v
+
+
+def range_warning(s, v):
+    if s["type"] in ("int", "float") and (v < s.get("min", v) or v > s.get("max", v)):
+        return "%s=%s is outside the suggested range %s..%s" % (
+            s["id"], fmt(v), fmt(s.get("min", "-")), fmt(s.get("max", "-")))
+    return None
+
+
+def same(s, a, b):
+    if s["type"] == "float" and a is not None and b is not None:
+        return to_f32(a) == to_f32(b)
+    return a == b
+
+
+def set_value(work, setting_id, text, catalogue=None):
+    s = find_setting(catalogue or load_catalogue(), setting_id)
+    v = coerce(s, text)
+    state = load_state(work)
+    state[setting_id] = v
+    save_state(work, state)
+    warning = range_warning(s, v)
+    return {"id": setting_id, "value": v, "warnings": [warning] if warning else []}
+
+
+def unset_value(work, setting_id, catalogue=None):
+    find_setting(catalogue or load_catalogue(), setting_id)
+    state = load_state(work)
+    removed = state.pop(setting_id, None) is not None
+    if removed:
+        save_state(work, state)
+    return {"id": setting_id, "removed": removed}
+
+
+def parse_path(path):
+    step = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)((?:\[[^\]]*\])*)")
+    moves, pos = [], 0
+    while True:
+        m = step.match(path, pos)
+        if not m:
+            raise ValueError("bad field path %r" % path)
+        moves.append(("key", m.group(1)))
+        for sel in re.findall(r"\[([^\]]*)\]", m.group(2)):
+            if sel.isdigit():
+                moves.append(("idx", int(sel)))
+            elif "=" in sel:
+                moves.append(("find",) + tuple(sel.split("=", 1)))
+            else:
+                raise ValueError("bad selector [%s] in field path %r" % (sel, path))
+        pos = m.end()
+        if pos == len(path):
+            return moves
+        if path[pos] != ".":
+            raise ValueError("bad field path %r" % path)
+        pos += 1
+
+
+def text_of(v):
+    if isinstance(v, car_json.F32):
+        return v.text
+    return ("true" if v else "false") if isinstance(v, bool) else str(v)
+
+
+def list_index(cur, move, path):
+    if not isinstance(cur, list):
+        raise ValueError("%s: expected a list before [%s]" % (path, "=".join(map(str, move[1:]))))
+    if move[0] == "idx":
+        if move[1] >= len(cur):
+            raise ValueError("%s: list has no element %d" % (path, move[1]))
+        return move[1]
+    for i, el in enumerate(cur):
+        if isinstance(el, dict) and move[1] in el and text_of(el[move[1]]) == move[2]:
+            return i
+    raise ValueError("%s: no list element with %s=%s" % (path, move[1], move[2]))
+
+
+def add_key(d, key, value):
+    d[key] = value
+    if "_order" in d:
+        d["_order"].append(key)
+
+
+def locate(obj, path, create=False):
+    """Return (container, key) of the field named by path; create adds missing objects on the way."""
+    moves = parse_path(path)
+    cur = obj
+    for i, move in enumerate(moves):
+        last = i == len(moves) - 1
+        if move[0] == "key":
+            if not isinstance(cur, dict):
+                raise ValueError("%s: %r is not inside an object" % (path, move[1]))
+            if last:
+                return cur, move[1]
+            if move[1] not in cur:
+                if not create:
+                    raise ValueError("%s: missing field %r" % (path, move[1]))
+                add_key(cur, move[1], {})
+            cur = cur[move[1]]
+        else:
+            idx = list_index(cur, move, path)
+            if last:
+                return cur, idx
+            cur = cur[idx]
+
+
+def get_value(obj, path):
+    container, key = locate(obj, path)
+    if isinstance(container, dict) and key not in container:
+        return None, True
+    return container[key], False
+
+
+def put_value(obj, path, value):
+    container, key = locate(obj, path, create=True)
+    if isinstance(container, dict) and key not in container:
+        add_key(container, key, value)
+    else:
+        container[key] = value
+
+
+def load_msg(path):
+    name = car_json.message_for(path)
+    with open(path, "rb") as f:
+        data = f.read()
+    obj, err = car_json.roundtrip(schema(), name, data)
+    if err:
+        raise ValueError("%s: %s" % (path, err))
+    return obj, name
+
+
+def save_msg(path, name, obj):
+    try:
+        data = car_json.encode_msg(schema(), name, obj)
+    except ValueError as e:
+        raise ValueError("%s: %s" % (path, e))
+    with open(path, "wb") as f:
+        f.write(data)
+
+
+def car_root_of(root, car_id):
+    return os.path.join(root, "content", "cars", car_id)
+
+
+def car_path(car_root, rel):
+    return inside(car_root, os.path.join(car_root, *rel.split("/")))
+
+
+def renamed(rel, old_id, new_id):
+    return re.sub(re.escape(old_id), new_id, rel, flags=re.IGNORECASE)
+
+
+def curve_path(root, text):
+    return inside(root, os.path.join(root, *text.replace("\\", "/").split("/")))
+
+
+def count_tree(path):
+    files = dirs = size = 0
+    for dp, dn, fn in os.walk(path):
+        dirs += len(dn)
+        files += len(fn)
+        size += sum(os.path.getsize(os.path.join(dp, n)) for n in fn)
+    return {"files": files, "dirs": dirs, "bytes": size}
+
+
+def listing(path):
+    return set(os.listdir(path)) if os.path.isdir(path) else set()
+
+
+def init(work, game=DEFAULT_GAME, catalogue=None):
+    car_id = (catalogue or load_catalogue())["car_id"]
+    base = os.path.join(work, "base")
+    car_root = car_root_of(base, car_id)
+    if os.path.isdir(car_root) and count_tree(car_root)["files"]:
+        return dict(count_tree(car_root), present=True, dir=car_root)
+    if not os.path.isfile(game):
+        raise ValueError("game package not found: %s" % game)
+    part = base + ".partial"
+    os.makedirs(work, exist_ok=True)
+    if os.path.exists(part):
+        remove_tree(work, part)
+    with contextlib.redirect_stdout(io.StringIO()):
+        kspkg.cmd_extract(game, part, "content\\cars\\" + car_id)
+    part_car = car_root_of(part, car_id)
+    if not os.path.isdir(part_car) or not count_tree(part_car)["files"]:
+        remove_tree(work, part)
+        raise ValueError("%s not found in %s" % (car_id, game))
+    if os.path.exists(base):
+        remove_tree(work, base)
+    os.rename(part, base)
+    return dict(count_tree(car_root), present=False, dir=car_root)
+
+
+def read_file(car_root, rel, cache):
+    if rel not in cache:
+        cache[rel] = load_msg(car_path(car_root, rel))[0]
+    return cache[rel]
+
+
+def resolve_curve(s, root, car_id, cache):
+    cf = s["curve_from"]
+    out = {"file": cf["file"], "path": cf["path"], "resolved": False}
+    try:
+        text, absent = get_value(read_file(car_root_of(root, car_id), cf["file"], cache), cf["path"])
+        if absent or not isinstance(text, str):
+            raise ValueError("%s holds no curve file name" % cf["path"])
+        curve, _ = load_msg(curve_path(root, text))
+        values = [p["value"] for p in curve.get("points", []) if "value" in p]
+        if not values:
+            raise ValueError("curve %s has no points with a value" % text)
+    except (ValueError, OSError) as e:
+        out["error"] = str(e)
+        return out
+    out.update(resolved=True, absent=False, curve=text, value=s["default"],
+               info="%d points, peak %s" % (len(curve["points"]), fmt(plain(max(values)))))
+    return out
+
+
+def resolve_target(s, t, car_root, cache):
+    out = {"file": t["file"], "path": t["path"], "resolved": False}
+    try:
+        value, absent = get_value(read_file(car_root, t["file"], cache), t["path"])
+    except (ValueError, OSError) as e:
+        out["error"] = str(e)
+        return out
+    out.update(resolved=True, absent=absent, value=plain(zero(s) if absent else value))
+    return out
+
+
+def resolve_defaults(work, catalogue=None):
+    cat = catalogue or load_catalogue()
+    root = os.path.join(work, "base")
+    car_root = car_root_of(root, cat["car_id"])
+    if not os.path.isdir(car_root):
+        raise ValueError("no base car in %s, run init first" % root)
+    cache, rows = {}, []
+    for s in cat["settings"]:
+        row = {k: s[k] for k in REQUIRED if k != "description"}
+        row.update({k: s[k] for k in ("min", "max", "description") if k in s})
+        if s["kind"] == "meta":
+            targets = []
+        elif s["kind"] == "curve_scale":
+            targets = [resolve_curve(s, root, cat["car_id"], cache)]
+        else:
+            targets = [resolve_target(s, t, car_root, cache) for t in s["targets"]]
+        values = [t["value"] for t in targets if t["resolved"]]
+        row["targets"] = targets
+        row["resolved"] = all(t["resolved"] for t in targets)
+        row["consistent"] = all(same(s, v, values[0]) for v in values)
+        row["default"] = s["default"] if "default" in s else values[0] if values else None
+        row["absent"] = any(t.get("absent") for t in targets)
+        row["ok"] = row["resolved"] and row["consistent"]
+        rows.append(row)
+    return rows
+
+
+def effective_rows(work, catalogue=None):
+    cat = catalogue or load_catalogue()
+    state = load_state(work)
+    for sid in state:
+        find_setting(cat, sid)
+    rows = resolve_defaults(work, cat)
+    for row, s in zip(rows, cat["settings"]):
+        row["value"] = coerce(s, state[s["id"]]) if s["id"] in state else row["default"]
+        row["changed"] = s["id"] in state and not same(s, row["value"], row["default"])
+    return rows
+
+
+def scale_curve(curve, factor):
+    for p in curve.get("points", []):
+        if "value" in p:
+            p["value"] = to_f32(p["value"] * factor)
+
+
+def apply(work, new_id=DEFAULT_NEW_ID, install=True, mods_dir=None, catalogue=None):
+    cat = catalogue or load_catalogue()
+    car_id = cat["car_id"]
+    root = os.path.join(work, "base")
+    if not os.path.isdir(car_root_of(root, car_id)):
+        raise ValueError("no base car in %s, run init first" % root)
+    clone_car.validate(car_id, new_id, os.path.join(work, "build", "unused"))
+    rows = effective_rows(work, cat)
+    bad = [r["id"] for r in rows if not r["resolved"]]
+    if bad:
+        raise ValueError("cannot resolve the targets of: %s (run defaults)" % ", ".join(bad))
+    changed = [(s, r) for s, r in zip(cat["settings"], rows) if r["changed"]]
+    out_dir = os.path.join(work, "build", new_id)
+    if os.path.exists(out_dir):
+        remove_tree(work, out_dir)
+    meta = {s["handler"]: r["value"] for s, r in zip(cat["settings"], rows) if s["kind"] == "meta"}
+    log = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(log):
+            clone_car.build(car_root_of(root, car_id), new_id, out_dir, meta["car_name"], CLONE_YEAR, CLONE_BRAND,
+                            meta["variant_name"], pack=False)
+    except SystemExit:
+        raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip())
+    car_root = car_root_of(out_dir, new_id)
+    edits, applied = {}, []
+    for s, r in changed:
+        item = {"id": s["id"], "old": r["default"], "new": r["value"], "files": []}
+        applied.append(item)
+        if s["kind"] == "meta":
+            item["files"].append(new_id + ".moddedcarcontent" if s["handler"] == "car_name"
+                                 else "uiresources/localization/en.cars.loc")
+        elif s["kind"] == "curve_scale":
+            cf = s["curve_from"]
+            text, _ = get_value(load_msg(car_path(car_root, renamed(cf["file"], car_id, new_id)))[0], cf["path"])
+            path = curve_path(out_dir, text)
+            curve, name = load_msg(path)
+            scale_curve(curve, r["value"])
+            save_msg(path, name, curve)
+            item["files"].append(os.path.relpath(path, car_root).replace(os.sep, "/"))
+        else:
+            v = to_f32(r["value"]) if s["type"] == "float" else r["value"]
+            for t in s["targets"]:
+                edits.setdefault(renamed(t["file"], car_id, new_id), []).append((item, t["path"], v))
+    for rel, items in edits.items():
+        path = car_path(car_root, rel)
+        obj, name = load_msg(path)
+        for item, field, v in items:
+            put_value(obj, field, v)
+            if rel not in item["files"]:
+                item["files"].append(rel)
+        save_msg(path, name, obj)
+    pkg = os.path.join(out_dir, new_id + ".kspkg")
+    with contextlib.redirect_stdout(io.StringIO()):
+        kspkg.cmd_pack(out_dir, pkg)
+    result = {"new_id": new_id, "build_dir": out_dir, "package": pkg, "size": os.path.getsize(pkg),
+              "applied": applied, "installed": None, "backup": None}
+    if install:
+        mods = os.path.abspath(os.path.expandvars(mods_dir or clone_car.DEFAULT_MODS))
+        backups = os.path.join(work, "backups")
+        before = listing(backups)
+        with contextlib.redirect_stdout(io.StringIO()):
+            clone_car.install(pkg, mods, backups)
+        new = sorted(listing(backups) - before)
+        result["installed"] = os.path.join(mods, os.path.basename(pkg))
+        result["backup"] = os.path.join(backups, new[0]) if new else None
+    return result
+
+
+def parse_args(args, flags, switches=()):
+    pos, opts = [], {}
+    i = 0
+    while i < len(args):
+        if args[i].startswith("--") and args[i][2:] in switches:
+            opts[args[i][2:]] = True
+            i += 1
+        elif args[i].startswith("--"):
+            if args[i][2:] not in flags or i + 1 >= len(args):
+                raise ValueError("bad option %s" % args[i])
+            opts[args[i][2:]] = args[i + 1]
+            i += 2
+        else:
+            pos.append(args[i])
+            i += 1
+    return pos, opts
+
+
+def table(headers, rows):
+    rows = [[str(c) for c in r] for r in rows]
+    widths = [max(len(r[i]) for r in [headers] + rows) for i in range(len(headers))]
+    lines = [" | ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip() for r in [headers] + rows]
+    return "\n".join([lines[0], "-+-".join("-" * w for w in widths)] + lines[1:])
+
+
+def consistency_text(row):
+    if not row["targets"]:
+        return "yes"
+    if row["consistent"]:
+        return "yes"
+    return "NO (%s)" % " / ".join(fmt(t["value"]) for t in row["targets"] if t["resolved"])
+
+
+def print_defaults(rows):
+    print(table(["id", "group", "default", "unit", "targets resolved", "consistent"],
+                [[r["id"], r["group"], fmt(r["default"]) + (" (absent)" if r["absent"] else ""), r["unit"],
+                  "%d/%d" % (sum(t["resolved"] for t in r["targets"]), len(r["targets"])) if r["targets"] else "-",
+                  consistency_text(r)] for r in rows]))
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    try:
+        if cmd == "init":
+            pos, opts = parse_args(sys.argv[2:], ("game", "work"))
+            if pos:
+                sys.exit(__doc__.split("\n\n")[1])
+            res = init(work_dir(opts.get("work")), os.path.expandvars(opts.get("game", DEFAULT_GAME)))
+            print("base already present" if res["present"] else "extracted the stock car")
+            print("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
+        elif cmd == "defaults":
+            pos, opts = parse_args(sys.argv[2:], ("work",))
+            if pos:
+                sys.exit(__doc__.split("\n\n")[1])
+            work = work_dir(opts.get("work"))
+            rows = resolve_defaults(work)
+            save_json(os.path.join(work, "defaults.json"), rows)
+            print_defaults(rows)
+            problems = ["%s: %s" % (r["id"], t.get("error", "target %s %s unresolved" % (t["file"], t["path"])))
+                        for r in rows for t in r["targets"] if not t["resolved"]]
+            problems += ["%s: copies disagree (%s)" % (r["id"], consistency_text(r)) for r in rows
+                         if r["resolved"] and not r["consistent"]]
+            if problems:
+                sys.exit("error: %d problem(s)\n  " % len(problems) + "\n  ".join(problems))
+        elif cmd == "set":
+            pos, opts = parse_args(sys.argv[2:], ("work",))
+            if len(pos) != 2:
+                sys.exit(__doc__.split("\n\n")[1])
+            res = set_value(work_dir(opts.get("work")), pos[0], pos[1])
+            for w in res["warnings"]:
+                print("warning: " + w)
+            print("%s = %s" % (res["id"], fmt(res["value"])))
+        elif cmd == "unset":
+            pos, opts = parse_args(sys.argv[2:], ("work",))
+            if len(pos) != 1:
+                sys.exit(__doc__.split("\n\n")[1])
+            res = unset_value(work_dir(opts.get("work")), pos[0])
+            print("%s %s" % (res["id"], "removed from the state" if res["removed"] else "was not set"))
+        elif cmd == "show":
+            pos, opts = parse_args(sys.argv[2:], ("work",))
+            if pos:
+                sys.exit(__doc__.split("\n\n")[1])
+            rows = effective_rows(work_dir(opts.get("work")))
+            print(table(["", "id", "value", "default", "unit"],
+                        [["*" if r["changed"] else "", r["id"], fmt(r["value"]), fmt(r["default"]), r["unit"]]
+                         for r in rows]))
+        elif cmd == "apply":
+            pos, opts = parse_args(sys.argv[2:], ("new-id", "mods", "work"), ("no-install",))
+            if pos:
+                sys.exit(__doc__.split("\n\n")[1])
+            res = apply(work_dir(opts.get("work")), opts.get("new-id", DEFAULT_NEW_ID), "no-install" not in opts,
+                        opts.get("mods"))
+            print("applied %d setting(s)" % len(res["applied"]))
+            for a in res["applied"]:
+                print("  %s: %s -> %s  [%s]" % (a["id"], fmt(a["old"]), fmt(a["new"]), ", ".join(a["files"])))
+            print("package: %s (%d bytes)" % (res["package"], res["size"]))
+            if res["installed"]:
+                print("installed: %s" % res["installed"])
+                print("backup: %s" % (res["backup"] or "no previous install"))
+        else:
+            sys.exit(__doc__.split("\n\n")[1])
+    except (ValueError, OSError) as e:
+        sys.exit("error: %s" % e)
+
+
+if __name__ == "__main__":
+    main()
