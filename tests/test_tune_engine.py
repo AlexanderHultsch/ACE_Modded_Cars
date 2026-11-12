@@ -391,8 +391,6 @@ class TestJsonFiles(Base):
         with open(path, encoding="utf-8") as f:
             self.assertEqual(json.load(f), {"b": 2})
 
-    # R2-018: a failing serialisation must keep the old file
-    @unittest.expectedFailure
     def test_save_json_keeps_the_old_file_when_serialising_fails(self):
         path = os.path.join(self.work, "f.json")
         tune.save_json(path, {"a": 1})
@@ -443,43 +441,27 @@ class TestJsonFiles(Base):
         path, load = self.broken(name, json.dumps(good), encoding="utf-8-sig")
         load()
 
-    # R2-016: a JSON syntax error must name the file
-    @unittest.expectedFailure
     def test_state_syntax_error_names_the_file(self):
         self.check_syntax_error_names_the_file("state")
 
-    # R2-016
-    @unittest.expectedFailure
     def test_cars_syntax_error_names_the_file(self):
         self.check_syntax_error_names_the_file("cars")
 
-    # R2-016
-    @unittest.expectedFailure
     def test_catalogue_syntax_error_names_the_file(self):
         self.check_syntax_error_names_the_file("catalogue")
 
-    # R2-016
-    @unittest.expectedFailure
     def test_stock_info_syntax_error_names_the_file(self):
         self.check_syntax_error_names_the_file("stock_info")
 
-    # R2-016: a hand-edited file saved with a UTF-8 BOM (Windows Notepad) must load
-    @unittest.expectedFailure
     def test_state_with_a_bom_loads(self):
         self.check_bom_is_tolerated("state", {"a": 1})
 
-    # R2-016
-    @unittest.expectedFailure
     def test_cars_with_a_bom_loads(self):
         self.check_bom_is_tolerated("cars", {"default": "ks_x", "cars": [{"id": "ks_x", "label": "X"}]})
 
-    # R2-016
-    @unittest.expectedFailure
     def test_catalogue_with_a_bom_loads(self):
         self.check_bom_is_tolerated("catalogue", mini_catalogue(mini_setting("a", targets=[("@car", "a")])))
 
-    # R2-016
-    @unittest.expectedFailure
     def test_stock_info_with_a_bom_loads(self):
         self.check_bom_is_tolerated("stock_info", {"car_id": "ks_x", "display_name": "X", "brand": "B", "year": 2000})
 
@@ -549,8 +531,6 @@ class TestStateFlow(CarCase):
         with self.assertRaisesRegex(ValueError, "unknown setting 'nope'"):
             tune.unset_value(self.work, "ks_x", "nope")
 
-    # R2-014: an id that left the catalogue must be removable with unset
-    @unittest.expectedFailure
     def test_unset_removes_a_stale_id_from_the_state(self):
         self.cat()
         tune.save_state(self.work, "ks_x", {"stale_id": 1, "limiter": 8000})
@@ -604,10 +584,10 @@ class TestStateFlow(CarCase):
     def test_warn_unknown_state_names_each_id(self):
         self.cat()
         tune.save_state(self.work, "ks_x", {"old_a": 2, "old_b": 3, "limiter": 1})
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
             tune.warn_unknown_state(self.work, "ks_x")
-        self.assertEqual(out.getvalue().splitlines(), ["warning: ignoring unknown setting 'old_a' in the saved state",
+        self.assertEqual(err.getvalue().splitlines(), ["warning: ignoring unknown setting 'old_a' in the saved state",
                                                          "warning: ignoring unknown setting 'old_b' in the saved state"])
 
     def test_warn_unknown_state_is_silent_without_unknown_ids(self):
@@ -617,8 +597,6 @@ class TestStateFlow(CarCase):
             tune.warn_unknown_state(self.work, "ks_x")
         self.assertEqual((out.getvalue(), err.getvalue()), ("", ""))
 
-    # R2-026: warnings belong on stderr so that `tune.py show > file` holds data only
-    @unittest.expectedFailure
     def test_warn_unknown_state_writes_to_stderr(self):
         self.cat()
         tune.save_state(self.work, "ks_x", {"old_a": 2})
@@ -628,8 +606,6 @@ class TestStateFlow(CarCase):
         self.assertEqual(out.getvalue(), "")
         self.assertIn("old_a", err.getvalue())
 
-    # R2-026: the same through the show command
-    @unittest.expectedFailure
     def test_show_keeps_warnings_off_stdout(self):
         self.cars()
         self.cat()
@@ -844,10 +820,9 @@ class TestResolveDefaults(CarCase):
     def test_tyre_file_that_is_not_extracted_hides_the_setting(self):
         os.remove(os.path.join(self.fc.shared, "tyres", "road", "a.tyre"))
         row = self.row(mini_setting("dy", targets=[("@tyre_front", "modelData.Dy0")]), game=os.path.join(self.work, "no_game.kspkg"))
-        self.assertEqual((row["applicable"], row["reason"]), (False, "@tyre_front modelData.Dy0: " + tune.TYRE_UNAVAILABLE))
+        self.assertFalse(row["applicable"])
+        self.assertTrue(row["reason"].startswith("@tyre_front modelData.Dy0: " + tune.TYRE_UNAVAILABLE), row["reason"])
 
-    # R3-006: the real cause of a tyre failure must be shown, not only the hint to run init
-    @unittest.expectedFailure
     def test_tyre_failure_shows_the_real_cause(self):
         self.fc.add("presets/bad.compatibletyres", ValueError("bad.compatibletyres: truncated protobuf"))
         os.remove(os.path.join(self.fc.shared, "tyres", "road", "a.tyre"))
@@ -1098,8 +1073,6 @@ class TestPickCarAndIndex(Base):
         self.assertIsNone(tune.load_cars_index(self.work, game))
         self.assertFalse(os.path.exists(tune.cars_index_path(self.work)))
 
-    # R2-015: when the game's car list cannot be read, the message must carry the real reason
-    @unittest.expectedFailure
     def test_unknown_car_message_carries_the_real_reason(self):
         self.cars(("ks_a", "A"))
         game = self.write(os.path.join(self.work, "g.kspkg"), b"x", binary=True)
@@ -1156,8 +1129,6 @@ class TestListCars(Base):
         rows = {r["id"]: r["installed"] for r in tune.list_cars(self.work, self.mods, game=self.game)}
         self.assertEqual(rows, {"ks_a": False, "ks_b": True})
 
-    # R3-008: one damaged stock_info.json must not make the whole list fail
-    @unittest.expectedFailure
     def test_list_survives_a_damaged_stock_info(self):
         self.extract("ks_a")
         self.extract("ks_b")
@@ -1510,7 +1481,7 @@ class TestApply(CarCase):
     def test_a_failing_self_check_becomes_an_error_with_the_log(self):
         def failing(*a, **k):
             print("self-check (a) old id in names: 1 FOUND")
-            raise SystemExit(1)
+            raise ValueError("self-check failed (see the lines above)")
         self.patch(clone_car, "build", failing)
         with self.assertRaisesRegex(ValueError, "clone self-check failed:\nself-check \\(a\\) old id in names: 1 FOUND"):
             self.apply(self.settings())
@@ -1632,7 +1603,7 @@ class TestApply(CarCase):
 
     def test_self_check_failure_error_is_not_chained(self):
         def failing(*a, **k):
-            raise SystemExit(1)
+            raise ValueError("self-check failed (see the lines above)")
         self.patch(clone_car, "build", failing)
         with self.assertRaises(ValueError) as cm:
             self.apply(self.settings())
@@ -1790,7 +1761,7 @@ class TestCommands(CarCase):
 
     def test_set_prints_value_and_warning_and_writes_the_state(self):
         code, out, err = self.main("set", "limiter", "20000")
-        self.assertEqual((code, out), (0, "warning: limiter=20000 is outside the suggested range 3000..12000\nlimiter = 20000\n"))
+        self.assertEqual((code, out, err), (0, "limiter = 20000\n", "warning: limiter=20000 is outside the suggested range 3000..12000\n"))
         self.assertEqual(tune.load_state(self.work, "ks_x"), {"limiter": 20000})
 
     def test_set_name_suffix(self):
@@ -1865,8 +1836,6 @@ class TestCommands(CarCase):
         code, out, err = self.run_main("cars", "--tested", "--work", self.work, "--game", os.path.join(self.work, "none.kspkg"))
         self.assertNotIn("note:", out)
 
-    # R2-021: show reads the catalogue once
-    @unittest.expectedFailure
     def test_show_opens_the_catalogue_once(self):
         self.patch(tune, "load_catalogue", REAL_LOAD_CATALOGUE)
         self.patch(tune, "resolve_defaults", lambda work, car, cat=None, game=None, hidden=False: [
@@ -1926,8 +1895,6 @@ class TestUsageText(unittest.TestCase):
 
 
 def usage_case(name, argv):
-    # D5: wrong or missing arguments print the usage block on stdout and exit 2, today it goes to stderr and exits 1
-    @unittest.expectedFailure
     def test(self):
         with tmp() as d:
             r = run_tool("tune.py", *argv, cwd=d)

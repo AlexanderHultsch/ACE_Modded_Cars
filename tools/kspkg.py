@@ -230,6 +230,26 @@ def cmd_verify(a, b):
     return ok
 
 
+def parse_args(args, flags, switches=()):
+    pos, opts = [], {}
+    i = 0
+    while i < len(args):
+        if args[i].startswith("--") and args[i][2:] in switches:
+            opts[args[i][2:]] = True
+            i += 1
+        elif args[i].startswith("--"):
+            if args[i][2:] not in flags:
+                raise ValueError("bad option %s" % args[i])
+            if i + 1 >= len(args):
+                raise ValueError("option %s needs a value" % args[i])
+            opts[args[i][2:]] = args[i + 1]
+            i += 2
+        else:
+            pos.append(args[i])
+            i += 1
+    return pos, opts
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     args = sys.argv[2:]

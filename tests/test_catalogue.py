@@ -342,11 +342,9 @@ class TestLoaderValidation(unittest.TestCase):
                     self.load(*settings)
 
     def test_settings_must_be_a_list(self):
-        with self.assertRaisesRegex(ValueError, "needs car_id and settings"):
+        with self.assertRaisesRegex(ValueError, "needs settings"):
             self.load(settings={"a": 1})
 
-    # R2-019: car_id is required by load_catalogue but read by nothing, a catalogue without it should load
-    @unittest.expectedFailure
     def test_car_id_is_not_required(self):
         with tmp() as d:
             data = mini_catalogue(mini_setting("a", targets=[("@engine", "limiter")]))

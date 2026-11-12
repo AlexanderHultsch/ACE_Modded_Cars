@@ -35,6 +35,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import car_json  # noqa: E402
 import kspkg  # noqa: E402
+from kspkg import parse_args  # noqa: E402
 
 DEFAULT_MODS = "%USERPROFILE%\\Saved Games\\ACE\\mods"
 DEFAULT_BACKUPS = "%USERPROFILE%\\ace_modded_cars_work\\backups"
@@ -52,24 +53,6 @@ def replacer(new_id):
         g = m.group(0)
         return up if g == g.upper() else low
     return repl
-
-
-def parse_args(args, flags, switches=()):
-    pos, opts = [], {}
-    i = 0
-    while i < len(args):
-        if args[i].startswith("--") and args[i][2:] in switches:
-            opts[args[i][2:]] = True
-            i += 1
-        elif args[i].startswith("--"):
-            if args[i][2:] not in flags or i + 1 >= len(args):
-                raise ValueError("bad option %s" % args[i])
-            opts[args[i][2:]] = args[i + 1]
-            i += 2
-        else:
-            pos.append(args[i])
-            i += 1
-    return pos, opts
 
 
 def expand(path):
