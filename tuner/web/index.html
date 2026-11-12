@@ -253,6 +253,7 @@ let rows = [];
 let groups = [];
 let headerRow = null;
 let tableLoaded = false;
+// edits are sent one at a time in the order they were made
 let queue = Promise.resolve();
 let pollTimer = null;
 let jobSig = "";
@@ -439,6 +440,7 @@ function summaryApply(box, res) {
 function renderProgress() {
   const box = $("progress");
   const job = info ? info.job : { state: "idle", log: [], result: null, error: null, kind: null };
+  // rebuild the panel only when the job or the error changed, so the log keeps its scroll position
   const sig = JSON.stringify([job, localError]);
   if (sig === jobSig) return;
   jobSig = sig;
@@ -481,6 +483,7 @@ async function refresh() {
     info = await api("/api/state", undefined, want);
     serverError = "";
   } catch (e) {
+    // the stored car may no longer exist: fall back to the default car once
     if (want && !carConfirmed && e.message !== "server not reachable") {
       carId = null;
       return refresh();
@@ -561,6 +564,7 @@ function commit(r) {
     queue = queue.then(() => sendSet(r, on));
     return;
   }
+  // the suffix keeps its spaces (the server does not trim it, tune.py "not trimmed")
   const text = r.data.id === "name_suffix" ? r.field.value : r.field.value.trim();
   if (text === r.shown) return;
   setMsg(r, "", "");

@@ -1,5 +1,5 @@
 @echo off
-rem Starts the E46 tuner server and opens the tuner page in the default browser.
+rem Starts the tuner server (all cars) and opens the tuner page in the default browser.
 set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if not exist "%PY%" (
     echo Python not found at "%PY%".

@@ -1,6 +1,6 @@
 # ACE - Simple Car Tuner: drift tuner for Assetto Corsa EVO
 
-Change the driving settings of a car in a simple table, install your own tuned copy next to the stock one, drive a lap, close the game, change again. About 110-140 settings per car: engine, turbo, gearing, differential (setup and hardware), steering, brakes, springs, dampers, anti-roll bars, ride height and bump stops, alignment, tyres, driver aids, fuel. No cosmetics.
+Change the driving settings of a car in a simple table, install your own tuned copy next to the stock one, drive a lap, close the game, change again. About 140 settings per car (136-142 on the tested cars): engine, turbo, gearing, differential (setup and hardware), steering, brakes, springs, dampers, anti-roll bars, ride height and bump stops, alignment, tyres, driver aids, fuel. No cosmetics.
 
 Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Romeo Giulia GTAm**, **Porsche 992 GT3 R Rennsport**. The selector lists all 71 game cars; the others are shown as "not extracted" and are untested (they extract and build without errors, but whether they load and drive is unknown). Your tuned copy of a car is called the stock name plus a suffix you choose (default `_MY`, for example `BMW M3 E46 CSL_MY`), so it sorts right next to the stock car in the game's car list; you edit the suffix in the field next to the name at the top of the page. The stock cars are never changed.
 
@@ -36,7 +36,7 @@ Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Rome
 - **Your values** are remembered per car in `%USERPROFILE%\ace_modded_cars_work\<car id>\tune_state.json`; **Reset all** clears them for the selected car.
 - **Car not in the list in the game?** Check that its `ax_....kspkg` is directly inside `%USERPROFILE%\Saved Games\ACE\mods\`, and look at the newest game log for errors.
 - **Python not found?** Install Python 3.12 for the current user, or edit the path in `tuner\start_tuner.bat`.
-- Command-line use: `python tools\tune.py cars | init --car <id> | defaults --car <id> | show | set <id> <value> | apply | doc --all` (every command takes `--car <id>`).
+- Command-line use: `python tools\tune.py cars | init --car <id> | defaults --car <id> | show | set <id> <value> | unset <id> | apply | doc --all` (every command except `cars` takes `--car <id>`; `doc` takes `--car <id>` or `--all`).
 
 ## More
 

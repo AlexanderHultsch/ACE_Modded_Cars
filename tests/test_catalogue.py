@@ -555,8 +555,6 @@ class TestStatedCounts(unittest.TestCase):
         self.assertLessEqual(int(m.group(1)), min(self.counts.values()))
         self.assertGreaterEqual(int(m.group(2)), max(self.counts.values()))
 
-    # R3-030: coverage.md was made against an 81-setting catalogue and does not say the catalogue has grown
-    @unittest.expectedFailure
     def test_coverage_doc_states_the_current_catalogue_size(self):
         intro = self.read("docs/settings/coverage.md").split("## Summary")[0]
         self.assertRegex(intro, r"\b%d\b" % len(SETTINGS))
