@@ -21,6 +21,7 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 | Schema extractor | `tools/extract_protos.py` | protobuf field names out of the SDK Editor exe into `schemas/` (kept local) |
 | Codec | `tools/car_json.py` | lossless decode/encode of car files to JSON with real names; 31 file types (incl. `.tyre`) |
 | Clone tool | `tools/clone_car.py` | copy a stock car under a same-length id, register it as a mod, names, pack, install with backup |
+| Reference check | `tools/refgraph.py` | lists which file of an extracted car references which `content\` path (ok / MISSING / external) |
 | Settings engine | `tools/tune.py`, `tuner/catalogue.json`, `tuner/cars.json` | car list, settings list, defaults from the game files, state, apply, reference generator |
 | Web page | `tools/tuner_server.py`, `tuner/web/index.html`, `tuner/start_tuner.bat` | table with variable name, value, description, default; car selector |
 | Reference | `docs/settings/<car id>.md` (generated), `Example mods (reference only)/decoded/` | all settings per car; driving data of six drift cars by Hina, text only |
