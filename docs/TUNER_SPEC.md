@@ -11,6 +11,7 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 | First car | The BMW is installed as `BMW M3 E46 CSL_MY` with Hina's Drift Club drift setup recreated (90 settings changed against stock: differential, steering incl. rod ratio, soft springs/dampers/anti-roll bars, ride height, camber/toe/pressure, tyres, power curve, driver aids off) plus the user's own 29 L start fuel. The values were read from her package and checked value by value against it (136 of 137 settings match; the one mismatch is the five low-rpm points of the coast curve, which she left unscaled). The settings list is kept only in the user's local work folder, not in the repo. Not reproduced: her front strut hard points (version drift), her single "Drift" driving mode (we switch aids off in the stock modes), her narrow setup limit windows, the wear curve and some unnamed tyre fields. Untested in the game. |
 | Tuner | **Built.** 143 settings in the catalogue, 136-142 applicable per tested car; local web page with car selector; Apply (update my car) and Save as new copy; backup on every install. |
 | Verified against the real game files | **All five cars:** extracted from the game, defaults resolved, unchanged build equals stock apart from the id rename, edits change exactly the expected values in every copy, codec check has no failures, no stock id remains in the packages. |
+| Tests | 991 tests in `tests/` (stdlib `unittest`, `python -m unittest discover -s tests`), run in the cloud without game data; they cover the tools, the settings engine, the catalogue, the server and the page on synthetic car trees. The review of 2026-11-12 is fixed except the items listed in [review/FIXES.md](review/FIXES.md). |
 | Verified in the game | BMW only so far (laptop): the car appears and loads, physics log identical to stock, the +20 hp display value shows in the selector. Effects of edits on driving are **not tested yet**; the other four cars have not been loaded in the game. |
 
 ## 2. What exists
@@ -21,9 +22,11 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 | Schema extractor | `tools/extract_protos.py` | protobuf field names out of the SDK Editor exe into `schemas/` (kept local) |
 | Codec | `tools/car_json.py` | lossless decode/encode of car files to JSON with real names; 31 file types (incl. `.tyre`) |
 | Clone tool | `tools/clone_car.py` | copy a stock car under a same-length id, register it as a mod, names, pack, install with backup |
+| Raw dump | `tools/pb_raw.py`, `tools/dump_car.py` | schema-less protobuf text dump (used before the schemas existed) |
 | Reference check | `tools/refgraph.py` | lists which file of an extracted car references which `content\` path (ok / MISSING / external) |
 | Settings engine | `tools/tune.py`, `tuner/catalogue.json`, `tuner/cars.json` | car list, settings list, defaults from the game files, state, apply, reference generator |
 | Web page | `tools/tuner_server.py`, `tuner/web/index.html`, `tuner/start_tuner.bat` | table with variable name, value, description, default; car selector |
+| Tests | `tests/` | unit and integration tests on synthetic data, no game files needed; review reports and fix list in `docs/review/` |
 | Reference | `docs/settings/<car id>.md` (generated), `Example mods (reference only)/decoded/` | all settings per car; driving data of six drift cars by Hina, text only |
 
 ## 3. Design decisions (made with the user)
@@ -43,11 +46,27 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 4. An Apply with no changes equals a plain clone (tested on all five cars).
 5. The work folder is outside OneDrive and outside AppData (the Claude desktop app redirects AppData writes into a private folder the user cannot see). Long paths (the Porsche's thumbnails exceed 260 characters) are handled with extended-length paths.
 
+## 4b. Server
+
+`python tools\tuner_server.py [--port N] [--work <dir>] [--mods <dir>] [--game <content.kspkg>]` serves `tuner/web/index.html` on 127.0.0.1 only (default port 8765, `--port` 1024 to 65535; `--game` is the game's `content.kspkg`). It accepts only the Host headers `127.0.0.1:<port>` and `localhost:<port>`; every POST needs the header `X-Tuner: 1` and Content-Type `application/json`. Every answer carries `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'`.
+
+| Route | Purpose |
+|---|---|
+| `GET /` | the page |
+| `GET /api/state` | work folder, car, game running, installed package, background job, all cars, number of applicable and hidden settings |
+| `GET /api/settings` | applicable settings with default, value, changed flag |
+| `POST /api/set`, `/api/unset`, `/api/reset_all` | change, remove or clear values |
+| `POST /api/init` | extract the stock car (background job, 202) |
+| `POST /api/apply` | build and install (background job, 202) |
+
+All routes take an optional car id (`?car=<id>` on GET, the body field `car` on POST). Errors are JSON `{"error": text}` with 400 (bad input, unknown car), 403 (wrong Host, missing `X-Tuner`), 404, 405, 409 (base car missing, another job running, game running), 413 (body over 64 KiB), 415 (not JSON) or 500. Edits are refused with 409 while a job runs; there is one job at a time for all cars, and Ctrl+C waits for a running job (a second Ctrl+C aborts it). Details: the docstring of `tools/tuner_server.py`.
+
 ## 5. What was verified
 
 - **Real game files, all five cars:** extraction, `defaults` (exit 0; applicable/hidden with the 143-setting catalogue: BMW 137/6, GR86 138/5, RX-7 136/7, Giulia 142/1, Porsche 137/6), unchanged builds equal stock apart from the rename (all files identical, two added files: registration and localization), real edits (limiter, power curve scale, fuel) change exactly the expected values in all copies, `car_json.py check` no failures, no entry of any package contains the stock id, both copies written (for example the Giulia's turbo boost in the engine file, the `.turbo` file and the `.car`).
 - **Web page:** car selector, per-car rows, hidden-settings line, "copies differ" badge, extract button for cars not yet extracted, edit/reset, apply and numbered copies (scratch folders, browser pane).
 - **BMW in the game (laptop):** loads, physics identical to stock, display values show. The laptop renderer crashes for every car (Intel UHD 128 MB).
+- **Cloud test suite:** `python -m unittest discover -s tests` (991 tests) checks the tools, the settings engine and catalogue, the server routes and the page, and that the three documents agree with the catalogue (setting counts). It cannot cover the game files (extraction from `content.kspkg`, defaults and builds of the real cars), Windows behaviour (long paths, game detection, the start file, console handling) or timings; those, and everything about the game itself, need the PC (see [HANDOVER.md](HANDOVER.md) section 7 and [review/FIXES.md](review/FIXES.md)).
 
 ## 6. Open and unverified
 

@@ -6,7 +6,7 @@ usage:
   python tools/kspkg.py pack    <indir> <pkg>      # indir contains content/cars/<car_id>/...
   python tools/kspkg.py verify  <pkgA> <pkgB>     # same entries + same file contents?
 
-Format (reverse engineered, verified on all 6 Hina's Drift Club 1.4 packages, see docs/HANDOVER.md):
+Format (reverse engineered, verified on all 6 Hina's Drift Club 1.4 packages; the format notes are repeated in docs/HANDOVER.md section 5):
   [0x000000 .. 0x100000)   1 MiB header, all zero
   [0x100000 .. data_end)   file data, contiguous, no alignment, largest file first
   pad with zeros to next 1 MiB boundary
