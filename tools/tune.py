@@ -44,7 +44,7 @@ defaults: reads every applicable setting of tuner/catalogue.json from <work>/<ca
 set/unset/show: edit and print <work>/<car>/tune_state.json ({setting id: value}). show lists applicable settings
           only, set refuses a setting that is not applicable to the car. Entries of the state whose id is not in the
           catalogue are ignored with a warning (show, apply) and kept in the file (remove them with unset).
-apply:    refuses to run while AssettoCorsaEVO.exe runs. Always starts from the pristine <work>/<car>/base: clones the car
+apply:    refuses to install while AssettoCorsaEVO.exe runs (--no-install builds anyway). Always starts from the pristine <work>/<car>/base: clones the car
           under the new id into <work>/<car>/build/<new_id>.partial, writes every changed setting into ALL its resolved
           target files, packs <new_id>.kspkg, renames the folder to build/<new_id> (a failed run keeps the previous
           build and leaves only the .partial folder, removed by the next run) and (unless --no-install) installs the
@@ -1544,7 +1544,7 @@ def main():
             pos, opts = cli_args(("car", "new-id", "mods", "work"), ("no-install",))
             if pos:
                 usage()
-            if game_running():
+            if "no-install" not in opts and game_running():
                 raise ValueError("the game is running, close it first")
             work, car_id = start(opts)
             note_untested(car_id)

@@ -2003,9 +2003,18 @@ class TestCommands(CarCase):
         self.patch(tune, "game_running", lambda: True)
         built = []
         self.patch(clone_car, "build", lambda *a, **k: built.append(a))
-        code, out, err = self.main("apply", "--no-install")
+        code, out, err = self.main("apply")
         self.assertEqual((code, out, err, built), (1, "", "error: the game is running, close it first\n", []))
         self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "build")))
+
+    def test_apply_no_install_is_not_refused_while_the_game_runs(self):
+        self.patch(tune, "game_running", lambda: True)
+        applied = []
+        self.patch(tune, "apply", lambda *a: applied.append(a) or {"new_id": "ax_x", "applied": [], "notes": [], "package": "p.kspkg", "size": 1,
+                                                                        "installed": None, "backup": None})
+        code, out, err = self.main("apply", "--no-install")
+        self.assertEqual((code, err, [a[3] for a in applied]), (0, "", [False]))
+        self.assertIn("package: p.kspkg (1 bytes)", out)
 
     def test_init_is_not_refused_while_the_game_runs(self):
         self.patch(tune, "game_running", lambda: True)
@@ -2083,7 +2092,7 @@ class TestUsageText(unittest.TestCase):
         def reached(opts):
             raise Reached
 
-        with mock.patch.object(tune, "start", reached):
+        with mock.patch.object(tune, "start", reached), mock.patch.object(tune, "game_running", lambda: False):
             for line in self.usage_lines():
                 words = line.split()
                 cmd = words[2]

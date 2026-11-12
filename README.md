@@ -37,7 +37,7 @@ Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Rome
 - **Car not in the list in the game?** Check that its `ax_....kspkg` is directly inside `%USERPROFILE%\Saved Games\ACE\mods\`, and look at the newest game log for errors.
 - **Python not found?** Install Python 3.12 for the current user, or edit the path in `tuner\start_tuner.bat`.
 - Command-line use: `python tools\tune.py cars | init --car <id> | defaults --car <id> | show | set <id> <value> | unset <id> | apply | doc --all` (every command except `cars` takes `--car <id>`; `doc` takes `--car <id>` or `--all`).
-  `apply` refuses to run while the game is running. An install first writes `<name>.kspkg.part` into the mods folder and replaces the package atomically when the copy is complete, so a failed copy leaves the old package intact.
+  `apply` refuses to install while the game is running (`--no-install` only builds and is not refused). An install first writes `<name>.kspkg.part` into the mods folder and replaces the package atomically when the copy is complete, so a failed copy leaves the old package intact.
 - **Do not close the console window while a job runs** (extract or apply): Ctrl+C waits for the running job, a second Ctrl+C aborts it. Edits are refused while a job runs.
 - Server options: `python tools\tuner_server.py [--port N] [--work <dir>] [--mods <dir>] [--game <content.kspkg>]`; `--game` points at the game's `content.kspkg` when it is not in the default Steam folder.
 - All tools print their usage block on stdout and exit with code 2 when called with wrong or missing arguments; runtime errors are `error: ...` on stderr with exit code 1.

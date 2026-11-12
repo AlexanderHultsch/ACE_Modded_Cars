@@ -14,6 +14,8 @@ that no other file refers to.
 
 Exit code 0 if no MISSING refs, 1 if MISSING refs are found or on a runtime error
 (error: ... on stderr), 2 on bad usage (usage block on stdout).
+
+Known limitation: In plain text files a byte before `content\` may be read as a length prefix and truncate a ref; real car trees are protobuf.
 """
 import pathlib
 import re

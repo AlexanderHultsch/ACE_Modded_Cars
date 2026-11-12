@@ -109,9 +109,9 @@ class TestDomIds(unittest.TestCase):
                          "btn-reset-all", "search", "changed-only", "name-host", "untested", "caption", "empty", "init-text"}
                         <= referenced_ids(), sorted(referenced_ids()))
 
-    # R4-026 found the h1 id "title" unused; it may go away, but no other id may be left without a reader
+    # R4-026: no id may be left without a reader
     def test_ids_nobody_references_are_only_the_known_ones(self):
-        self.assertLessEqual(set(dom_ids()) - referenced_ids(), {"title"})
+        self.assertLessEqual(set(dom_ids()) - referenced_ids(), set())
 
 
 class TestFunctions(unittest.TestCase):

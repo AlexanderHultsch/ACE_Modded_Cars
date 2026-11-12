@@ -19,6 +19,7 @@ Findings: `R1.md` .. `R5.md` in this folder (IDs like R1-005). Owner decisions o
 | R4-014 | Add `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'` |
 | R3-002 | Install copies to `<name>.kspkg.part` in the mods folder, size check, then `os.replace` |
 | R1-010 | Chunked extract/hash (CHUNK 8 MiB) |
+| apply --no-install | not refused while the game runs |
 | R1-011 | Memoize `read_table` per (path, size, mtime) inside `kspkg.py` only (no signature change) |
 | R3-011 | Cache resolved rows in `tune.py` (invalidate on init/tyre extraction/catalogue or `.car` mtime change), one-setting resolve for the edit path |
 | R4-001 | Edits (set/unset/reset_all) are refused with 409 while a job runs |
@@ -65,7 +66,8 @@ All findings are fixed except the items under "Not applied / decisions" below. S
 | K9 | `67f9886` Review fixes K9: web page behaviour and accessibility | R4-020, R4-021, R4-023, R4-024, R4-029, page parts of R4-001/R4-002, bat part of R4-007 |
 | K10 | `0cd8021` Review fixes K10: catalogue data and generated settings docs | R3-004, R3-022, R3-023, R3-025, R3-026, R3-028; the five `docs/settings` files regenerated, defaults unchanged |
 | refgraph | `34bb046` Port refgraph from the earlier work line, with tests | `tools/refgraph.py`, 33 tests |
-| Docs | after `34bb046` (not committed yet when written) | R4-037 (server and raw dump tools in TUNER_SPEC), R4-042 (contract pointer in HANDOVER, kspkg docstring), README, TUNER_SPEC and HANDOVER brought up to date, this section |
+| Docs | `ca4c821` Docs: server section, tests, review status and decisions | R4-037 (server and raw dump tools in TUNER_SPEC), R4-042 (contract pointer in HANDOVER, kspkg docstring), README, TUNER_SPEC and HANDOVER brought up to date, this section |
+| K13 | Review fixes K13: leftovers | K13: leftovers (rear label, apply --no-install, hermetic tests, refgraph docstring) |
 
 ## Not applied / decisions
 
