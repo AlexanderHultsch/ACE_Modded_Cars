@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BMW E46 CSL drift tuner</title>
+<title>Drift tuner</title>
 <style>
 :root {
   color-scheme: light dark;
@@ -22,6 +22,8 @@
   --err-text: #8a1c1c;
   --warn-text: #b45309;
   --badge-bg: #e4e7ec;
+  --amber-bg: #fde9b8;
+  --amber-text: #7a4a03;
   --focus: #1f6feb;
 }
 @media (prefers-color-scheme: dark) {
@@ -41,6 +43,8 @@
     --err-text: #f5a3a3;
     --warn-text: #f0b429;
     --badge-bg: #2d3643;
+    --amber-bg: #4a3a12;
+    --amber-text: #f0c35c;
     --focus: #7db0ff;
   }
 }
@@ -59,6 +63,12 @@ body {
   padding: 16px 0 8px;
 }
 .bar h1 { margin: 0; font-size: 22px; }
+.title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.carpick { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.carpick select {
+  font: inherit; padding: 6px 8px; max-width: 100%; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text);
+}
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button {
   font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
@@ -77,6 +87,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .strip .ok { color: var(--ok-text); }
 .strip .bad { color: var(--err-text); }
 .strip .warn { color: var(--warn-text); }
+.strip .note { flex: 1 0 100%; color: var(--muted); }
 .panel {
   margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--panel);
@@ -132,6 +143,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
   display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 10px; font-size: 11.5px;
   background: var(--badge-bg); color: var(--muted); cursor: help; white-space: nowrap;
 }
+.badge.amber { display: block; width: fit-content; margin: 4px 0 0; white-space: normal; background: var(--amber-bg); color: var(--amber-text); }
 .default { font-size: 13.5px; }
 .empty { padding: 18px 14px; color: var(--muted); }
 .sr-only {
@@ -149,9 +161,14 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 <body>
 <div class="page">
   <header class="bar">
-    <h1>BMW E46 CSL drift tuner</h1>
+    <div class="title">
+      <h1 id="title">Drift tuner</h1>
+      <label class="carpick">Car
+        <select id="car-select" aria-label="Car" disabled></select>
+      </label>
+    </div>
     <div class="actions">
-      <button id="btn-apply" class="primary" type="button" disabled>Apply (update my BMW)</button>
+      <button id="btn-apply" class="primary" type="button" disabled>Apply (update my car)</button>
       <button id="btn-copy" type="button" disabled>Save as new copy&hellip;</button>
     </div>
   </header>
@@ -162,7 +179,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 
   <section id="init-panel" class="panel" hidden>
     <h2>Stock car not extracted yet</h2>
-    <p>The tuner needs the stock BMW from the game files as its starting point. This is done once.</p>
+    <p id="init-text">The tuner needs the stock car from the game files as its starting point. This is done once.</p>
     <button id="btn-init" class="primary" type="button">Extract stock car (one time, ~20 s)</button>
   </section>
 
@@ -175,14 +192,14 @@ button.reset { padding: 2px 8px; font-size: 12px; }
     </div>
     <div class="tablewrap">
       <table>
-        <caption class="sr-only">Settings of the BMW E46 CSL</caption>
+        <caption id="caption" class="sr-only">Settings of the selected car</caption>
         <colgroup><col class="c-name"><col class="c-value"><col class="c-desc"><col class="c-default"></colgroup>
         <thead>
           <tr>
             <th scope="col">Variable name</th>
             <th scope="col">Value</th>
             <th scope="col">Description</th>
-            <th scope="col">Default (for the BMW)</th>
+            <th scope="col">Default (for the selected car)</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -198,6 +215,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 const DEBOUNCE_MS = 700;
 const POLL_BUSY_MS = 1500;
 const POLL_IDLE_MS = 5000;
+const CAR_KEY = "tuner.car";
 
 const $ = (id) => document.getElementById(id);
 
@@ -217,12 +235,41 @@ let tableLoaded = false;
 let queue = Promise.resolve();
 let pollTimer = null;
 let jobSig = "";
+let carsSig = "";
+let carId = storedCar();
+let carConfirmed = false;
 
-async function api(path, body) {
+function storedCar() {
+  try {
+    return window.localStorage.getItem(CAR_KEY) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function storeCar(id) {
+  try {
+    window.localStorage.setItem(CAR_KEY, id);
+  } catch (e) {
+    /* the page works without it */
+  }
+}
+
+function carEntry() {
+  return info && info.cars ? info.cars.find((c) => c.id === carId) || null : null;
+}
+
+function carName() {
+  const c = carEntry();
+  return c ? c.display_name || c.label : "the car";
+}
+
+async function api(path, body, car) {
+  if (car && body === undefined) path += "?car=" + encodeURIComponent(car);
   const opts = body === undefined ? {} : {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Tuner": "1" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(car ? Object.assign({}, body, { car: car }) : body)
   };
   let res;
   try {
@@ -277,7 +324,45 @@ function renderStatus() {
   addStat(box, "Base car present", info.base_present ? "yes" : "no", info.base_present ? "ok" : "bad");
   addStat(box, "Game running", info.game_running ? "yes" : "no", info.game_running ? "warn" : "");
   const inst = info.installed;
-  addStat(box, "Installed", inst.exists ? fmtBytes(inst.bytes) + ", " + fmtTime(inst.modified) : "not installed");
+  addStat(box, "Installed package", info.default_new_id + ": " +
+    (inst.exists ? fmtBytes(inst.bytes) + ", " + fmtTime(inst.modified) : "not installed"), "", true);
+  if (info.settings_hidden > 0) {
+    box.appendChild(el("span", "note", info.settings_hidden + (info.settings_hidden === 1 ? " setting is" : " settings are") +
+      " not available for this car (hidden)"));
+  }
+}
+
+function optionText(c) {
+  const flags = [];
+  if (!c.extracted) flags.push("not extracted");
+  if (c.installed) flags.push("installed");
+  const name = c.display_name || c.label;
+  return flags.length ? name + " (" + flags.join(", ") + ")" : name;
+}
+
+function renderCars() {
+  const sel = $("car-select");
+  const list = info && info.cars ? info.cars : [];
+  const options = list.map((c) => [c.id, optionText(c)]);
+  const sig = JSON.stringify([options, carId]);
+  if (sig === carsSig) return;
+  carsSig = sig;
+  sel.replaceChildren();
+  for (const [id, text] of options) {
+    const o = el("option", "", text);
+    o.value = id;
+    sel.appendChild(o);
+  }
+  sel.value = carId || "";
+  sel.disabled = options.length === 0;
+  if (carEntry()) {
+    const name = carName();
+    $("title").textContent = name + " drift tuner";
+    document.title = name + " drift tuner";
+    $("caption").textContent = "Settings of " + name;
+    $("init-text").textContent = "The tuner needs the stock " + name +
+      " from the game files as its starting point. This is done once.";
+  }
 }
 
 function renderButtons() {
@@ -356,14 +441,26 @@ function renderProgress() {
 
 async function refresh() {
   clearTimeout(pollTimer);
+  const want = carId;
   try {
-    info = await api("/api/state");
+    info = await api("/api/state", undefined, want);
     serverError = "";
   } catch (e) {
+    if (want && !carConfirmed && e.message !== "server not reachable") {
+      carId = null;
+      return refresh();
+    }
     info = null;
     serverError = e.message;
   }
-  if (info && info.base_present && !tableLoaded) await loadSettings();
+  if (want !== carId) return;
+  if (info && !carConfirmed) {
+    carId = info.car;
+    carConfirmed = true;
+  }
+  const extracting = !!info && info.job.kind === "init" && info.job.state === "running";
+  if (info && info.base_present && !tableLoaded && !extracting) await loadSettings();
+  renderCars();
   renderStatus();
   renderButtons();
   renderProgress();
@@ -392,7 +489,7 @@ function showRow(r, data) {
 
 async function sendSet(r, text) {
   try {
-    const res = await api("/api/set", { id: r.data.id, value: text });
+    const res = await api("/api/set", { id: r.data.id, value: text }, r.car);
     showRow(r, res.row);
     setMsg(r, res.warnings.join(" "), "warn");
   } catch (e) {
@@ -403,7 +500,7 @@ async function sendSet(r, text) {
 
 async function sendUnset(r) {
   try {
-    const res = await api("/api/unset", { id: r.data.id });
+    const res = await api("/api/unset", { id: r.data.id }, r.car);
     showRow(r, res.row);
     setMsg(r, "", "");
   } catch (e) {
@@ -459,8 +556,15 @@ function buildField(r) {
   return f;
 }
 
-function buildRow(data) {
-  const r = { data: data, shown: "", timer: null, msgTimer: null };
+function copiesTip(data) {
+  const lines = ["The stock data holds this value in several places and the copies differ:"];
+  for (const c of data.copy_values || []) lines.push(c.target + " = " + fmtVal(data.type, c.value));
+  lines.push("Applying a value writes the same value to all copies.");
+  return lines.join("\n");
+}
+
+function buildRow(data, car) {
+  const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
   r.tr = el("tr");
 
   const nameCell = el("td", "name");
@@ -495,6 +599,11 @@ function buildRow(data) {
   }
 
   const defCell = el("td", "default mono", fmtVal(data.type, data.default) + (data.unit ? " " + data.unit : ""));
+  if (data.copies_differ) {
+    const b = el("span", "badge amber", "copies differ in stock");
+    b.title = copiesTip(data);
+    defCell.appendChild(b);
+  }
 
   r.tr.append(nameCell, valueCell, descCell, defCell);
   r.hay = (data.id + " " + data.label + " " + data.description).toLowerCase();
@@ -502,7 +611,7 @@ function buildRow(data) {
   return r;
 }
 
-function buildTable(list) {
+function buildTable(list, car) {
   const body = $("rows");
   body.replaceChildren();
   rows = [];
@@ -522,7 +631,7 @@ function buildTable(list) {
         groups.push(current);
       }
     }
-    const r = buildRow(data);
+    const r = buildRow(data, car);
     current.rows.push(r);
     rows.push(r);
     const after = current.rows.length > 1 ? current.rows[current.rows.length - 2].tr : current.tr;
@@ -549,8 +658,11 @@ function applyFilter() {
 }
 
 async function loadSettings() {
+  const car = carId;
   try {
-    buildTable(await api("/api/settings"));
+    const list = await api("/api/settings", undefined, car);
+    if (car !== carId) return;
+    buildTable(list, car);
     tableLoaded = true;
   } catch (e) {
     localError = e.message;
@@ -562,7 +674,7 @@ async function loadSettings() {
 async function startJob(path, body) {
   localError = "";
   try {
-    await api(path, body);
+    await api(path, body, carId);
   } catch (e) {
     localError = e.message;
   }
@@ -571,7 +683,8 @@ async function startJob(path, body) {
 
 function askNewCopy() {
   const n = info ? info.stock_id_length : 17;
-  const text = "New car id: exactly " + n + " characters, only lowercase a-z, 0-9 and _.\n" +
+  const text = "Save a new copy of " + carName() + ".\n" +
+    "New car id: exactly " + n + " characters, only lowercase a-z, 0-9 and _.\n" +
     "It must differ from " + (info ? info.default_new_id : "the default id") + " (used by Apply).";
   const id = window.prompt(text, "");
   if (id === null) return;
@@ -579,10 +692,11 @@ function askNewCopy() {
 }
 
 async function resetAll() {
-  if (!window.confirm("Reset all settings to their defaults?")) return;
+  if (!window.confirm("Reset all settings of " + carName() + " to their defaults?")) return;
+  const car = carId;
   queue = queue.then(async () => {
     try {
-      await api("/api/reset_all", {});
+      await api("/api/reset_all", {}, car);
       await loadSettings();
     } catch (e) {
       localError = e.message;
@@ -591,6 +705,21 @@ async function resetAll() {
   });
 }
 
+function switchCar(id) {
+  if (!id || id === carId) return;
+  carId = id;
+  storeCar(id);
+  tableLoaded = false;
+  rows = [];
+  groups = [];
+  localError = "";
+  $("rows").replaceChildren();
+  $("tuner").hidden = true;
+  $("init-panel").hidden = true;
+  refresh();
+}
+
+$("car-select").addEventListener("change", () => switchCar($("car-select").value));
 $("btn-apply").addEventListener("click", () => startJob("/api/apply", { mode: "update" }));
 $("btn-copy").addEventListener("click", askNewCopy);
 $("btn-init").addEventListener("click", () => startJob("/api/init", {}));

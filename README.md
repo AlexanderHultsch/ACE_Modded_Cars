@@ -1,8 +1,8 @@
-# ACE Modded Cars: BMW E46 drift tuner
+# ACE Modded Cars: drift tuner for Assetto Corsa EVO
 
-Change the driving settings of the Assetto Corsa EVO BMW M3 E46 CSL in a simple table, install your own tuned copy of the car next to the stock one, drive a lap, close the game, change again. About 70 settings: engine, gearing, differential, brakes, springs, dampers, alignment, fuel. No cosmetics.
+Change the driving settings of a car in a simple table, install your own tuned copy next to the stock one, drive a lap, close the game, change again. About 75-80 settings per car: engine, turbo, gearing, differential, brakes, springs, dampers, alignment, fuel. No cosmetics.
 
-Your tuned car is called **MY_BMW M3 E46 CSL** by default (`MY_` plus the stock car's name from the game; you can change the name in the table). The stock BMW is never changed.
+Cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Romeo Giulia GTAm**, **Porsche 992 GT3 R Rennsport**. Your tuned copy of a car is called `MY_` plus the stock name by default (for example `MY_BMW M3 E46 CSL`); you can rename it in the table. The stock cars are never changed.
 
 ## What you need
 
@@ -16,27 +16,27 @@ Your tuned car is called **MY_BMW M3 E46 CSL** by default (`MY_` plus the stock 
    ```
    python tools\extract_protos.py "C:\Program Files (x86)\Steam\steamapps\common\Assetto Corsa EVO SDK\AssettoCorsaEVOEditor.exe" schemas
    ```
-2. Double-click **`tuner\start_tuner.bat`**. A console window opens and your browser shows the tuner at http://127.0.0.1:8765/ . Keep the console window open while you use it.
-3. First start only: press **Extract stock car** (about 20 seconds). This copies the BMW's data out of the game into `%USERPROFILE%\ace_modded_cars_work`.
+2. Double-click **`tuner\start_tuner.bat`**. A console window opens and your browser shows the tuner at http://127.0.0.1:8765/ . Keep the console window open while you use it. (After updating the repository, close that window and start it again.)
+3. Pick a car in the selector at the top. The first time you pick a car, press **Extract stock car** (about 20 seconds). This copies that car's data out of the game into `%USERPROFILE%\ace_modded_cars_work\<car id>`. Only cars you pick are extracted.
 
 ## Every time you tune
 
 1. Close the game (the tuner refuses to install while it runs).
-2. In the table, change values. Each row shows: variable name, your value, a description, and the BMW's default. Changed rows turn yellow and have a **reset** button. Use the search box to find a setting, or tick **changed only** to see what you changed.
-3. Press **Apply (update my BMW)**. After a few seconds the green message tells you the package was installed. Press **Save as new copy…** instead to keep the previous tuned car and install another one next to it (you type a new car id with exactly 17 lowercase letters, digits or underscores).
-4. Start the game, open Vehicle Selection, pick **MY_BMW M3 E46 CSL** (or the name you chose), drive.
+2. Choose the car, then change values in the table. Each row shows: variable name, your value, a description, and the car's default. Changed rows turn yellow and have a **reset** button. Use the search box, or tick **changed only** to see what you changed. Settings a car does not have (for example turbo values on a naturally aspirated car) are hidden; the line under the title tells you how many.
+3. Press **Apply (update my car)**. After a few seconds the green message tells you the package was installed. Press **Save as new copy…** instead to keep the previous tuned car and install another one next to it (you type a new car id with exactly the length shown).
+4. Start the game, open Vehicle Selection, pick your `MY_...` car, drive.
 5. Close the game and repeat.
 
-"unverified" next to a description means the meaning is guessed from the setting's name and not yet confirmed in the game. Every setting is explained in [docs/BMW_SETTINGS.md](docs/BMW_SETTINGS.md).
+"unverified" next to a description means the meaning is guessed from the setting's name and not yet confirmed in the game. A "copies differ in stock" badge means the game's own files disagree about that value; applying writes your value to every copy. Every setting of every car is explained in `docs/settings/<car id>.md`, for example [docs/settings/ks_bmw_m3_e46_csl.md](docs/settings/ks_bmw_m3_e46_csl.md).
 
 ## Good to know
 
-- **Check a power change without driving:** when a session starts the game writes a line like `POWER CLASS INDEX ... (357.19 HP)` into the newest file in `%USERPROFILE%\Saved Games\ACE\Logs`. Stock is 357.19 HP; a power scale of 1.056 should show about 377 HP.
-- **Undo:** every install keeps a backup of the previous package in `%USERPROFILE%\ace_modded_cars_work\backups`. Copy one over `%USERPROFILE%\Saved Games\ACE\mods\ax_bmw_m3_e46_csl.kspkg`, or delete that file to remove the tuned car completely.
-- **Your values** are remembered in `%USERPROFILE%\ace_modded_cars_work\tune_state.json`; **Reset all** clears them.
-- **Car not in the list?** Check that `ax_bmw_m3_e46_csl.kspkg` is directly inside `%USERPROFILE%\Saved Games\ACE\mods\`, and look at the newest game log for errors.
+- **Check a power change without driving:** when a session starts the game writes a line like `POWER CLASS INDEX ... (357.19 HP)` into the newest file in `%USERPROFILE%\Saved Games\ACE\Logs`.
+- **Undo:** every install keeps a backup of the previous package in `%USERPROFILE%\ace_modded_cars_work\backups`. Copy one over the file in `%USERPROFILE%\Saved Games\ACE\mods\`, or delete the tuned car's `.kspkg` there to remove it completely.
+- **Your values** are remembered per car in `%USERPROFILE%\ace_modded_cars_work\<car id>\tune_state.json`; **Reset all** clears them for the selected car.
+- **Car not in the list in the game?** Check that its `ax_....kspkg` is directly inside `%USERPROFILE%\Saved Games\ACE\mods\`, and look at the newest game log for errors.
 - **Python not found?** Install Python 3.12 for the current user, or edit the path in `tuner\start_tuner.bat`.
-- Command-line use for the same functions: `python tools\tune.py init | defaults | show | set <id> <value> | apply | doc`.
+- Command-line use: `python tools\tune.py cars | init --car <id> | defaults --car <id> | show | set <id> <value> | apply | doc --all` (every command takes `--car <id>`).
 
 ## More
 

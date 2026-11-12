@@ -1,14 +1,22 @@
-"""Local web server of the E46 tuner: serves the settings table and runs Apply through tools/tune.py.
+"""Local web server of the tuner: serves the settings table and runs Apply through tools/tune.py.
 
 usage:
   python tools/tuner_server.py [--port N] [--work <dir>] [--mods <dir>]
 
 Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765) and a small JSON API:
-  GET  /api/state       work folder, base car, game running, installed package, background job
-  GET  /api/settings    every setting with default, current value and changed flag
+  GET  /api/state       work folder, base car, game running, installed package, background job; the shortlist cars
+                        (id, label, display_name, extracted, new_id, installed) and the number of applicable and
+                        hidden settings of the car (null while the base is missing or being extracted)
+  GET  /api/settings    every setting applicable to the car, with default, current value and changed flag
+                        (copies_differ, plus copy_values when the copies of the value differ in the stock data)
   POST /api/set         {"id": ..., "value": ...}          POST /api/unset  {"id": ...}
   POST /api/reset_all   clears every changed value         POST /api/init   extracts the stock car (background job)
   POST /api/apply       {"mode": "update" | "new_copy", "new_id": ...}   builds and installs (background job)
+Every route takes an optional car id from the shortlist tuner/cars.json: the query parameter ?car=<id> on GET, the field
+"car" in the JSON body on POST (any other id is a 400 error). Without it the shortlist's default car is used.
+The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
+also lists the car ("car", "cars") and the installed package of that car; the old single-car layout of the work folder
+is moved into the default car's folder when the server starts.
 Binds to 127.0.0.1 only and accepts only the Host headers 127.0.0.1:<port> and localhost:<port>. Every POST needs
 the header X-Tuner: 1 and Content-Type application/json. One background job at a time; its state is kept until the
 next job starts. Apply refuses to run while AssettoCorsaEVO.exe is running.
@@ -25,9 +33,11 @@ import subprocess
 import sys
 import threading
 import traceback
+import urllib.parse
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import clone_car  # noqa: E402
+import kspkg  # noqa: E402
 import tune  # noqa: E402
 
 INDEX = tune.REPO / "tuner" / "web" / "index.html"
@@ -54,13 +64,13 @@ def mods_dir():
     return os.path.abspath(os.path.expandvars(CONFIG["mods"] or clone_car.DEFAULT_MODS))
 
 
-def base_present(work, cat):
-    car_root = tune.car_root_of(os.path.join(work, "base"), cat["car_id"])
+def base_present(work, car):
+    car_root = kspkg.long_path(tune.car_root_of(tune.base_dir(work, car), car))
     return os.path.isdir(car_root) and bool(os.listdir(car_root))
 
 
-def require_base(work, cat):
-    if not base_present(work, cat):
+def require_base(work, car):
+    if not base_present(work, car):
         raise ApiError(409, "base car missing, run init")
 
 
@@ -73,8 +83,8 @@ def game_running():
     return out.returncode == 0 and GAME_EXE.lower() in out.stdout.decode("ascii", "replace").lower()
 
 
-def installed_info():
-    path = os.path.join(mods_dir(), tune.DEFAULT_NEW_ID + ".kspkg")
+def installed_info(car):
+    path = os.path.join(mods_dir(), tune.new_id_for(car) + ".kspkg")
     info = {"path": path, "exists": os.path.isfile(path), "bytes": None, "modified": None}
     if info["exists"]:
         st = os.stat(path)
@@ -128,18 +138,21 @@ def run_job(kind, task):
     threading.Thread(target=job_thread, args=(task,), daemon=True).start()
 
 
-def init_task():
-    log_line("extracting the stock car from the game package (about 20 s) ...")
-    res = tune.init(CONFIG["work"], os.path.expandvars(tune.DEFAULT_GAME))
-    log_line("base already present" if res["present"] else "extracted the stock car")
-    log_line("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
-    return res
+def init_task(car):
+    def task():
+        log_line("extracting the stock car from the game package (about 20 s) ...")
+        res = tune.init(CONFIG["work"], car, os.path.expandvars(tune.DEFAULT_GAME))
+        log_line("base already present" if res["present"] else "extracted the stock car")
+        log_line("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
+        return res
+    return task
 
 
 def apply_lines(res):
     lines = ["applied %d setting(s)" % len(res["applied"])]
     for a in res["applied"]:
         lines.append("  %s: %s -> %s  [%s]" % (a["id"], tune.fmt(a["old"]), tune.fmt(a["new"]), ", ".join(a["files"])))
+    lines += res["notes"]
     lines.append("package: %s (%d bytes)" % (res["package"], res["size"]))
     if res["installed"]:
         lines.append("installed: %s" % res["installed"])
@@ -147,10 +160,10 @@ def apply_lines(res):
     return lines
 
 
-def apply_task(mode, new_id):
+def apply_task(car, mode, new_id):
     def task():
         log_line("building %s (%s), this takes a while ..." % (new_id, mode))
-        res = tune.apply(CONFIG["work"], new_id, True, CONFIG["mods"])
+        res = tune.apply(CONFIG["work"], car, new_id, True, CONFIG["mods"])
         for line in apply_lines(res):
             log_line(line)
         return dict(res, mode=mode)
@@ -159,94 +172,121 @@ def apply_task(mode, new_id):
 
 def row_json(row, s):
     out = {k: row[k] for k in ("id", "group", "label", "kind", "type", "unit", "description", "verified",
-                               "default", "value", "changed", "absent")}
+                               "default", "value", "changed", "absent", "copies_differ")}
     out.update({k: s[k] for k in ("min", "max", "choices") if k in s})
+    if row["copies_differ"]:
+        out["copy_values"] = row["copy_values"]
     return out
 
 
-def rows_json(work, cat):
-    require_base(work, cat)
-    return [row_json(r, s) for r, s in zip(tune.effective_rows(work, cat), cat["settings"])]
+def rows_json(work, car, cat):
+    require_base(work, car)
+    return [row_json(r, tune.find_setting(cat, r["id"])) for r in tune.effective_rows(work, car, cat)]
 
 
-def row_of(work, cat, setting_id):
-    return next(r for r in rows_json(work, cat) if r["id"] == setting_id)
+def row_of(work, car, cat, setting_id):
+    return next(r for r in rows_json(work, car, cat) if r["id"] == setting_id)
 
 
-def api_state():
-    work, cat = CONFIG["work"], tune.load_catalogue()
-    return {"work": work, "base_present": base_present(work, cat), "game_running": game_running(),
-            "installed": installed_info(), "stock_id_length": len(cat["car_id"]),
-            "default_new_id": tune.DEFAULT_NEW_ID, "job": job_snapshot()}
+def settings_counts(work, car):
+    job = job_snapshot()
+    if not base_present(work, car) or (job["kind"] == "init" and job["state"] == "running"):
+        return None, None
+    rows = tune.resolve_defaults(work, car, hidden=True)
+    applicable = sum(1 for r in rows if r["applicable"])
+    return applicable, len(rows) - applicable
 
 
-def api_settings():
+def api_state(car):
+    work, cars = CONFIG["work"], tune.load_cars()
+    applicable, hidden = settings_counts(work, car)
+    return {"work": work, "car": car, "default_car": cars["default"],
+            "cars": [{k: c[k] for k in ("id", "label", "display_name", "extracted", "new_id", "installed")}
+                     for c in tune.list_cars(work, CONFIG["mods"])],
+            "base_present": base_present(work, car), "game_running": game_running(),
+            "installed": installed_info(car), "stock_id_length": len(car),
+            "default_new_id": tune.new_id_for(car), "settings_applicable": applicable, "settings_hidden": hidden,
+            "job": job_snapshot()}
+
+
+def api_settings(car):
     with STATE_LOCK:
-        return rows_json(CONFIG["work"], tune.load_catalogue())
+        return rows_json(CONFIG["work"], car, tune.load_catalogue())
 
 
-def api_set(body):
+def api_set(car, body):
     work, cat = CONFIG["work"], tune.load_catalogue()
     setting_id, value = body.get("id"), body.get("value")
     if not isinstance(setting_id, str) or type(value) not in (str, int, float):
         raise ApiError(400, "need id (text) and value (text or number)")
-    require_base(work, cat)
+    require_base(work, car)
     with STATE_LOCK:
         try:
-            res = tune.set_value(work, setting_id, value, cat)
+            res = tune.set_value(work, car, setting_id, value, cat)
         except ValueError as e:
             raise ApiError(400, str(e))
-        return {"row": row_of(work, cat, setting_id), "warnings": res["warnings"]}
+        return {"row": row_of(work, car, cat, setting_id), "warnings": res["warnings"]}
 
 
-def api_unset(body):
+def api_unset(car, body):
     work, cat = CONFIG["work"], tune.load_catalogue()
     setting_id = body.get("id")
     if not isinstance(setting_id, str):
         raise ApiError(400, "need id (text)")
-    require_base(work, cat)
+    require_base(work, car)
     with STATE_LOCK:
         try:
-            tune.unset_value(work, setting_id, cat)
+            tune.unset_value(work, car, setting_id, cat)
         except ValueError as e:
             raise ApiError(400, str(e))
-        return {"row": row_of(work, cat, setting_id)}
+        return {"row": row_of(work, car, cat, setting_id)}
 
 
-def api_reset_all(body):
+def api_reset_all(car, body):
     with STATE_LOCK:
-        tune.save_state(CONFIG["work"], {})
+        tune.save_state(CONFIG["work"], car, {})
     return {"ok": True}
 
 
-def api_init(body):
-    run_job("init", init_task)
+def api_init(car, body):
+    run_job("init", init_task(car))
     return {"job": "started"}
 
 
 def check_new_id(new_id, car_id, work):
     if not isinstance(new_id, str) or not new_id:
         raise ApiError(400, "new_id is required for mode new_copy")
-    if new_id == tune.DEFAULT_NEW_ID:
-        raise ApiError(400, "new id equals %s, the id used by Apply (update), pick another one" % tune.DEFAULT_NEW_ID)
+    if new_id == tune.new_id_for(car_id):
+        raise ApiError(400, "new id equals %s, the id used by Apply (update), pick another one" % new_id)
     try:
-        clone_car.validate(car_id, new_id, os.path.join(work, "build", "unused"))
+        clone_car.validate(car_id, new_id, os.path.join(tune.build_dir(work, car_id), "unused"))
     except ValueError as e:
         raise ApiError(400, str(e))
     return new_id
 
 
-def api_apply(body):
-    work, cat = CONFIG["work"], tune.load_catalogue()
+def api_apply(car, body):
+    work = CONFIG["work"]
     mode = body.get("mode")
     if mode not in MODES:
         raise ApiError(400, 'mode must be "update" or "new_copy"')
-    new_id = tune.DEFAULT_NEW_ID if mode == "update" else check_new_id(body.get("new_id"), cat["car_id"], work)
-    require_base(work, cat)
+    new_id = tune.new_id_for(car) if mode == "update" else check_new_id(body.get("new_id"), car, work)
+    require_base(work, car)
     if game_running():
         raise ApiError(409, "close the game first, %s is running" % GAME_EXE)
-    run_job("apply", apply_task(mode, new_id))
+    run_job("apply", apply_task(car, mode, new_id))
     return {"job": "started"}
+
+
+def request_car(value, query):
+    if value is None:
+        value = (urllib.parse.parse_qs(query).get("car") or [None])[0]
+    if value is not None and not isinstance(value, str):
+        raise ApiError(400, "car must be text")
+    try:
+        return tune.pick_car(tune.load_cars(), value)
+    except ValueError as e:
+        raise ApiError(400, str(e))
 
 
 GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings}
@@ -296,7 +336,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def dispatch(self, method):
         check_host(self.headers.get("Host"))
-        path = self.path.split("?", 1)[0]
+        path, _, query = self.path.partition("?")
         if method == "POST":
             check_post_headers(self.headers)
         if method == "GET" and path == "/":
@@ -305,7 +345,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         route = (GET_ROUTES if method == "GET" else POST_ROUTES).get(path)
         if route is None:
             raise ApiError(404, "not found")
-        payload = route(self.read_body()) if method == "POST" else route()
+        if method == "POST":
+            body = self.read_body()
+            payload = route(request_car(body.get("car"), query), body)
+        else:
+            payload = route(request_car(None, query))
         return (202 if path in ACCEPTED else 200), payload
 
     def handle_request(self, method):
@@ -351,6 +395,11 @@ def main():
         tune.load_catalogue()
         port = parse_port(opts.get("port", str(DEFAULT_PORT)))
         CONFIG.update(port=port, work=tune.work_dir(opts.get("work")), mods=opts.get("mods"))
+        default_car = tune.load_cars()["default"]
+        moved = tune.migrate_old_layout(CONFIG["work"], default_car)
+        if moved:
+            print("moved the old single-car layout of %s into %s: %s" % (
+                CONFIG["work"], tune.car_work(CONFIG["work"], default_car), ", ".join(moved)))
         server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)

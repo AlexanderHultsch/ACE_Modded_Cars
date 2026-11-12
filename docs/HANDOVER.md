@@ -1,10 +1,10 @@
 # HANDOVER: continuing the work in a new session (local or cloud)
 
-Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of the project). User-facing usage is in [../README.md](../README.md), every setting in [BMW_SETTINGS.md](BMW_SETTINGS.md). Owner: Alex (GitHub AlexanderHultsch). Last updated 2026-11-12.
+Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of the project). User-facing usage is in [../README.md](../README.md), every setting per car in [settings/](settings/). Owner: Alex (GitHub AlexanderHultsch). Last updated 2026-11-12.
 
 ## 1. The project in short
 
-A local table page to tune the Assetto Corsa EVO BMW M3 E46 CSL for drifting: read the car's data with real field names, change values, build an own copy of the car (`ax_bmw_m3_e46_csl`, shown as "MY_BMW M3 E46 CSL" by default: `MY_` plus the stock display name from the game's `system\cars.table`), install it in the game's mods folder, drive, repeat. Driving settings only, no cosmetics. Version 1 is built (71 settings). Open: confirm in the game that edits take effect and tune the feel on the gaming PC.
+A local table page to tune Assetto Corsa EVO cars for drifting: read a car's data with real field names, change values, build an own copy of the car under an `ax_` id (shown as `MY_<stock name>`), install it in the game's mods folder, drive, repeat. Driving settings only, no cosmetics. Five cars: BMW M3 E46 CSL, Toyota GR86, Mazda RX-7 FD, Alfa Romeo Giulia GTAm, Porsche 992 GT3 R Rennsport (list in `tuner/cars.json`). The tuner is built and verified against the real game files for all five; in the game only the BMW has been loaded (laptop, display values). Open: do edits take effect and how do they drive; do the other four cars load.
 
 ## 2. Where you are working: local or cloud
 
@@ -12,21 +12,21 @@ A local table page to tune the Assetto Corsa EVO BMW M3 E46 CSL for drifting: re
 |---|---|---|
 | Repo | the working folder | a fresh checkout of GitHub `main` |
 | Game, SDK, mods folder, logs | available (Steam folder, `Saved Games\ACE`) | **not available** |
-| Can do | everything: extract the stock car, build, install, read game logs, run the tuner page | code and docs work that needs only the repo; analysis of text files |
-| Cannot do | | extract from the game, `schemas/` (git-ignored, must be regenerated locally), install, any test with real game files |
+| Can do | everything: extract cars, build, install, read game logs, run the tuner page | code and docs work that needs only the repo; analysis of text files |
+| Cannot do | | extract from the game, create `schemas/` (git-ignored, regenerated locally), install, any test with real game files |
 
-State that lives only on the local PC and is not in git: `schemas/` (from the SDK Editor exe), the work folder `C:\Users\alexa\ace_modded_cars_work` (stock car copy, builds, backups, `tune_state.json`), the installed package in `Saved Games\ACE\mods\`, and game logs. In the last local session the +20 hp package (display 380 PS, power scale 1.056) was installed; backups are in the work folder. Several cars are planned (TUNER_SPEC section 8); the game has 71 cars, only chosen ones are extracted. Nothing was left half-done. To hand over to the cloud: commit and push first. To come back to the local PC: pull, and re-run `tools\extract_protos.py` only if `schemas/` is missing.
+State that lives only on the local PC and is not in git: `schemas/` (from the SDK Editor exe), the work folder `C:\Users\alexa\ace_modded_cars_work` (per car: `<car id>\base`, `build`, `tune_state.json`, `stock_info.json`; shared `backups\` and `stock_loc\`), the installed packages in `Saved Games\ACE\mods\` (currently the BMW with +20 hp display/power scale and 29 L fuel), and game logs. The user's tuner window (old single-car version) may still be running on port 8765: it must be closed and restarted to get the multi-car version; on the next start the old work folder layout migrates automatically (nothing is deleted). To hand over to the cloud: commit and push first. To come back to the local PC: pull; re-run `tools\extract_protos.py` only if `schemas/` is missing.
 
-Local setup: Python 3.12 (not on PATH): `C:\Users\alexa\AppData\Local\Programs\Python\Python312\python.exe`, run tools with `-I`. Git for Windows installed; commits use the GitHub noreply address. **Gotcha:** the Claude desktop app writes under `AppData\Local` into a private redirected folder that the user's own terminal cannot see; keep work data outside AppData (and outside OneDrive).
+Local setup: Python 3.12 (not on PATH): `C:\Users\alexa\AppData\Local\Programs\Python\Python312\python.exe`, run tools with `-I`. Git for Windows installed; commits use the GitHub noreply address. In PowerShell 5.1 pass multi-line commit messages through a file (`git commit -F`): quotes inside here-strings break the argument list. **Gotcha:** the Claude desktop app writes under `AppData\Local` into a private redirected folder that the user's own terminal cannot see; keep work data outside AppData (and outside OneDrive).
 
 ## 3. Working rules
 
-- Process: Claude plans and reviews; subagents write all code under the user's "executor contract" (stock general-purpose subagent, model haiku for mechanical one or two file jobs, sonnet where judgment is needed; the contract text is copied verbatim into every delegation). One step at a time; the parent runs the verification itself and reads the diff; never accept a green run reached by weakening a test. Show a plan and wait for the user's OK before building.
-- Vendor data stays out of git: `schemas/`, the work folder, `*.kspkg`, game and SDK files. Third-party mods are not kept in the repo (the local example-mod folder was deleted; only the driving-data text dumps remain in `Example mods (reference only)/`).
-- Test with scratch folders (`--work <dir>`, `--mods <dir>`); never touch the real work folder's state, the real mods folder, the game folder, the SDK folder or the stock cars while testing. Always back up before replacing a package (the tools do).
+- Process: Claude plans and reviews; subagents write all code under the user's "executor contract" (stock general-purpose subagent, model haiku for mechanical one or two file jobs, sonnet where judgment is needed; the contract text is copied verbatim into every delegation). One step at a time; the parent runs the verification itself and reads the diff; never accept a green run reached by weakening a test. Show a plan and wait for the user's OK before building, unless the user asks to run uninterrupted.
+- Vendor data stays out of git: `schemas/`, the work folder, `*.kspkg`, game and SDK files. Third-party mods are not kept in the repo.
+- Test with scratch folders (`--work <short dir>`, `--mods <dir>`); never touch the real work folder's state, the real mods folder, the game folder, the SDK folder or the stock cars while testing. The game may be running: the tuner refuses to install then. Always back up before replacing a package (the tools do).
 - Edit car data only through `tools/car_json.py` (lossless). A setting changes every copy of a value.
 - Do not use `Nenkai/ACEvo.Package` (its AGENTS.md prohibits use by AI tools).
-- Do not publish tuned derivatives of Kunos' or Hina's cars. Credits: Hina's Drift Club 1.4 (Hina, OverTake.gg), Kunos Simulazioni (game and data); the repo holds only tools, the settings list, a settings reference with default values and text dumps of driving data.
+- Do not publish tuned derivatives of Kunos' or Hina's cars. Credits: Hina's Drift Club 1.4 (Hina, OverTake.gg), Kunos Simulazioni (game and data). The repo holds tools, the settings catalogue, generated settings references with default values and text dumps of driving data; no game assets or packages.
 - The development laptop (Intel UHD 128 MB) crashes in the renderer for every car; there, judge only by the game log.
 
 ## 4. Repo layout
@@ -34,30 +34,32 @@ Local setup: Python 3.12 (not on PATH): `C:\Users\alexa\AppData\Local\Programs\P
 ```
 README.md                    user guide
 docs/TUNER_SPEC.md           state of the project
-docs/BMW_SETTINGS.md         generated by `python tools/tune.py doc`
 docs/HANDOVER.md             this file
+docs/settings/<car id>.md    generated by `python tools/tune.py doc --all`: every setting, default, description
 tools/                       kspkg, extract_protos, car_json, clone_car, tune, tuner_server, pb_raw, dump_car
-tuner/                       catalogue.json (settings list), web/index.html, start_tuner.bat
+tuner/                       cars.json (shortlist), catalogue.json (settings), web/index.html, start_tuner.bat
 Example mods (reference only)/decoded/<car>/   driving data of six drift cars by Hina, text dumps, research only
 ```
 
 ## 5. Key knowledge
 
-- **Loading mod cars:** one `.kspkg` directly in `%USERPROFILE%\Saved Games\ACE\mods\`. A mod car needs `content\cars\<id>\<id>.moddedcarcontent` (message ModdedCarContentData: name, brand, year) and its names in `content\cars\<id>\uiresources\localization\en.cars.loc` (CRLF, UTF-8, no BOM); without it the selection screen shows raw keys. Cars need no patching of the game's own package. Online play rejects mods; single player only.
-- **Clone trick:** the id is replaced everywhere by a same-length id, so no protobuf length prefix changes. The id appears inside `.mesh`, `.actor`, `.car` and others too.
-- **`.kspkg`:** 64 MiB file table at the end, XOR key `c135117da921979f`, 256-byte entries (path, flags 1 = directory / 0x100 = data XOR'd, FNV-1a 64 hash of the lower-case path as UTF-16LE, size, offset). The game's `content.kspkg` (66 GB) uses the same format with all files XOR-flagged. The game reads through the table; our `pack` variant (flags 0, lower-case paths) is accepted.
-- **Schemas:** the SDK Editor exe (and the game exe) embed the protobuf descriptors; `tools/extract_protos.py` writes them to `schemas/`. Real game files also contain "legacy tail" fields beyond the schema (for example a second gear set in `.drivetrain`, foreign car names such as the Alfa Giulia): preserved in `_unknown`, not named. Unmapped file types in `car_json`: `.actor`, `.turbo`, `.cardisplaysystem`, `.carwipersystem`, `.tyre`, `.tyremesh`.
-- **Data duplicated:** `data/<id>.car` is the manifest (`stock_setup`, `setupLimits`, engine/drivetrain/gearbox paths) and embeds inline copies of engine, gearbox, drivetrain, brakes. Which copy the game reads is unknown; the tuner writes both.
-- **E46 facts** (details in BMW_SETTINGS.md): limiter 8100, 6 gears 4.227 / 2.528 / 1.669 / 1.226 / 1.0 / 0.828, final 3.62, differential type absent = LSD (the enum has Spool = locked), setup default diff 0.3 / 0.1 / 10 Nm, mass 1495 kg, preview spec sheet values are display text only.
-- **Verify power/mass without driving:** the newest `Saved Games\ACE\Logs\log-*.txt` has `Creating car: <id>` and `POWER CLASS INDEX: ... (357.18982 HP) W:1517.65` at session start. Stock and the unchanged clone match exactly.
-- **Driving data reference:** `Example mods (reference only)/decoded/<car>/` has only physics and setup dumps (engine, drivetrain, gearbox, clutch, brakes, suspension, tyres, aero, setup, tuning parts); cosmetics were removed on purpose. Field names there are numbers (made before the schemas); use `car_json.py` on the real files for names.
+- **Loading mod cars:** one `.kspkg` directly in `%USERPROFILE%\Saved Games\ACE\mods\`. A mod car needs `content\cars\<id>\<id>.moddedcarcontent` (ModdedCarContentData: display name, brand, year, property_1/2/3 = classes) and its names in `content\cars\<id>\uiresources\localization\en.cars.loc` (CRLF, UTF-8, no BOM; copied from the game's stock `en.cars.loc` lines of that car with the new id); without it the selection screen shows raw keys. Cars need no patching of the game's own package. Single player only.
+- **Stock registration data:** the game's `system\cars.table` (TableData -> preset.lines[].car_content, CarContentData) has name, display_name, brand, year, properties for each of the 71 cars; the tool stores them in `stock_info.json` per car. A missing property means the enum default (Road / Modern / ICE).
+- **Clone trick:** the id is replaced everywhere by a same-length id (`ks_` -> `ax_`), so no protobuf length prefix changes. The id appears inside `.mesh`, `.actor`, `.car` and others. All 71 game car ids start with `ks_`.
+- **Car manifest:** each car's `.car` (CarData; file name varies: `<id>.car`, `cardata.car`, `<id>_car.car`) has `engine_path`, `drivetrain_path`, `gearbox_path`, `clutch_path`, `brakes_path`, `stock_setup`, `setupLimits` (mixed-case paths) and embeds inline copies of engine, gearbox, drivetrain, brakes. The catalogue uses these as roles (`@engine`, `@gearbox`, `@setup`, `@limits`, `@car`, `@mech_preset`, `@turbo[N]`). Which copy the game reads is unknown; the tuner writes both. Some stock copies differ (RX-7).
+- **`.kspkg`:** 64 MiB file table at the end, XOR key `c135117da921979f`, 256-byte entries (path, flags 1 = directory / 0x100 = data XOR'd, FNV-1a 64 hash of the lower-case path as UTF-16LE, size, offset); the game's `content.kspkg` (66 GB) uses the same format, all files XOR-flagged; our `pack` variant (flags 0, lower-case paths) is accepted by the game. Windows paths over 260 characters occur (Porsche thumbnails): kspkg/clone/tune use extended-length paths.
+- **Schemas:** the SDK Editor exe (and the game exe) embed the protobuf descriptors; `tools/extract_protos.py` writes them to `schemas/`. Real game files also contain "legacy tail" fields beyond the schema (second gear set in `.drivetrain`, foreign car names): preserved in `_unknown`. Unmapped `car_json` types: `.actor`, `.cardisplaysystem`, `.carwipersystem`, `.tyre`, `.tyremesh`.
+- **Catalogue mechanics** (`tuner/catalogue.json`, see `tune.py` docstring): targets name a role and a dotted JSON path (`[n]` index, `[key=VALUE]` selector); `optional` targets (inline `.car` copies) are written only when present; `needs` guards applicability; `hide_if_absent`; `default_template` for names (`MY_{stock_display_name}`, `{stock_variant_name}`); a setting is applicable when its required targets resolve; unknown ids in a saved state are ignored with a warning.
+- **Verify power/mass without driving:** the newest `Saved Games\ACE\Logs\log-*.txt` has `Creating car: <id>` and `POWER CLASS INDEX: ... (357.18982 HP) W:1517.65` at session start. Unchanged clone and stock match exactly (BMW).
+- **Driving data reference:** `Example mods (reference only)/decoded/<car>/` has only physics and setup dumps with field numbers (made before the schemas); use `car_json.py` on real files for names.
 
 ## 6. Open questions
 
-- Do edits take effect in the game (log line about 377 HP for the +20 hp package)?
+- Do edits take effect and change the feel (log line, setup screen, driving)? Do the four other cars load next to their stock cars?
 - Which copy of duplicated data does the game read; does it enforce the setup limits as ranges (stock defaults exceed some stock limits); does `diff_type` Spool apply; do numbered copies load?
+- RX-7: is the engine-level `max_turbo_boost` the real boost cap (the per-turbo `max_boost` is absent)? Its stock spring limits read 0 / 5.
 - Which unnamed legacy fields matter?
 
 ## 7. Next steps
 
-1. Read the laptop log for the +20 hp check. 2. On the gaming PC test driving feel, Spool, limits, copies. 3. Extend the settings table with tyres (shared `common_phsx` files; a new compound needs its own file), then aero and electronics. 4. Polish the page (live build log, long-path guard).
+1. Test on the gaming PC: load all five cars, drive, check edits. 2. Tyres (shared `common_phsx` files; a new compound needs its own file), then aero, electronics, more turbo settings. 3. Polish: live build log, job state per car, long-path guard for custom work paths. 4. More cars: add to `tuner/cars.json` and run the per-car checks (defaults, unchanged build equals stock, edit test).

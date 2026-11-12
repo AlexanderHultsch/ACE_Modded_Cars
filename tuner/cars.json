@@ -1,0 +1,10 @@
+{
+  "default": "ks_bmw_m3_e46_csl",
+  "cars": [
+    {"id": "ks_bmw_m3_e46_csl", "label": "BMW M3 E46 CSL"},
+    {"id": "ks_toyota_gr86", "label": "Toyota GR86"},
+    {"id": "ks_mazda_rx7_fd", "label": "Mazda RX-7 FD"},
+    {"id": "ks_alfa_romeo_giulia_gtam", "label": "Alfa Romeo Giulia GTAm"},
+    {"id": "ks_porsche_992_gt3_r_rennsport", "label": "Porsche 992 GT3 R Rennsport"}
+  ]
+}

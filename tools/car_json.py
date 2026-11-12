@@ -7,6 +7,8 @@ usage:
   python tools/car_json.py types                         # print the extension -> message table
 
 Needs schemas/acevo.desc (a FileDescriptorSet, see tools/extract_protos.py). Stdlib only.
+File reads and writes on car trees use extended-length paths (kspkg.long_path), so paths over 260 characters work;
+printed paths stay normal.
 
 JSON model (one object per message, keys = schema field names in wire order):
   - a key is present only if the field was on the wire; the encoder never invents defaults
@@ -23,12 +25,14 @@ Files that cannot be reproduced exactly (e.g. a repeated field split into severa
 or mixing packed and unpacked) are rejected with a reason instead of being approximated.
 """
 import json
+import os
 import pathlib
 import struct
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import extract_protos as ep  # noqa: E402
+import kspkg  # noqa: E402
 
 DESC = pathlib.Path(__file__).resolve().parent.parent / "schemas" / "acevo.desc"
 
@@ -62,6 +66,7 @@ TYPES = {
     "oemmultilayercolor": "OemMultilayerColorData",
     "rimmesh": "RimMeshData",
     "suspension": "SuspensionGeometryData",
+    "turbo": "TurboData",
     "visualcarpreset": "VisualCarPresetData",
     "wing": "WingData",
 }
@@ -454,19 +459,19 @@ def roundtrip(sch, name, data):
 def check(root):
     sch = load_schema()
     stats, skipped, failed = {}, {}, []
-    for p in sorted(pathlib.Path(root).rglob("*")):
-        if not p.is_file():
-            continue
-        ext = p.suffix.lower().lstrip(".")
+    found = [os.path.join(dp, n) for dp, _, names in os.walk(kspkg.long_path(root)) for n in names]
+    for p in sorted(found):
+        ext = pathlib.PurePath(p).suffix.lower().lstrip(".")
         if ext not in TYPES:
             skipped[ext] = skipped.get(ext, 0) + 1
             continue
-        obj, err = roundtrip(sch, TYPES[ext], p.read_bytes())
+        with open(p, "rb") as f:
+            obj, err = roundtrip(sch, TYPES[ext], f.read())
         s = stats.setdefault(ext, [0, 0, 0, 0, 0])
         s[0] += 1
         if err:
             s[2] += 1
-            failed.append((p, err))
+            failed.append((kspkg.plain_path(p), err))
         else:
             s[1] += 1
             s[3] += count_unknown(obj)
@@ -488,7 +493,7 @@ def main():
     try:
         if cmd == "decode" and len(args) in (1, 2):
             name = message_for(args[0])
-            data = pathlib.Path(args[0]).read_bytes()
+            data = pathlib.Path(kspkg.long_path(args[0])).read_bytes()
             sch = load_schema()
             obj, err = roundtrip(sch, name, data)
             if obj is None:
@@ -503,7 +508,7 @@ def main():
         elif cmd == "encode" and len(args) == 2:
             name = message_for(args[1])
             obj = loads(pathlib.Path(args[0]).read_text(encoding="utf-8-sig"))
-            pathlib.Path(args[1]).write_bytes(encode_msg(load_schema(), name, obj))
+            pathlib.Path(kspkg.long_path(args[1])).write_bytes(encode_msg(load_schema(), name, obj))
         elif cmd == "check" and len(args) == 1:
             check(args[0])
         elif cmd == "types" and not args:

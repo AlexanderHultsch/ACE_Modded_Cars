@@ -17,9 +17,13 @@ Format (reverse engineered, verified on all 6 Hina's Drift Club 1.4 packages, se
          +0xE6 int16 path length | +0xE8 u64 FNV-1a-64 of path encoded UTF-16LE
          +0xF0 int64 size | +0xF8 int64 offset (directories: 0/0)
 Original format notes: ntpopgetdope/ace-kspkg (MIT, 32 MiB table, pre-0.7).
+
+Long paths: on Windows every file operation on an extracted or built car tree goes through long_path(), which
+returns the extended-length form (\\\\?\\ prefix) so paths over 260 characters work. The other tools import
+long_path and plain_path (the reverse, for printing) from here.
 """
 import hashlib
-import pathlib
+import os
 import struct
 import sys
 
@@ -28,6 +32,27 @@ HEADER = 1 << 20
 ENTRY = 0x100
 FLAG_DIR, FLAG_XOR = 1, 1 << 8
 KEY = bytes.fromhex("c135117da921979f")   # same key as the game's content.kspkg
+
+
+LONG_PREFIX = "\\\\?\\"
+LONG_UNC = "\\\\?\\UNC\\"
+
+
+def long_path(path):
+    """Extended-length form of an absolute path on Windows (UNC: \\\\?\\UNC\\server\\share), unchanged elsewhere."""
+    path = os.fspath(path)
+    if os.name != "nt" or path.startswith(LONG_PREFIX):
+        return path
+    path = os.path.abspath(path)
+    return LONG_UNC + path[2:] if path.startswith("\\\\") else LONG_PREFIX + path
+
+
+def plain_path(path):
+    """Reverse of long_path, for printing."""
+    path = os.fspath(path)
+    if path.startswith(LONG_UNC):
+        return "\\\\" + path[len(LONG_UNC):]
+    return path[len(LONG_PREFIX):] if path.startswith(LONG_PREFIX) else path
 
 
 def xor(buf, key):
@@ -65,10 +90,15 @@ def read_table(f):
 
 def safe_path(root, p):
     parts = [x for x in p.replace("\\", "/").split("/") if x not in ("", ".", "..")]
-    out = root.joinpath(*parts).resolve()
-    if root.resolve() not in out.parents and out != root.resolve():
+    root = os.path.abspath(root)
+    out = os.path.abspath(os.path.join(root, *parts))
+    try:
+        inside = os.path.normcase(os.path.commonpath([root, out])) == os.path.normcase(root)
+    except ValueError:
+        inside = False
+    if not inside:
         raise ValueError(f"unsafe path {p!r}")
-    return out
+    return long_path(out)
 
 
 def cmd_list(pkg):
@@ -81,8 +111,8 @@ def cmd_list(pkg):
 
 
 def cmd_extract(pkg, outdir, prefix=None):
-    root = pathlib.Path(outdir)
-    root.mkdir(parents=True, exist_ok=True)
+    root = os.path.abspath(outdir)
+    os.makedirs(long_path(root), exist_ok=True)
     if prefix is not None:
         prefix = prefix.lower().rstrip("\\")
     count = 0
@@ -96,38 +126,42 @@ def cmd_extract(pkg, outdir, prefix=None):
             count += 1
             dst = safe_path(root, e["path"])
             if e["flags"] & FLAG_DIR:
-                dst.mkdir(parents=True, exist_ok=True)
+                os.makedirs(dst, exist_ok=True)
                 continue
-            dst.parent.mkdir(parents=True, exist_ok=True)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
             f.seek(e["off"])
             data = f.read(e["size"])
             if e["flags"] & FLAG_XOR:
                 data = xor(data, key)
-            dst.write_bytes(data)
+            with open(dst, "wb") as out:
+                out.write(data)
     print(f"extracted {count} entries to {root}")
 
 
 def cmd_pack(indir, pkg):
-    root = pathlib.Path(indir)
+    root = long_path(indir)
     files, dirs = [], []
-    for p in sorted(root.rglob("*")):
-        rel = "\\".join(p.relative_to(root).parts).lower()
-        if p.is_dir():
+    for dp, dn, fn in os.walk(root):
+        parts = dp[len(root):].strip("\\").split("\\") if len(dp) > len(root) else []
+        for n in dn:
             # observed: only folders at depth >= 3 (content\cars\<id>...) get entries
-            if len(p.relative_to(root).parts) >= 3:
-                dirs.append(rel)
-        elif p.is_file():
-            files.append((rel, p))
+            if len(parts) + 1 >= 3:
+                dirs.append("\\".join(parts + [n]).lower())
+        for n in fn:
+            files.append(("\\".join(parts + [n]).lower(), os.path.join(dp, n)))
+    files.sort()
+    dirs.sort()
     for rel, _ in files + [(d, None) for d in dirs]:
         if len(rel.encode()) > 0xE0:
             raise ValueError(f"path too long for table: {rel}")
-    files.sort(key=lambda t: (-t[1].stat().st_size, t[0]))   # largest first
+    files.sort(key=lambda t: (-os.path.getsize(t[1]), t[0]))   # largest first
     entries = []
     with open(pkg, "wb") as out:
         out.write(b"\0" * HEADER)
         off = HEADER
         for rel, p in files:
-            data = p.read_bytes()
+            with open(p, "rb") as src:
+                data = src.read()
             out.write(data)
             entries.append((rel, 0, len(data), off))
             off += len(data)
