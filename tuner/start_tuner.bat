@@ -2,6 +2,8 @@
 rem Starts the tuner server (all cars) and opens the tuner page in the default browser.
 set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 set "PORT=8765"
+rem Optional: full path of the game package content.kspkg when the game is not in the default Steam folder.
+set "GAME="
 if not exist "%PY%" (
     echo Python not found at "%PY%".
     echo Install Python 3.12 for the current user, or edit the PY line in this file.
@@ -10,7 +12,11 @@ if not exist "%PY%" (
 )
 cd /d "%~dp0.."
 start "" /min cmd /c "ping -n 3 127.0.0.1 >nul & start http://127.0.0.1:%PORT%/"
-"%PY%" -I tools\tuner_server.py --port %PORT%
+if defined GAME (
+    "%PY%" -I tools\tuner_server.py --port %PORT% --game "%GAME%"
+) else (
+    "%PY%" -I tools\tuner_server.py --port %PORT%
+)
 echo.
 echo The tuner server has stopped.
 pause

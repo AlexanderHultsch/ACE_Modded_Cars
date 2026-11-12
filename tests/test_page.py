@@ -210,7 +210,7 @@ class TestApiContract(unittest.TestCase):
         self.assertTrue(1000 <= poll_idle <= 60000, poll_idle)
         self.assertTrue(500 <= poll_busy < poll_idle, poll_busy)
         self.assertTrue(100 <= debounce <= 2000, debounce)
-        self.assertIn("setTimeout(refresh, busy ? POLL_BUSY_MS : POLL_IDLE_MS)", CODE)
+        self.assertIn("setTimeout(refresh, document.hidden ? POLL_HIDDEN_MS : (busy ? POLL_BUSY_MS : POLL_IDLE_MS))", CODE)
 
     def test_the_page_polls_faster_while_a_job_runs(self):
         self.assertIn('const busy = info && info.job.state === "running";', CODE)
@@ -284,7 +284,7 @@ class TestAccessibility(unittest.TestCase):
     def test_status_and_row_messages_are_live_regions(self):
         self.assertIn('id="status" class="strip" role="status" aria-live="polite"', MARKUP)
         self.assertIn('id="progress"', MARKUP)
-        self.assertEqual(CODE.count('setAttribute("role", "alert")'), 2)
+        self.assertEqual(CODE.count('setAttribute("role", "alert")'), 1)
 
     def test_keyboard_focus_is_visible_and_the_hidden_attribute_wins(self):
         self.assertIn("button:focus-visible, input:focus-visible, select:focus-visible", STYLE)
@@ -294,8 +294,6 @@ class TestAccessibility(unittest.TestCase):
         self.assertIn("color-scheme: light dark;", STYLE)
         self.assertIn("@media (prefers-color-scheme: dark)", STYLE)
 
-    # R4-021: renderStatus rebuilds the aria-live strip at every poll; it should return early when nothing changed like renderCars / renderProgress
-    @unittest.expectedFailure
     def test_render_status_skips_the_rebuild_when_nothing_changed(self):
         body = function_body("renderStatus")
         guard = re.search(r"if \(sig === \w+\) return;", body)
@@ -306,17 +304,47 @@ class TestAccessibility(unittest.TestCase):
         self.assertIn("if (sig === carsSig) return;", function_body("renderCars"))
         self.assertIn("if (sig === jobSig) return;", function_body("renderProgress"))
 
-    # R4-024: the "unverified" and "copies differ" badges explain themselves in a title only, a screen reader and touch users never get it
-    @unittest.expectedFailure
     def test_the_badges_have_text_for_screen_readers(self):
         body = function_body("buildRow")
         self.assertEqual(body.count('"badge'), 2)
         self.assertGreaterEqual(body.count('"sr-only"'), 2)
 
-    # R4-024: the suggested range of a value field is a title only
-    @unittest.expectedFailure
     def test_the_suggested_range_is_available_to_screen_readers(self):
         self.assertIn('setAttribute("aria-description"', function_body("buildField"))
+
+
+class TestPolling(unittest.TestCase):
+    # R4-023
+    def test_a_hidden_tab_polls_slowly_and_refreshes_at_once_when_shown(self):
+        poll_hidden, poll_idle = (int(re.search(r"^const %s = (\d+);" % k, CODE, re.M).group(1)) for k in ("POLL_HIDDEN_MS", "POLL_IDLE_MS"))
+        self.assertGreater(poll_hidden, poll_idle)
+        handler = re.search(r'document\.addEventListener\("visibilitychange", \(\) => \{(.*?)\}\);', CODE, re.S)
+        self.assertIsNotNone(handler, "no visibilitychange handler")
+        self.assertRegex(handler.group(1), r"if \(!document\.hidden\) refresh\(\);")
+
+
+class TestJobRunning(unittest.TestCase):
+    # R4-001 (page part): no edits while a job runs, the server answers them with 409 anyway
+    def test_the_value_fields_and_reset_buttons_are_disabled_while_a_job_runs(self):
+        body = function_body("renderButtons")
+        self.assertIn('const running = !!info && info.job.state === "running";', body)
+        self.assertIn("r.field.disabled = running;", body)
+        self.assertIn("r.reset.disabled = running;", body)
+        self.assertIn('$("btn-reset-all").disabled = running;', body)
+
+    def test_the_header_row_is_disabled_with_the_table_rows(self):
+        self.assertIn("headerRow ? rows.concat(headerRow) : rows", function_body("renderButtons"))
+
+    def test_a_refused_edit_shows_the_server_message_in_the_row(self):
+        self.assertIn("setMsg(r, e.message, \"err\")", function_body("sendSet"))
+        self.assertIn("setMsg(r, e.message, \"err\")", function_body("sendUnset"))
+
+    # R4-002 (page part)
+    def test_the_progress_panel_warns_not_to_close_the_console_while_a_job_runs(self):
+        body = function_body("renderProgress")
+        note = body.index("Do not close the console window while this runs.")
+        self.assertLess(body.index('job.state === "running"'), note)
+        self.assertLess(note, body.index('job.state === "done"'))
 
 
 class TestErrorHandling(unittest.TestCase):
@@ -329,8 +357,6 @@ class TestErrorHandling(unittest.TestCase):
         self.assertIn('localError = "";', function_body("startJob"))
         self.assertIn('localError = "";', function_body("switchCar"))
 
-    # R4-020: a failed settings load shows the red panel; the next poll loads the table but the error stays on screen
-    @unittest.expectedFailure
     def test_a_successful_settings_load_clears_the_old_error(self):
         body = function_body("loadSettings")
         success = body.index("tableLoaded = true;")
@@ -375,6 +401,14 @@ class TestStartBat(unittest.TestCase):
     # R4-006: the browser is opened after a fixed delay (ping -n 3 is about 2 s), not when the server listens
     def test_the_browser_is_opened_after_a_fixed_two_second_delay(self):
         self.assertRegex(BAT, r'start "" /min cmd /c "ping -n 3 127\.0\.0\.1 >nul & start http://127\.0\.0\.1:(?:\d+|%PORT%)/"')
+
+    # R4-007: the game package is passed on only when the user set GAME in the file
+    def test_the_game_package_is_optional_and_passed_on_only_when_set(self):
+        self.assertIn('set "GAME="', BAT)
+        self.assertIn("if defined GAME (", BAT)
+        self.assertIn(r'"%PY%" -I tools\tuner_server.py --port %PORT% --game "%GAME%"', BAT)
+        self.assertIn(r'"%PY%" -I tools\tuner_server.py --port %PORT%' + "\n", BAT)
+        self.assertIn("--game", ts.__doc__)
 
     def test_the_file_is_plain_ascii_without_a_byte_order_mark(self):
         raw = (ROOT / "tuner" / "start_tuner.bat").read_bytes()

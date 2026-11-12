@@ -235,6 +235,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 const DEBOUNCE_MS = 700;
 const POLL_BUSY_MS = 1500;
 const POLL_IDLE_MS = 5000;
+const POLL_HIDDEN_MS = 30000;
 const CAR_KEY = "tuner.car";
 
 const $ = (id) => document.getElementById(id);
@@ -257,6 +258,7 @@ let tableLoaded = false;
 let queue = Promise.resolve();
 let pollTimer = null;
 let jobSig = "";
+let statusSig = "";
 let carsSig = "";
 let carId = storedCar();
 let carConfirmed = false;
@@ -337,6 +339,9 @@ function addStat(box, label, value, cls, mono) {
 }
 
 function renderStatus() {
+  const sig = JSON.stringify([serverError, info && [info.work, info.base_present, info.game_running, info.default_new_id, info.installed, info.settings_hidden]]);
+  if (sig === statusSig) return;
+  statusSig = sig;
   const box = $("status");
   box.replaceChildren();
   if (!info) {
@@ -412,6 +417,11 @@ function renderButtons() {
     $(id).title = why;
   }
   $("btn-init").disabled = !info || running;
+  $("btn-reset-all").disabled = running;
+  for (const r of headerRow ? rows.concat(headerRow) : rows) {
+    r.field.disabled = running;
+    r.reset.disabled = running;
+  }
   const baseOk = !!info && info.base_present;
   $("init-panel").hidden = !info || baseOk;
   $("tuner").hidden = !baseOk || !tableLoaded;
@@ -459,6 +469,7 @@ function renderProgress() {
   }
   if (job.state === "running") {
     box.appendChild(el("h2", "", title + ": running ..."));
+    addLine(box, "Do not close the console window while this runs.");
   } else if (job.state === "done") {
     if (!localError) box.classList.add("ok");
     box.appendChild(el("h2", "", title + ": finished"));
@@ -503,7 +514,8 @@ async function refresh() {
   renderButtons();
   renderProgress();
   const busy = info && info.job.state === "running";
-  pollTimer = setTimeout(refresh, busy ? POLL_BUSY_MS : POLL_IDLE_MS);
+  // a hidden tab polls rarely and refreshes at once when it is shown again
+  pollTimer = setTimeout(refresh, document.hidden ? POLL_HIDDEN_MS : (busy ? POLL_BUSY_MS : POLL_IDLE_MS));
 }
 
 /* ---------- table ---------- */
@@ -596,6 +608,7 @@ function buildField(r) {
   f.setAttribute("aria-label", "Value of " + d.label);
   if (d.min !== undefined || d.max !== undefined) {
     f.title = "Suggested range: " + (d.min !== undefined ? d.min : "-") + " to " + (d.max !== undefined ? d.max : "-");
+    f.setAttribute("aria-description", f.title);
   }
   f.addEventListener("input", () => {
     clearTimeout(r.timer);
@@ -633,8 +646,16 @@ function buildReset(r) {
   return b;
 }
 
-function buildHeaderRow(data, car) {
+function newRow(data, car) {
   const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
+  r.msg = el("div", "msg");
+  r.msg.hidden = true;
+  r.msg.setAttribute("role", "alert");
+  return r;
+}
+
+function buildHeaderRow(data, car) {
+  const r = newRow(data, car);
   r.tr = el("div", "namerow");
   r.tr.appendChild(el("span", "label", "Name in the game's car list:"));
   const joined = el("span", "namefield");
@@ -645,9 +666,6 @@ function buildHeaderRow(data, car) {
   r.tr.appendChild(joined);
   r.reset = buildReset(r);
   r.tr.appendChild(r.reset);
-  r.msg = el("div", "msg");
-  r.msg.hidden = true;
-  r.msg.setAttribute("role", "alert");
   r.tr.appendChild(r.msg);
   $("name-host").replaceChildren(r.tr);
   showRow(r, data, false);
@@ -655,7 +673,7 @@ function buildHeaderRow(data, car) {
 }
 
 function buildRow(data, car) {
-  const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
+  const r = newRow(data, car);
   r.tr = el("tr");
 
   const nameCell = el("td", "name");
@@ -677,9 +695,6 @@ function buildRow(data, car) {
   r.reset = buildReset(r);
   wrap.appendChild(r.reset);
   valueCell.appendChild(wrap);
-  r.msg = el("div", "msg");
-  r.msg.hidden = true;
-  r.msg.setAttribute("role", "alert");
   valueCell.appendChild(r.msg);
 
   const descCell = el("td");
@@ -687,6 +702,7 @@ function buildRow(data, car) {
   if (!data.verified) {
     const b = el("span", "badge", "unverified");
     b.title = "meaning guessed from the field name, not confirmed";
+    b.appendChild(el("span", "sr-only", ": meaning guessed from the field name, not confirmed"));
     descCell.appendChild(b);
   }
 
@@ -694,6 +710,7 @@ function buildRow(data, car) {
   if (data.copies_differ) {
     const b = el("span", "badge amber", "copies differ in stock");
     b.title = copiesTip(data);
+    b.appendChild(el("span", "sr-only", ": " + copiesTip(data)));
     defCell.appendChild(b);
   }
 
@@ -703,13 +720,17 @@ function buildRow(data, car) {
   return r;
 }
 
-function buildTable(list, car) {
-  const body = $("rows");
-  body.replaceChildren();
+function clearTable() {
+  $("rows").replaceChildren();
+  $("name-host").replaceChildren();
   rows = [];
   groups = [];
   headerRow = null;
-  $("name-host").replaceChildren();
+}
+
+function buildTable(list, car) {
+  const body = $("rows");
+  clearTable();
   let current = null;
   for (const data of list) {
     if (data.ui === "header") {
@@ -762,6 +783,7 @@ async function loadSettings() {
     if (car !== carId) return;
     buildTable(list, car);
     tableLoaded = true;
+    localError = "";
   } catch (e) {
     localError = e.message;
   }
@@ -808,12 +830,8 @@ function switchCar(id) {
   carId = id;
   storeCar(id);
   tableLoaded = false;
-  rows = [];
-  groups = [];
-  headerRow = null;
+  clearTable();
   localError = "";
-  $("name-host").replaceChildren();
-  $("rows").replaceChildren();
   $("tuner").hidden = true;
   $("init-panel").hidden = true;
   refresh();
@@ -826,6 +844,9 @@ $("btn-init").addEventListener("click", () => startJob("/api/init", {}));
 $("btn-reset-all").addEventListener("click", resetAll);
 $("search").addEventListener("input", applyFilter);
 $("changed-only").addEventListener("change", applyFilter);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refresh();
+});
 
 refresh();
 </script>
