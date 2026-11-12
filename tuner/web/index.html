@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Drift tuner</title>
+<title>ACE - Simple Car Tuner</title>
 <style>
 :root {
   color-scheme: light dark;
@@ -70,6 +70,19 @@ body {
   background: var(--panel); color: var(--text);
 }
 .untested { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.namerow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 10px; padding: 4px 0;
+  border-radius: 6px;
+}
+.namerow.changed { background: var(--changed-bg); padding: 4px 8px; }
+.namerow .label { font-size: 13px; color: var(--muted); }
+.namefield { display: inline-flex; align-items: center; gap: 2px; }
+.stockname { font-weight: 600; white-space: pre; }
+.namefield input {
+  font: inherit; width: 9em; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text);
+}
+.namerow .msg { flex: 1 0 100%; margin-top: 0; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button {
   font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
@@ -163,7 +176,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 <div class="page">
   <header class="bar">
     <div class="title">
-      <h1 id="title">Drift tuner</h1>
+      <h1 id="title">ACE - Simple Car Tuner</h1>
       <label class="carpick">Car
         <select id="car-select" aria-label="Car" disabled></select>
       </label>
@@ -173,6 +186,8 @@ button.reset { padding: 2px 8px; font-size: 12px; }
       <button id="btn-copy" type="button" disabled>Save as new copy&hellip;</button>
     </div>
   </header>
+
+  <div id="name-host" hidden></div>
 
   <p id="untested" class="untested" hidden></p>
 
@@ -234,6 +249,7 @@ let serverError = "";
 let localError = "";
 let rows = [];
 let groups = [];
+let headerRow = null;
 let tableLoaded = false;
 let queue = Promise.resolve();
 let pollTimer = null;
@@ -374,8 +390,6 @@ function renderCars() {
     "This car has not been tested with the tuner yet; check the results before you trust them." : "";
   if (entry) {
     const name = carName();
-    $("title").textContent = name + " drift tuner";
-    document.title = name + " drift tuner";
     $("caption").textContent = "Settings of " + name;
     $("init-text").textContent = "The tuner needs the stock " + name +
       " from the game files as its starting point. This is done once.";
@@ -397,6 +411,7 @@ function renderButtons() {
   const baseOk = !!info && info.base_present;
   $("init-panel").hidden = !info || baseOk;
   $("tuner").hidden = !baseOk || !tableLoaded;
+  $("name-host").hidden = !baseOk || !tableLoaded || !headerRow;
 }
 
 function addLine(box, text, cls) {
@@ -527,7 +542,7 @@ async function sendUnset(r) {
 
 function commit(r) {
   clearTimeout(r.timer);
-  const text = r.field.value.trim();
+  const text = r.data.id === "name_suffix" ? r.field.value : r.field.value.trim();
   if (text === r.shown) return;
   setMsg(r, "", "");
   queue = queue.then(() => sendSet(r, text));
@@ -580,6 +595,38 @@ function copiesTip(data) {
   return lines.join("\n");
 }
 
+function buildReset(r) {
+  const b = el("button", "reset", "reset");
+  b.type = "button";
+  b.title = "Back to the default";
+  b.addEventListener("click", () => {
+    clearTimeout(r.timer);
+    queue = queue.then(() => sendUnset(r));
+  });
+  return b;
+}
+
+function buildHeaderRow(data, car) {
+  const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
+  r.tr = el("div", "namerow");
+  r.tr.appendChild(el("span", "label", "Name in the game's car list:"));
+  const joined = el("span", "namefield");
+  joined.appendChild(el("span", "stockname", carName()));
+  r.field = buildField(r);
+  r.field.title = data.description;
+  joined.appendChild(r.field);
+  r.tr.appendChild(joined);
+  r.reset = buildReset(r);
+  r.tr.appendChild(r.reset);
+  r.msg = el("div", "msg");
+  r.msg.hidden = true;
+  r.msg.setAttribute("role", "alert");
+  r.tr.appendChild(r.msg);
+  $("name-host").replaceChildren(r.tr);
+  showRow(r, data);
+  return r;
+}
+
 function buildRow(data, car) {
   const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
   r.tr = el("tr");
@@ -593,13 +640,7 @@ function buildRow(data, car) {
   r.field = buildField(r);
   wrap.appendChild(r.field);
   if (data.unit) wrap.appendChild(el("span", "unit", data.unit));
-  r.reset = el("button", "reset", "reset");
-  r.reset.type = "button";
-  r.reset.title = "Back to the default";
-  r.reset.addEventListener("click", () => {
-    clearTimeout(r.timer);
-    queue = queue.then(() => sendUnset(r));
-  });
+  r.reset = buildReset(r);
   wrap.appendChild(r.reset);
   valueCell.appendChild(wrap);
   r.msg = el("div", "msg");
@@ -633,8 +674,14 @@ function buildTable(list, car) {
   body.replaceChildren();
   rows = [];
   groups = [];
+  headerRow = null;
+  $("name-host").replaceChildren();
   let current = null;
   for (const data of list) {
+    if (data.ui === "header") {
+      headerRow = buildHeaderRow(data, car);
+      continue;
+    }
     if (!current || current.name !== data.group) {
       current = groups.find((g) => g.name === data.group);
       if (!current) {
@@ -729,7 +776,9 @@ function switchCar(id) {
   tableLoaded = false;
   rows = [];
   groups = [];
+  headerRow = null;
   localError = "";
+  $("name-host").replaceChildren();
   $("rows").replaceChildren();
   $("tuner").hidden = true;
   $("init-panel").hidden = true;

@@ -1,8 +1,8 @@
-# ACE Modded Cars: drift tuner for Assetto Corsa EVO
+# ACE - Simple Car Tuner: drift tuner for Assetto Corsa EVO
 
 Change the driving settings of a car in a simple table, install your own tuned copy next to the stock one, drive a lap, close the game, change again. About 75-80 settings per car: engine, turbo, gearing, differential, brakes, springs, dampers, alignment, fuel. No cosmetics.
 
-Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Romeo Giulia GTAm**, **Porsche 992 GT3 R Rennsport**. The selector lists all 71 game cars; the others are shown as "not extracted" and are untested (they extract and build without errors, but whether they load and drive is unknown). Your tuned copy of a car is always called the stock name plus `_MY` (for example `BMW M3 E46 CSL_MY`), so it sorts right next to the stock car in the game's car list. The stock cars are never changed.
+Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Romeo Giulia GTAm**, **Porsche 992 GT3 R Rennsport**. The selector lists all 71 game cars; the others are shown as "not extracted" and are untested (they extract and build without errors, but whether they load and drive is unknown). Your tuned copy of a car is called the stock name plus a suffix you choose (default `_MY`, for example `BMW M3 E46 CSL_MY`), so it sorts right next to the stock car in the game's car list; you edit the suffix in the field next to the name at the top of the page. The stock cars are never changed.
 
 ## What you need
 

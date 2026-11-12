@@ -28,7 +28,7 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 
 - One HTML table is the only editing surface; columns Variable name, Value, Description, Default. Local server, Windows batch start.
 - Apply installs only; the user starts and closes the game; refused while the game runs; a backup of the previous install every time.
-- Each car gets its own copy under an id of the same length as the stock id: `ks_` replaced by `ax_` (`ks_bmw_m3_e46_csl` -> `ax_bmw_m3_e46_csl`). Name: the stock display name from the game's `system\cars.table` plus `_MY` (`BMW M3 E46 CSL_MY`), always the same rule, not a setting (the outer model is unchanged; the suffix sorts the car next to the stock one in the game's list). The stock cars are never modified. "Save as new copy" installs further ids.
+- Each car gets its own copy under an id of the same length as the stock id: `ks_` replaced by `ax_` (`ks_bmw_m3_e46_csl` -> `ax_bmw_m3_e46_csl`). Name: the stock display name from the game's `system\cars.table` (not editable) plus a suffix the user chooses in a field next to it (setting `name_suffix`, default `_MY`, 1-30 characters; the default sorts the car next to the stock one in the game's list). The stock cars are never modified. "Save as new copy" installs further ids.
 - Settings the car does not have are hidden (turbo values on naturally aspirated cars, gears beyond the real count, variant name when the car has none).
 - Defaults are always read from the stock car in the game, never typed in. Descriptions in English; "unverified" where the meaning is guessed.
 - Registration (brand, year, car classes) and the names in the car list come from the game's own data for that car.
@@ -63,12 +63,11 @@ Updated 2026-11-12. The tuner works for five cars and is pushed to GitHub. What 
 - In the game's car list each entry is a car with its own id; its title is the display name. The selection screen shows the car's **variants** (mechanical presets) and **trim levels** (visual presets). Example GR86: Standard, Trueno Edition, Hakone Edition; they differ in body parts and display values, all show 235 hp.
 - A variant (`MechanicalCarPresetData`) carries display specs, tyre compound, rims, visual presets and lists of forced / compatible **parts**; it has **no physics of its own**. The physics files (engine, gearbox, setup, ...) belong to the whole car.
 - The game's mechanism for variants with different physics is **tuning parts** (`TuningPart`: engine/gearbox/drivetrain/clutch/brakes/setup/limits files, a power multiplier, ...), attached through a variant's forced parts. Hina's AE86 uses it (engine 16v tuned / 20v blacktop / stock).
-- Consequences: (1) our tuned car must be its own mod car; adding a variant to a stock car would mean changing the stock car's own package. (2) A free car name is not needed (rule above). (3) Several saved tunes as VARIANTS of one `_MY` car (instead of numbered copy cars) would use tuning parts: a possible later prototype, not tested in the game.
+- Consequences: our tuned car must be its own mod car; adding a variant to a stock car would mean changing the stock car's own package. The user decided against building saved tunes as variants (tuning parts); several tunes stay separate copy cars ("Save as new copy").
 
 ## 7. Next steps
 
 1. Test in the game on the gaming PC: load each of the five cars, drive, confirm that edits take effect, test Spool, the limits, numbered copies.
 2. Tyres next (most important for drifting), then aero and electronics, then more turbo settings.
-3. Prototype: tuning parts so that several tunes are variants of one `_MY` car (needs an in-game test).
-4. Polish: live build log in the page, job state per car, a guard against very long custom work paths; hide combustion settings for electric cars.
-5. More tested cars: add an id to `tuner/cars.json`; run the per-car checks (defaults, unchanged build, edit test) before trusting it.
+3. Polish: live build log in the page, job state per car, a guard against very long custom work paths; hide combustion settings for electric cars.
+4. More tested cars: add an id to `tuner/cars.json`; run the per-car checks (defaults, unchanged build, edit test) before trusting it.

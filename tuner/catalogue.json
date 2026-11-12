@@ -7,6 +7,11 @@
       "verified": false, "default_template": "{stock_variant_name}", "handler": "variant_name", "targets": []
     },
     {
+      "id": "name_suffix", "group": "Meta", "label": "Name suffix", "kind": "meta", "type": "string", "unit": "",
+      "description": "Text appended to the stock car's name to form the name of the tuned car in the game's car list. The default _MY sorts the tuned car next to the stock car. 1 to 30 characters.",
+      "verified": false, "default": "_MY", "handler": "name_suffix", "ui": "header", "targets": []
+    },
+    {
       "id": "display_power_ps", "group": "Display", "label": "Displayed power", "kind": "value", "type": "float", "unit": "PS",
       "description": "Power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. The file stores the unit as HORSEPOWER_US.",
       "verified": false, "min": 0, "max": 2000,

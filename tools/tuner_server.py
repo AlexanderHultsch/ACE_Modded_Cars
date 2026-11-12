@@ -8,7 +8,8 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765) and 
                         (id, label, display_name, extracted, tested, new_id, installed) and the number of applicable and
                         hidden settings of the car (null while the base is missing or being extracted)
   GET  /api/settings    every setting applicable to the car, with default, current value and changed flag
-                        (copies_differ, plus copy_values when the copies of the value differ in the stock data)
+                        (copies_differ, plus copy_values when the copies of the value differ in the stock data;
+                        "ui": "header" on name_suffix: the page shows it under its title, not in the table)
   POST /api/set         {"id": ..., "value": ...}          POST /api/unset  {"id": ...}
   POST /api/reset_all   clears every changed value         POST /api/init   extracts the stock car (background job)
   POST /api/apply       {"mode": "update" | "new_copy", "new_id": ...}   builds and installs (background job)
@@ -174,7 +175,7 @@ def apply_task(car, mode, new_id):
 def row_json(row, s):
     out = {k: row[k] for k in ("id", "group", "label", "kind", "type", "unit", "description", "verified",
                                "default", "value", "changed", "absent", "copies_differ")}
-    out.update({k: s[k] for k in ("min", "max", "choices") if k in s})
+    out.update({k: s[k] for k in ("min", "max", "choices", "ui") if k in s})
     if row["copies_differ"]:
         out["copy_values"] = row["copy_values"]
     return out

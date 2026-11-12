@@ -67,8 +67,10 @@ target is required. A setting is applicable to a car when all its required targe
 counts as resolved, a missing object or list element on the way does not). "needs" is a list of further targets that
 must resolve for the setting to be applicable but are never written and not compared. "hide_if_absent": true hides
 the setting when the last field of all its required targets is absent in the stock data. meta settings: variant_name,
-applicable only when the stock car has a variant name. The car name is not a setting: apply always names the tuned
-car "<stock display name>_MY" (stock_info.json, else the car's mechanical preset), so it is listed next to the stock car.
+applicable only when the stock car has a variant name, and name_suffix (default _MY, 1 to 30 characters without
+control characters, not trimmed): apply names the tuned car "<stock display name><name_suffix>" (stock_info.json, else
+the car's mechanical preset), so the default lists it next to the stock car. "ui": "header" on a setting is only a hint
+for the web page (it shows the setting in its header, not in the table).
 
 Stdlib only. Needs schemas/acevo.desc (see tools/extract_protos.py).
 """
@@ -110,10 +112,10 @@ CARS_TABLE = "system\\cars.table"
 STOCK_LOC = "uiresources\\localization\\en.cars.loc"
 STOCK_PROPERTIES = ("property_1", "property_2", "property_3")
 CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
-CAR_NAME_SUFFIX = "_MY"
+NAME_SUFFIX_MAX = 30
 KINDS = ("value", "curve_scale", "meta")
 VALUE_TYPES = ("int", "float", "string", "enum")
-HANDLERS = ("variant_name",)
+HANDLERS = ("variant_name", "name_suffix")
 REQUIRED = ("id", "group", "label", "kind", "type", "unit", "description", "verified")
 MANIFEST_ROLES = {"engine": "engine_path", "drivetrain": "drivetrain_path", "gearbox": "gearbox_path",
                   "brakes": "brakes_path", "setup": "stock_setup", "limits": "setupLimits"}
@@ -340,6 +342,9 @@ def coerce(s, v):
             raise ValueError("%s expects a number, got %r" % (s["id"], v))
         if not math.isfinite(v):
             raise ValueError("%s expects a finite number, got %r" % (s["id"], v))
+    elif s.get("handler") == "name_suffix":
+        if not isinstance(v, str) or not 1 <= len(v) <= NAME_SUFFIX_MAX or re.search(r"[\x00-\x1f]", v):
+            raise ValueError("%s expects 1 to %d characters without control characters" % (s["id"], NAME_SUFFIX_MAX))
     else:
         if not isinstance(v, str) or not v or re.search(r"[\x00-\x1f]", v):
             raise ValueError("%s expects non-empty text without control characters" % s["id"])
@@ -911,7 +916,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     except (ValueError, OSError):
         pass
     stock_loc = stock_loc_path(work) if os.path.isfile(stock_loc_path(work)) else None
-    car_name = (info.get("display_name") or preset_display_name(car_root_of(root, car_id))) + CAR_NAME_SUFFIX
+    car_name = (info.get("display_name") or preset_display_name(car_root_of(root, car_id))) + meta["name_suffix"]
     log = io.StringIO()
     try:
         with contextlib.redirect_stdout(log):
@@ -927,7 +932,8 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         item = {"id": s["id"], "old": r["default"], "new": r["value"], "files": []}
         applied.append(item)
         if s["kind"] == "meta":
-            item["files"].append("uiresources/localization/en.cars.loc")
+            item["files"].append(new_id + ".moddedcarcontent" if s["handler"] == "name_suffix"
+                                 else "uiresources/localization/en.cars.loc")
         elif s["kind"] == "curve_scale":
             text, _ = get_value(load_msg(car_path(car_root, renamed(r["targets"][0]["rel"], car_id, new_id)))[0],
                                 s["curve_from"]["path"])

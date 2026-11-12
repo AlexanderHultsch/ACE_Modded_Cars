@@ -7,6 +7,7 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Mazda RX-7 FD
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `variant_name` | Variant name | RX-7 FD Spirit R Type A |  | Name of the car's preset/variant (value of the line whose key ends with _preset_base in en.cars.loc written by the build). The default is the stock car's own text for that line (the stock car's name when it has none), you can change it. Cars without such a line get no variant line. Where exactly the game shows it is not confirmed. | unverified |
+| `name_suffix` | Name suffix | _MY |  | Text appended to the stock car's name to form the name of the tuned car in the game's car list. The default _MY sorts the tuned car next to the stock car. 1 to 30 characters. | unverified |
 
 ## Display
 
