@@ -346,9 +346,9 @@ class TestTexts(unittest.TestCase):
                       "show advanced settings", "reset", "Reset all", "Create modded car", "Duplicate"):
             self.assertIn(label, README)
 
-    def test_the_tables_have_the_four_documented_columns_in_order(self):
+    def test_the_tables_have_the_documented_columns_in_order(self):
         heads = re.findall(r'<th scope="col">(.*?)</th>', MARKUP)
-        self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Description",
+        self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Range for base cars", "Description",
                                  "Variable name", "Value", "Default (source tyre)", "Description"])
 
     def test_the_dialog_tells_the_id_rules_of_the_server(self):
@@ -652,6 +652,71 @@ class TestGroupList(unittest.TestCase):
         tokens = dict(re.findall(r"(--[\w-]+): (#[0-9a-fA-F]{6});", TestDarkTheme.ROOT_RULE))
         self.assertIn("background: var(--color-bg-elevated);", re.search(r"tr\.group th \{([^}]*)\}", STYLE).group(1))
         self.assertGreaterEqual(contrast(tokens["--color-text-muted"], tokens["--color-bg-elevated"]), 4.5)
+
+
+class TestBaseRangeColumn(unittest.TestCase):
+    CAR_TABLE = MARKUP.split('<caption id="caption"', 1)[1].split("</table>")[0]
+    TYRE_TABLE = MARKUP.split('<caption class="sr-only">Settings of the selected tyre</caption>', 1)[1].split('id="tyre-rows"')[0]
+
+    def test_the_header_sits_between_default_and_description_in_the_car_table_only(self):
+        heads = re.findall(r'<th scope="col">(.*?)</th>', self.CAR_TABLE)
+        self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Range for base cars", "Description"])
+        self.assertNotIn("Range for base cars", self.TYRE_TABLE)
+
+    def test_the_colgroup_has_the_range_column_between_default_and_description(self):
+        self.assertIn('<colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-range"><col class="c-desc"></colgroup>',
+                      self.CAR_TABLE)
+        self.assertNotIn("c-range", self.TYRE_TABLE)
+        self.assertRegex(STYLE, r"col\.c-range \{ width: \d+%; \}")
+
+    def test_the_widths_of_the_car_table_add_up_to_100_and_the_tyre_table_keeps_its_own(self):
+        car = {m[0]: int(m[1]) for m in re.findall(r"(?:#panel-car )?col\.(c-(?:name|value|default|range|desc)) \{ width: (\d+)%; \}",
+                                                   "\n".join(l for l in STYLE.splitlines() if l.startswith("#panel-car ") or l.startswith("col.c-range")))}
+        self.assertEqual(sorted(car), ["c-default", "c-desc", "c-name", "c-range", "c-value"])
+        self.assertEqual(sum(car.values()), 100)
+        tyre = [int(w) for w in re.findall(r"^col\.c-(?:name|value|default|desc) \{ width: (\d+)%; \}", STYLE, re.M)]
+        self.assertEqual((len(tyre), sum(tyre)), (4, 100))
+
+    def test_the_group_rows_span_the_columns_of_their_table(self):
+        self.assertIn("th.colSpan = 5;", function_body("buildGroup"))
+        self.assertIn("th.colSpan = 4;", function_body("buildTyreGroup"))
+
+    def test_the_cell_is_added_by_the_car_table_only(self):
+        self.assertIn("function buildRow(data, target, withRange) {", CODE)
+        body = function_body("buildRow")
+        self.assertIn("r.tr.append(nameCell, valueCell, defCell);", body)
+        self.assertIn("if (withRange) r.tr.appendChild(buildRangeCell(data));", body)
+        self.assertLess(body.index("buildRangeCell(data)"), body.index("r.tr.appendChild(descCell);"))
+        self.assertIn("buildRow(data, target, true)", function_body("buildTable"))
+        self.assertIn("buildRow(item, null);", function_body("buildTyreRows"))
+        self.assertEqual(len(re.findall(r"\bbuildRow\(", CODE)), 3)
+
+    def test_the_formatter_joins_low_and_high_with_an_en_dash_and_spaces(self):
+        body = function_body("buildRangeCell")
+        self.assertIn("const br = data.base_range;", body)
+        self.assertIn('low + " \\u2013 " + high', body)
+        self.assertIn("br.low === br.high ? low :", body)
+        self.assertIn("fmtVal(data.type, br.low)", body)
+        self.assertIn("fmtVal(data.type, br.high)", body)
+        self.assertIn('(data.unit ? " " + data.unit : "")', body)
+
+    def test_a_row_without_a_range_and_the_non_numeric_types_show_a_muted_en_dash(self):
+        body = function_body("buildRangeCell")
+        self.assertIn('if (!br || (data.type !== "int" && data.type !== "float")) {', body)
+        self.assertIn('el("td", "default mono", "\\u2013")', body)
+        self.assertIn('none.classList.add("range-none");', body)
+        self.assertIn('none.setAttribute("aria-label", "no range");', body)
+        self.assertIn(".range-none { color: var(--color-text-muted); }", STYLE)
+
+    def test_the_cell_is_plain_text_without_tooltip_or_behaviour(self):
+        body = function_body("buildRangeCell")
+        for word in ("title", "addEventListener", "badge", "changed", "min", "max", "aria-description"):
+            with self.subTest(word):
+                self.assertNotIn(word, body)
+        self.assertEqual(len(re.findall(r"\bbase_range\b", CODE)), 1)
+
+    def test_the_server_sends_the_field_the_page_reads(self):
+        self.assertIn('"base_range"', inspect.getsource(ts.row_json))
 
 
 class TestPolling(unittest.TestCase):

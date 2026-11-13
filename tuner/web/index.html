@@ -137,6 +137,11 @@ col.c-name { width: 22%; }
 col.c-value { width: 23%; }
 col.c-default { width: 17%; }
 col.c-desc { width: 38%; }
+#panel-car col.c-name { width: 19%; }
+#panel-car col.c-value { width: 20%; }
+#panel-car col.c-default { width: 14%; }
+col.c-range { width: 13%; }
+#panel-car col.c-desc { width: 34%; }
 td { padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere; }
 tr.group th {
   padding: 0; text-align: left; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase;
@@ -186,6 +191,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
   color: var(--color-accent);
 }
 .default { font-size: 13.5px; }
+.range-none { color: var(--color-text-muted); }
 .garage { padding: 0; overflow-wrap: anywhere; }
 .tablewrap + .garage { margin-top: 12px; }
 .garage-body { padding: 0 14px 12px; }
@@ -279,12 +285,13 @@ button.reset { padding: 2px 8px; font-size: 12px; }
       <div class="tablewrap">
         <table>
           <caption id="caption" class="sr-only">Settings of the selected car</caption>
-          <colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-desc"></colgroup>
+          <colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-range"><col class="c-desc"></colgroup>
           <thead>
             <tr>
               <th scope="col">Variable name</th>
               <th scope="col">Value</th>
               <th scope="col">Default (for the selected car)</th>
+              <th scope="col">Range for base cars</th>
               <th scope="col">Description</th>
             </tr>
           </thead>
@@ -912,7 +919,21 @@ function buildHeaderRow(data, target) {
   return r;
 }
 
-function buildRow(data, target) {
+// the "Range for base cars" cell of the car table: the soft borders from the server, or a muted dash
+function buildRangeCell(data) {
+  const br = data.base_range;
+  if (!br || (data.type !== "int" && data.type !== "float")) {
+    const none = el("td", "default mono", "\u2013");
+    none.classList.add("range-none");
+    none.setAttribute("aria-label", "no range");
+    return none;
+  }
+  const low = fmtVal(data.type, br.low);
+  const high = fmtVal(data.type, br.high);
+  return el("td", "default mono", (br.low === br.high ? low : low + " \u2013 " + high) + (data.unit ? " " + data.unit : ""));
+}
+
+function buildRow(data, target, withRange) {
   const r = newRow(data, target);
   r.tr = el("tr");
 
@@ -955,7 +976,9 @@ function buildRow(data, target) {
     defCell.appendChild(b);
   }
 
-  r.tr.append(nameCell, valueCell, defCell, descCell);
+  r.tr.append(nameCell, valueCell, defCell);
+  if (withRange) r.tr.appendChild(buildRangeCell(data));
+  r.tr.appendChild(descCell);
   r.hay = (data.id + " " + data.label + " " + data.description).toLowerCase();
   showRow(r, data, false);
   return r;
@@ -985,7 +1008,7 @@ function buildTable(list, target) {
         groups.push(current);
       }
     }
-    const r = buildRow(data, target);
+    const r = buildRow(data, target, true);
     r.group = current;
     r.tr.id = "row-" + rows.length;
     current.rows.push(r);
@@ -1006,7 +1029,7 @@ function buildTable(list, target) {
 function buildGroup(name) {
   const g = { name: name, tr: el("tr", "group"), rows: [], desc: null };
   const th = el("th");
-  th.colSpan = 4;
+  th.colSpan = 5;
   th.scope = "rowgroup";
   g.btn = el("button", "grouptoggle");
   g.btn.type = "button";

@@ -14,7 +14,11 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765, allo
                         suffix); "installed" is the package of the selected modded car
   GET  /api/settings    every setting applicable to the car, with default, current value and changed flag
                         (copies_differ, plus copy_values when the copies of the value differ in the stock data;
-                        "ui": "header" on name_suffix: the page shows it under its title, not in the table)
+                        "ui": "header" on name_suffix: the page shows it under its title, not in the table;
+                        "base_range": {"low", "high"}, the lowest and highest default of the setting over the installed
+                        cars from <work>/ranges.json (written by tune.py ranges), only on the settings that have an entry
+                        there: a soft border for the page, values outside it stay allowed; "min" and "max" are the
+                        catalogue's allowed limits and a different thing)
   GET  /api/groups      the setting groups of the catalogue in display order ("groups": name, description); static data,
                         the same for every car and tune, needs no base car
   POST /api/set        {"id": ..., "value": ...}          POST /api/unset  {"id": ...}
@@ -238,23 +242,28 @@ def apply_task(car, new_id, created):
     return task
 
 
-def row_json(row, s):
+def row_json(row, s, base_range=None):
     out = {k: row[k] for k in ("id", "group", "label", "kind", "type", "unit", "description", "verified",
                                "default", "value", "changed", "absent", "copies_differ")}
     out.update({k: s[k] for k in ("min", "max", "choices", "ui", "advanced") if k in s})
     if row["copies_differ"]:
         out["copy_values"] = row["copy_values"]
+    if base_range:
+        out["base_range"] = {"low": base_range["low"], "high": base_range["high"]}
     return out
 
 
 def rows_json(work, car, cat, tune_id=None):
     require_base(work, car)
-    return [row_json(r, tune.find_setting(cat, r["id"])) for r in tune.effective_rows(work, car, cat, tune=tune_id)]
+    ranges = tune.load_ranges(work)
+    return [row_json(r, tune.find_setting(cat, r["id"]), ranges.get(r["id"]))
+            for r in tune.effective_rows(work, car, cat, tune=tune_id)]
 
 
 def row_of(work, car, cat, setting_id, tune_id=None):
     require_base(work, car)
-    return row_json(tune.effective_row(work, car, setting_id, cat, tune=tune_id), tune.find_setting(cat, setting_id))
+    return row_json(tune.effective_row(work, car, setting_id, cat, tune=tune_id), tune.find_setting(cat, setting_id),
+                    tune.load_ranges(work).get(setting_id))
 
 
 def settings_counts(work, car):

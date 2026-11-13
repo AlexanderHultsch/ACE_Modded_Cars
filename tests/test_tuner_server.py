@@ -602,6 +602,36 @@ class TestStateAndSettings(ServerCase):
         self.assertEqual((rows["name_suffix"]["ui"], rows["name_suffix"]["default"]), ("header", "_MY"))
         self.assertEqual((rows["aids_off"]["type"], rows["aids_off"]["default"], rows["aids_off"]["value"]), ("bool", False, False))
 
+    def write_ranges(self, ranges):
+        return self.write(os.path.join(self.work, tune.RANGES_FILE), ranges)
+
+    def test_settings_rows_carry_the_base_range_of_the_settings_that_have_an_entry(self):
+        self.make_car()
+        self.write_ranges({"limiter": {"low": 5000, "high": 9000.5}, "boost": {"low": 1, "high": 2}, "gone": {"low": 0, "high": 1}})
+        r = self.get("/api/settings")
+        rows = {x["id"]: x for x in r.json}
+        self.assertEqual(r.status, 200)
+        self.assertEqual(rows["limiter"]["base_range"], {"low": 5000, "high": 9000.5})
+        self.assertEqual(set(rows["limiter"]), ROW_KEYS | {"min", "max", "base_range"})
+        self.assertEqual((rows["limiter"]["min"], rows["limiter"]["max"]), (3000, 12000))
+        self.assertNotIn("base_range", rows["aids_off"])
+        self.assertNotIn("base_range", rows["name_suffix"])
+        self.assertEqual(set(rows), {"limiter", "aids_off", "name_suffix"})
+
+    def test_settings_rows_have_no_base_range_without_a_ranges_file(self):
+        self.make_car()
+        self.assertFalse(os.path.exists(os.path.join(self.work, tune.RANGES_FILE)))
+        r = self.get("/api/settings")
+        self.assertEqual((r.status, [x["id"] for x in r.json]), (200, ["limiter", "aids_off", "name_suffix"]))
+        self.assertEqual([x["id"] for x in r.json if "base_range" in x], [])
+
+    def test_settings_rows_have_no_base_range_from_a_damaged_ranges_file(self):
+        self.make_car()
+        self.write(os.path.join(self.work, tune.RANGES_FILE), "{not json")
+        r = self.get("/api/settings")
+        self.assertEqual(r.status, 200)
+        self.assertEqual([x["id"] for x in r.json if "base_range" in x], [])
+
     def test_settings_not_applicable_to_the_car_are_left_out(self):
         self.make_car()
         self.assertNotIn("boost", [r["id"] for r in self.get("/api/settings").json])
@@ -665,6 +695,20 @@ class TestStateRoutes(ServerCase):
         row = r.json["row"]
         self.assertEqual((r.json["warnings"], row["id"], row["value"], row["default"], row["changed"]), ([], "limiter", 8000, 7000, True))
         self.assertEqual(set(row), ROW_KEYS | {"min", "max"})
+
+    def test_set_and_unset_answer_a_row_with_the_base_range(self):
+        self.write(os.path.join(self.work, tune.RANGES_FILE), {"limiter": {"low": 5000, "high": 9000}})
+        for path, body in (("/api/set", {"id": "limiter", "value": "8000"}), ("/api/unset", {"id": "limiter"})):
+            with self.subTest(path):
+                row = self.post(path, body).json["row"]
+                self.assertEqual(row["base_range"], {"low": 5000, "high": 9000})
+                self.assertEqual(set(row), ROW_KEYS | {"min", "max", "base_range"})
+
+    def test_set_answers_a_row_without_base_range_when_the_setting_has_no_entry_or_there_is_no_file(self):
+        self.assertNotIn("base_range", self.post("/api/set", {"id": "limiter", "value": "8000"}).json["row"])
+        self.write(os.path.join(self.work, tune.RANGES_FILE), {"boost": {"low": 1, "high": 2}})
+        self.assertNotIn("base_range", self.post("/api/set", {"id": "limiter", "value": "8100"}).json["row"])
+        self.assertNotIn("base_range", self.post("/api/set", {"id": "aids_off", "value": True}).json["row"])
 
     def test_set_persists_the_coerced_value_in_the_state_file(self):
         self.post("/api/set", {"id": "limiter", "value": "8000"})
@@ -2702,6 +2746,14 @@ class TestHelpers(Env):
         row.update(copies_differ=True, copy_values=[{"target": "t", "value": 1}])
         out = ts.row_json(row, {})
         self.assertEqual((set(out), out["copy_values"]), (ROW_KEYS | {"copy_values"}, [{"target": "t", "value": 1}]))
+
+    def test_row_json_adds_the_base_range_only_when_one_is_given(self):
+        row = {k: k for k in ROW_KEYS}
+        row.update(copies_differ=False)
+        self.assertNotIn("base_range", ts.row_json(row, {"min": 1}))
+        self.assertNotIn("base_range", ts.row_json(row, {"min": 1}, None))
+        out = ts.row_json(row, {"min": 1}, {"low": 2, "high": 3, "extra": 4})
+        self.assertEqual((set(out), out["base_range"], out["min"]), (ROW_KEYS | {"min", "base_range"}, {"low": 2, "high": 3}, 1))
 
     def test_rows_json_needs_a_base_car(self):
         with self.assertRaises(ts.ApiError) as cm:
