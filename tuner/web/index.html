@@ -187,6 +187,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 }
 .default { font-size: 13.5px; }
 .garage { padding: 0; overflow-wrap: anywhere; }
+.tablewrap + .garage { margin-top: 12px; }
 .garage-body { padding: 0 14px 12px; }
 .garage-help { font-size: 13px; color: var(--color-text-muted); }
 .garage fieldset { min-width: 0; margin: 0 0 8px; padding: 0; border: 0; }
@@ -266,25 +267,6 @@ button.reset { padding: 2px 8px; font-size: 12px; }
     </section>
 
     <section id="tuner" hidden>
-      <div id="garage" class="panel garage">
-        <button id="garage-toggle" class="grouptoggle" type="button" aria-expanded="false" aria-controls="garage-body">
-          <span class="chev" aria-hidden="true"></span>
-          <span class="gname">Garage tyres</span>
-          <span id="garage-count" class="gcount"></span>
-        </button>
-        <div id="garage-body" class="garage-body" hidden>
-          <p class="garage-help">Tick the tyres this car offers in the garage. The first ticked tyre in the list is the one the car starts on. Own tyres (from the Tyre Creator tab) are listed first. Unverified: whether the game accepts extra or removed tyres is not tested yet.</p>
-          <fieldset>
-            <legend class="sr-only">Tyres offered in the garage</legend>
-            <div id="garage-rows"></div>
-          </fieldset>
-          <div class="actions">
-            <button id="btn-garage-reset" type="button" disabled>Reset to stock tyres</button>
-          </div>
-          <p id="garage-error" class="msg err" role="alert" hidden></p>
-          <p id="garage-missing" class="msg warn" hidden></p>
-        </div>
-      </div>
       <div class="toolbar">
         <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
         <label><input id="changed-only" type="checkbox"> changed only</label>
@@ -309,6 +291,25 @@ button.reset { padding: 2px 8px; font-size: 12px; }
           <tbody id="rows"></tbody>
         </table>
         <div id="empty" class="empty" hidden>No settings match.</div>
+      </div>
+      <div id="garage" class="panel garage">
+        <button id="garage-toggle" class="grouptoggle" type="button" aria-expanded="false" aria-controls="garage-body">
+          <span class="chev" aria-hidden="true"></span>
+          <span class="gname">Garage tyres</span>
+          <span id="garage-count" class="gcount"></span>
+        </button>
+        <div id="garage-body" class="garage-body" hidden>
+          <p class="garage-help">Tick the tyres this car offers in the garage. The first ticked tyre in the list is the one the car starts on. Own tyres (from the Tyre Creator tab) are listed first. Unverified: whether the game accepts extra or removed tyres is not tested yet.</p>
+          <fieldset>
+            <legend class="sr-only">Tyres offered in the garage</legend>
+            <div id="garage-rows"></div>
+          </fieldset>
+          <div class="actions">
+            <button id="btn-garage-reset" type="button" disabled>Reset to stock tyres</button>
+          </div>
+          <p id="garage-error" class="msg err" role="alert" hidden></p>
+          <p id="garage-missing" class="msg warn" hidden></p>
+        </div>
       </div>
     </section>
   </div>

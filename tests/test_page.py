@@ -1276,14 +1276,19 @@ class TestGarage(unittest.TestCase):
     def tag(ident):
         return re.search(r'<[a-z]+\b[^>]*\bid="%s"[^>]*>' % ident, MARKUP).group(0)
 
-    def test_the_panel_sits_in_the_settings_section_above_the_toolbar(self):
+    def test_the_panel_sits_in_the_settings_section_below_the_table(self):
         tuner = MARKUP[MARKUP.index('<section id="tuner"'):MARKUP.index('id="panel-tyres"')]
         self.assertIn('id="garage"', tuner)
-        self.assertLess(tuner.index('id="garage"'), tuner.index('<div class="toolbar">'))
         self.assertLess(tuner.index('<div class="toolbar">'), tuner.index('<div class="tablewrap">'))
+        self.assertLess(tuner.index('<div class="tablewrap">'), tuner.index('id="garage"'))
         self.assertNotRegex(self.tag("garage"), r"\bhidden\b")
         self.assertIn('id="garage"', self.CAR_PANEL)
         self.assertNotIn('id="garage"', MARKUP[MARKUP.index('id="panel-tyres"'):])
+
+    def test_the_panel_follows_the_table_and_ends_the_settings_section(self):
+        tuner = MARKUP[MARKUP.index('<section id="tuner"'):MARKUP.index("</section>", MARKUP.index('<section id="tuner"'))]
+        self.assertLess(tuner.index('id="empty"'), tuner.index('id="garage"'))
+        self.assertEqual(tuner.count('id="garage"'), 1)
 
     def test_the_header_is_a_collapsed_toggle_button_with_a_chevron_the_name_and_the_summary(self):
         button = re.search(r'<button id="garage-toggle".*?</button>', self.PANEL, re.S).group(0)
