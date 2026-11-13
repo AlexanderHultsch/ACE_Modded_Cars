@@ -134,7 +134,6 @@ class DumpNesting(unittest.TestCase):
 
     def test_printable_ascii_that_also_parses_as_a_message_prints_as_a_string(self):
         data = pb_bytes(1, b" A B C")
-        self.assertTrue(pb_raw.looks_like_msg(b" A B C"))
         self.assertEqual(lines_of(data), ['1: " A B C"'])
 
     def test_printable_non_ascii_text_that_parses_as_a_message_prints_as_a_message(self):
@@ -200,32 +199,6 @@ class Errors(unittest.TestCase):
     def test_truncated_fixed64_raises_struct_error(self):
         with self.assertRaises(struct.error):
             lines_of(pb_key(1, 1) + b"\x00" * 7)
-
-
-class LooksLikeMsg(unittest.TestCase):
-    def test_valid_message_is_accepted(self):
-        self.assertTrue(pb_raw.looks_like_msg(pb_int(1, 1) + pb_str(2, "x")))
-
-    def test_empty_input_is_not_a_message(self):
-        self.assertFalse(pb_raw.looks_like_msg(b""))
-
-    def test_plain_text_is_not_a_message(self):
-        self.assertFalse(pb_raw.looks_like_msg(b"hello world"))
-
-    def test_field_zero_is_not_a_message(self):
-        self.assertFalse(pb_raw.looks_like_msg(b"\x00\x01"))
-
-    def test_truncated_data_is_not_a_message(self):
-        self.assertFalse(pb_raw.looks_like_msg(pb_key(1, 2) + pb_varint(9) + b"ab"))
-
-    def test_unsupported_wire_type_is_not_a_message(self):
-        self.assertFalse(pb_raw.looks_like_msg(pb_key(1, 3)))
-
-    def test_looks_like_msg_prints_nothing(self):
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            pb_raw.looks_like_msg(GOLDEN_MESSAGE)
-        self.assertEqual(buf.getvalue(), "")
 
 
 class CommandLine(unittest.TestCase):

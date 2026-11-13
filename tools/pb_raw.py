@@ -9,14 +9,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from extract_protos import varint  # noqa: E402
 
 
-def looks_like_msg(b):
-    try:
-        dump(b, 0, out=None)
-        return len(b) > 0
-    except Exception:
-        return False
-
-
 def dump(b, depth, out=print):
     i = 0
     while i < len(b):
