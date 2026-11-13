@@ -107,6 +107,9 @@ input[type="checkbox"] { accent-color: var(--color-accent); }
 .panel.err { background: var(--color-error-tint); color: var(--color-error); border-color: var(--color-error); }
 .panel ul { margin: 4px 0 8px; padding-left: 20px; }
 .panel p { margin: 6px 0; }
+.panel details { margin: 6px 0; }
+.panel summary { cursor: pointer; }
+.panel summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .dialog .field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0; }
 .dialog .field label { min-width: 12em; }
 .dialog .field input {
@@ -673,13 +676,17 @@ function addLine(box, text, cls) {
 }
 
 function summaryApply(box, res) {
-  addLine(box, res.applied.length ? "Settings applied:" : "No setting was changed, the stock values were built.");
   if (res.applied.length) {
+    const details = el("details");
+    details.appendChild(el("summary", "", "Settings applied (" + res.applied.length + ")"));
     const ul = el("ul");
     for (const a of res.applied) {
       ul.appendChild(el("li", "", a.id + ": " + fmtVal("", a.old) + " -> " + fmtVal("", a.new)));
     }
-    box.appendChild(ul);
+    details.appendChild(ul);
+    box.appendChild(details);
+  } else {
+    addLine(box, "No setting was changed, the stock values were built.");
   }
   addLine(box, "Package: " + res.package + " (" + fmtBytes(res.size) + ")");
   addLine(box, "Installed to: " + (res.installed || "-"));
@@ -724,8 +731,15 @@ function renderProgress() {
   }
   if (job.log.length) {
     const pre = el("pre", "mono", job.log.join("\n"));
-    box.appendChild(pre);
-    pre.scrollTop = pre.scrollHeight;
+    if (job.state === "done") {
+      const details = el("details");
+      details.appendChild(el("summary", "", "Build log"));
+      details.appendChild(pre);
+      box.appendChild(details);
+    } else {
+      box.appendChild(pre);
+      pre.scrollTop = pre.scrollHeight;
+    }
   }
 }
 

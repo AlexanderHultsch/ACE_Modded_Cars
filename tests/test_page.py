@@ -792,6 +792,63 @@ class TestInstallCars(unittest.TestCase):
         self.assertEqual(kinds - set(re.findall(r'run_job\("(\w+)"', inspect.getsource(ts))), set())
 
 
+class TestProgressDetails(unittest.TestCase):
+    def test_the_applied_settings_are_a_collapsed_details_with_the_count_in_the_summary(self):
+        body = function_body("summaryApply")
+        self.assertIn("if (res.applied.length) {", body)
+        self.assertIn('const details = el("details");', body)
+        self.assertIn('el("summary", "", "Settings applied (" + res.applied.length + ")")', body)
+        self.assertIn("details.appendChild(ul);", body)
+        self.assertIn("box.appendChild(details);", body)
+        self.assertNotIn("Settings applied:", HTML)
+        self.assertNotRegex(body, r"\bopen\b")
+
+    def test_the_list_sits_inside_the_details_and_the_closing_lines_stay_outside(self):
+        body = function_body("summaryApply")
+        self.assertLess(body.index('el("summary"'), body.index('const ul = el("ul");'))
+        self.assertLess(body.index("details.appendChild(ul);"), body.index("box.appendChild(details);"))
+        self.assertLess(body.index("box.appendChild(details);"), body.index('addLine(box, "Package: "'))
+        for line in ('"Installed to: "', '"Backup of the previous install: "', "Close the game before applying again."):
+            with self.subTest(line):
+                self.assertLess(body.index("box.appendChild(details);"), body.index(line))
+
+    def test_no_applied_setting_still_shows_the_plain_paragraph_without_details(self):
+        body = function_body("summaryApply")
+        empty = body[body.index("} else {"):body.index('addLine(box, "Package: "')]
+        self.assertIn('addLine(box, "No setting was changed, the stock values were built.");', empty)
+        self.assertNotIn("details", empty)
+
+    def test_a_finished_job_wraps_the_build_log_in_a_collapsed_details(self):
+        body = function_body("renderProgress")
+        log = body[body.index("if (job.log.length) {"):]
+        done = log[log.index('if (job.state === "done") {'):log.index("} else {")]
+        self.assertIn('const details = el("details");', done)
+        self.assertIn('el("summary", "", "Build log")', done)
+        self.assertIn("details.appendChild(pre);", done)
+        self.assertIn("box.appendChild(details);", done)
+        self.assertNotRegex(done, r"\bopen\b")
+
+    def test_a_running_or_failed_job_keeps_the_log_visible_and_scrolled_to_the_end(self):
+        body = function_body("renderProgress")
+        log = body[body.index("if (job.log.length) {"):]
+        visible = log[log.index("} else {"):]
+        self.assertIn("box.appendChild(pre);", visible)
+        self.assertIn("pre.scrollTop = pre.scrollHeight;", visible)
+        self.assertNotIn("details", visible)
+
+    def test_the_details_are_native_and_styled_in_the_panel_without_a_new_class(self):
+        self.assertIn(".panel summary { cursor: pointer; }", STYLE)
+        self.assertIn(".panel summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }", STYLE)
+        for name in ("summaryApply", "renderProgress"):
+            self.assertNotIn("addEventListener", function_body(name))
+
+    def test_the_panel_is_rebuilt_only_when_the_job_or_the_errors_change_so_an_opened_details_stays_open(self):
+        self.assertEqual(re.findall(r"\brenderProgress\(\)", CODE), ["renderProgress()", "renderProgress()"])
+        self.assertEqual(len(re.findall(r"\bjobSig = ", CODE)), 2)
+        self.assertIn("jobSig = sig;", function_body("renderProgress"))
+        self.assertEqual(re.findall(r"\brenderProgress\(\);", function_body("refresh")), ["renderProgress();"])
+
+
 class TestErrorHandling(unittest.TestCase):
     def test_a_failed_job_start_or_reset_shows_the_error(self):
         self.assertIn("localError = e.message;", function_body("startJob"))
