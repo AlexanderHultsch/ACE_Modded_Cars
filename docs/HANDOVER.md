@@ -26,7 +26,7 @@ Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of 
 - Kunos physics page (five steps, 2026-11-13; source: the official documentation https://docs.assetto.cn/en/evo/car/physics/, "Car Modding Pipeline: Physics", V1, 3 June 2026; rules learned from it: TUNER_SPEC section 6c):
   1. The catalogue has a top-level `groups` list (name, description, display order; every setting's group is listed, every listed group is used, description 1 to 360 characters): 18 groups. `GET /api/groups` serves it; the page orders the category headers by it and shows the description under an open header (without the call: old order, no descriptions).
   2. Regrouped: Gearing became "Gearbox & clutch" (incl. the clutch torque); "Steering" and "Brakes" are own groups; caster is in "Alignment & tyres". Setting ids and saved values are unchanged.
-  3. 92 setting descriptions were updated with facts from that page, marked "Kunos documentation:". The `verified` flags did not change: the settings stay unverified until tested in the game. `max_turbo_boost` has no physical effect (the boost of each turbo is the real cap).
+  3. 92 setting descriptions were updated with facts from that page; since 2026-11-13 the official statement and our notes are one text per setting (the official statement first, no "Kunos documentation:" marker; a test checks that no description carries it). The `verified` flags did not change: the settings stay unverified until tested in the game. `max_turbo_boost` has no physical effect (the boost of each turbo is the real cap).
   4. New optional setting field `advanced` (only `collar_front`, `collar_rear`): hidden by default; shown with the toolbar box "show advanced settings" or when the value is changed. Kunos: the editor's Auto Setup computes the collar positions.
   5. The Tyre Creator tab shows a warning that Kunos advises against editing the tyre model values.
 
@@ -48,7 +48,7 @@ Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of 
 
 ### Next tasks for the local PC session: settings the Kunos page lists that the catalogue does not have yet
 
-The cloud has no `schemas/`, so the field names below are the Kunos page's names, not proven field names. On the PC: find the real names with `python tools\dump_car.py` or `car_json.py decode` on one of the five cars, add each setting to `tuner/catalogue.json` with its targets (descriptions marked "Kunos documentation:", `verified` false until tested in the game), write tests with synthetic files, and regenerate the references with `tune.py doc --all`. Work with scratch `--work` and `--mods` folders.
+The cloud has no `schemas/`, so the field names below are the Kunos page's names, not proven field names. On the PC: find the real names with `python tools\dump_car.py` or `car_json.py decode` on one of the five cars, add each setting to `tuner/catalogue.json` with its targets (description = the official statement first, then our notes, one text without a marker; `verified` false until tested in the game), write tests with synthetic files, and regenerate the references with `tune.py doc --all`. Work with scratch `--work` and `--mods` folders.
 
 | Setting idea | Kunos name | Where (file) | Unit / notes |
 |---|---|---|---|
