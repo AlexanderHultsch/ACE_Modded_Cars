@@ -1558,7 +1558,7 @@ function renderGarageToggle() {
 
 function renderGarageLines() {
   const missing = garage ? garage.missing : [];
-  $("garage-missing").textContent = missing.length ? "No longer available and ignored: " + missing.join(", ") : "";
+  $("garage-missing").textContent = missing.length ? "No longer available, Apply is refused until you change the tyre list or reset it: " + missing.join(", ") : "";
   $("garage-missing").hidden = missing.length === 0;
   $("garage-error").textContent = garageError;
   $("garage-error").hidden = garageError === "";

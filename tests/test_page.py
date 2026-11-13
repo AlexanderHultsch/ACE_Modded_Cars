@@ -1281,7 +1281,7 @@ class TestGarage(unittest.TestCase):
 
     def test_the_missing_keys_are_a_warning_line_and_the_error_line_is_the_alert_of_the_panel(self):
         body = function_body("renderGarageLines")
-        self.assertIn('"No longer available and ignored: " + missing.join(", ")', body)
+        self.assertIn('"No longer available, Apply is refused until you change the tyre list or reset it: " + missing.join(", ")', body)
         self.assertIn("garage ? garage.missing : []", body)
         self.assertIn('$("garage-missing").hidden = missing.length === 0;', body)
         self.assertIn('$("garage-error").textContent = garageError;', body)

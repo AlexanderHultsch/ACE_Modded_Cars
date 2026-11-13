@@ -22,7 +22,7 @@ Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of 
 - "Reset all" of a modded car or draft also drops its garage selection (a modded car other than the default one keeps only its name suffix).
 - The tyre calls of the Tyre Creator carry the Car Tuner selection (`car`/`tune`): a stale modded-car selection can make them answer 400 until the Car Tuner refresh falls back to the draft.
 - A failed garage load or write shows its message inside the "Garage tyres" panel, which is invisible while the panel is collapsed.
-- A saved garage key that is no longer valid (deleted library tyre, stock pair gone) is listed as "No longer available and ignored" in the panel, but Apply and Create refuse until the selection is changed or reset.
+- A saved garage key that is no longer valid (deleted library tyre, stock pair gone) is listed in the panel as "No longer available, Apply is refused until you change the tyre list or reset it"; Apply and Create really do refuse until the selection is changed (ticking or unticking any tyre saves the list again without the invalid keys) or reset.
 - The header button reads "Install the 1 tested cars" (grammar) when exactly one tested car is listed.
 - A local backup copy of the BMW state file in the work folder still carries the old name of the removed material in its file name (not in the repository; Alex renames it by hand).
 - Own tyres can only be deleted when no modded car and no draft ticks them: untick them in each first.
