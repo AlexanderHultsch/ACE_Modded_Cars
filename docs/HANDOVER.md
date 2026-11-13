@@ -4,7 +4,7 @@ Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of 
 
 ## 0a. Current state and next task (2026-11-13, after the page and tyre work)
 
-**Code state:** everything is on `main` (placeholder; `git log -1` gives the commit). The cloud branch `claude/exciting-ramanujan-i0haq5` is no longer used: work goes to `main`. A leftover local branch such as `review-pc` is the local session's own business (check `git branch --no-merged main` before deleting it). Suite: 1610 tests (`python -m unittest discover -s tests`), runs without game data.
+**Code state:** everything is on `main` (placeholder; `git log -1` gives the commit). The cloud branch `claude/exciting-ramanujan-i0haq5` is no longer used: work goes to `main`. A leftover local branch such as `review-pc` is the local session's own business (check `git branch --no-merged main` before deleting it). Suite: 1603 tests (`python -m unittest discover -s tests`), runs without game data.
 
 **What is new (details: `docs/TUNER_SPEC.md` sections 4b, 4c and 4d, `README.md`):**
 - Other mods and every reference to them are removed from the repository; this project builds its own program.
