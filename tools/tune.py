@@ -17,6 +17,9 @@ usage:
   python tools/tune.py tyre-set     <id> <setting> <value> [--work <dir>]
   python tools/tune.py tyre-unset   <id> <setting> [--work <dir>]
   python tools/tune.py tyre-delete  <id> [--work <dir>]
+  python tools/tune.py garage       [--tune ID | --draft] [--car ID] [--work <dir>]
+  python tools/tune.py garage-set   <key> [<key> ...] [--tune ID | --draft] [--car ID] [--work <dir>]
+  python tools/tune.py garage-reset [--tune ID | --draft] [--car ID] [--work <dir>]
 
 --car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
 rejected with the closest matches. The game's cars come from system/cars.table, read once and cached in
@@ -94,8 +97,19 @@ unset_tyre_value, reset_tyre, tyre_rows, tyre_users, delete_tyre; no car needed,
 a name, a source (a front and a rear game tyre file, shared files below content\\cars\\common_phsx) and the changed values of the
 tyre settings of the catalogue (the ones whose targets are @tyre_front or @tyre_rear) relative to that source. It is kept in
 <work>/tyres/<id>.json = {"version": 1, "name", "source": {"front", "rear"}, "values": {setting id: value}}; the id is 1 to 24
-characters a-z, 0-9, _ made from the name, the name is 1 to 40 characters and unique ignoring case. A tune state file may list the
-library tyres a modded car uses in "_tyres" (entries "own:<id>"); tyre-delete refuses while one does (the draft counts).
+characters a-z, 0-9, _ made from the name, the name is 1 to 40 characters and unique ignoring case. The garage tyre selection of a
+modded car (which tyres its garage offers) is the list "_tyres" in its state file (tune_state.json, draft_state.json): ordered
+entries "own:<tyre id>" (a library tyre) and "stock:<front>|<rear>" (a stock compound of the car: the pair keys of tyre-sources,
+read from the presets of the car's own base). It is not a setting: it is never reported as unknown, shown in show or counted
+as an applied setting, and duplicate and Create copy it with the rest of the state. No "_tyres" entry = the car is not touched
+(all stock compounds, apply as before). The order is always: own tyres first (by name, then id), then the stock compounds in
+the order of the car's presets; the first ticked entry is the starting tyre. tyre-delete refuses while a state lists the
+library tyre (the draft counts). The garage commands take --car, --tune and --draft like show. Library functions car_stock_tyres, garage_choices, set_garage, reset_garage. apply with a
+selection writes data/tyres/own_<id>_front.tyre and _rear.tyre (the source files with the changed values) of every ticked
+own tyre into the car, and sets frontTyreCompounds / rearTyreCompounds of the .car and physic_compounds of every
+presets/*.compatibletyres to the ticked tyres in that order (unticked stock compounds are dropped, entries that no preset
+pair names stay at the end); it runs before the per-car tyre values above, which need the stock starting tyre ticked. Whether
+the game accepts such lists is not tested.
 tyres:        lists the library: id, name, source, number of changed values; a damaged file is listed with its error.
 tyre-sources: lists the tyre pairs the extracted cars offer (physic_compounds of their presets/*.compatibletyres whose front and rear
           files are shared game files present in the car's base): key (front|rear), label, cars. It extracts nothing.
@@ -104,6 +118,11 @@ tyre-show:    prints the tyre settings with their value, the default read from t
           marked *; a setting whose default cannot be read from the source file is listed with the reason.
 tyre-set/tyre-unset: change or remove one value of a library tyre; set refuses a setting that is not a tyre setting.
 tyre-delete:  removes a library tyre that no modded car uses.
+garage:       shows the choices of the car with their key: ticked (x), start (the first ticked tyre) and the label; a saved key that
+          is no longer valid is listed as a warning. Without a saved selection every stock compound is ticked.
+garage-set:   ticks exactly the given keys (own:<id>, stock:<front>|<rear>), at least one; all stock tyres and no own tyre is
+          the default and removes the entry.
+garage-reset: removes the selection (the car is not touched any more).
 <work> defaults to %USERPROFILE%\\ace_modded_cars_work. --game is accepted by cars and init only; the other commands use the default Steam path of the game package for what they extract on first need. Writes nothing outside <work>, the mods folder and, for doc, the Markdown file (default docs/settings/ in the repository, or --out). File
 operations on car trees use extended-length paths (kspkg.long_path), so deep Windows paths work.
 
@@ -214,6 +233,8 @@ TYRE_ID_MAX = 24
 TYRE_NAME_MAX = 40
 TYRE_VERSION = 1
 TYRE_FILES = tuple("@" + r for r in TYRE_ROLES)
+OWN_KEY = "own:"
+STOCK_KEY = "stock:"
 
 _index_error = []
 _tyre_lock = threading.Lock()
@@ -448,7 +469,7 @@ def save_state(work, car_id, state, tune=None):
 
 def unknown_state_ids(work, car_id, catalogue=None, tune=None):
     known = {s["id"] for s in (catalogue or load_catalogue())["settings"]}
-    return [sid for sid in load_state(work, car_id, tune) if sid not in known]
+    return [sid for sid in load_state(work, car_id, tune) if sid not in known and sid != TYRE_KEY]
 
 
 def to_f32(x):
@@ -550,7 +571,7 @@ def set_value(work, car_id, setting_id, text, catalogue=None, tune=None):
 
 def unset_value(work, car_id, setting_id, catalogue=None, tune=None):
     state = load_state(work, car_id, tune)
-    if setting_id not in state:
+    if setting_id not in state or setting_id == TYRE_KEY:
         find_setting(catalogue or load_catalogue(), setting_id)
     removed = state.pop(setting_id, None) is not None
     if removed:
@@ -1273,10 +1294,11 @@ def repoint(obj, field, old_text, new_text):
     return hits
 
 
-def build_tyre(root, car_id, new_id, car_root, role, items, cache):
+def build_tyre(root, car_id, new_id, car_root, role, items, cache, counts=None):
     """Give the tuned car its own copy of the stock tyre file of an axle (role tyre_front / tyre_rear): copy it from
     base to data/tyres/<new_id>_<axle>.tyre, write the changed values (items: (item, field, value)) and point the
-    references of the stock file at the copy. Returns a note for the build log."""
+    references of the stock file at the copy. Returns a note for the build log; counts, when given, gets the number of
+    references that were pointed at the copy (.car entries and compatibletyres entries together)."""
     axle = role[len("tyre_"):]
     stock_text = tyre_text(root, car_id, role, cache)
     rel = "data/tyres/%s_%s.tyre" % (new_id, axle)
@@ -1305,6 +1327,8 @@ def build_tyre(root, car_id, new_id, car_root, role, items, cache):
             if hits:
                 save_msg(os.path.join(folder, n), preset_name, preset)
                 in_presets += hits
+    if counts is not None:
+        counts.append(in_car + in_presets)
     return "note: tyre %s: own file %s replaces %s in %d .car entry(ies) and %d compatibletyres entry(ies)" % (
         axle, new_text, stock_text, in_car, in_presets)
 
@@ -1338,6 +1362,8 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     owner = suffix_owner(work, car_id, name_suffix, exclude=new_id)
     if owner:
         raise ValueError("name suffix %s is already used by %s" % (name_suffix, owner))
+    state = load_state(work, car_id, new_id)
+    garage = garage_plan(work, car_id, new_id, state, cat) if TYRE_KEY in state else None
     out_dir = os.path.join(build_dir(work, car_id), new_id)
     # the build always starts from the pristine base, in <new_id>.partial: the previous build of this id stays until the new one is complete
     part = out_dir + ".partial"
@@ -1399,8 +1425,14 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
                 item["files"].append(rel)
         save_msg(path, name, obj)
     cache = {}
+    if garage:
+        notes += write_garage(root, car_id, new_id, car_root, garage, cache)
     for role, items in tyre_edits.items():
-        notes.append(build_tyre(root, car_id, new_id, car_root, role, items, cache))
+        counts = []
+        notes.append(build_tyre(root, car_id, new_id, car_root, role, items, cache, counts))
+        if garage and not sum(counts):
+            raise ValueError("tyre settings are changed but the stock starting tyre of the car is not ticked in the garage, "
+                             "tick it or reset the tyre values")
     # kspkg and clone_car print their progress: keep it out of this command's output
     with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
         kspkg.cmd_pack(part, os.path.join(part, new_id + ".kspkg"))
@@ -1686,6 +1718,18 @@ def tyre_setting(cat, setting_id):
     raise ValueError("%s is not a tyre setting" % setting_id)
 
 
+def compound_pair(pc):
+    """The (front, rear) game paths (game_path_key) of a physic compound: the rear is the first of rear_tyre_data_paths; None
+    when the compound has no text front or rear."""
+    front = pc.get("front_tyre_data_path") if isinstance(pc, dict) else None
+    rear = pc.get("rear_tyre_data_paths") if isinstance(pc, dict) else None
+    if isinstance(rear, list):
+        rear = rear[0] if rear else None
+    if not (isinstance(front, str) and isinstance(rear, str)):
+        return None
+    return game_path_key(front), game_path_key(rear)
+
+
 def preset_tyre_pairs(root, car_id):
     """The (front, rear) game paths (game_path_key) of the physic compounds in presets/*.compatibletyres of a car in
     root: the rear is the first of rear_tyre_data_paths; both must be shared game files present below root."""
@@ -1699,13 +1743,10 @@ def preset_tyre_pairs(root, car_id):
         except (ValueError, OSError):
             continue
         for pc in compounds if isinstance(compounds, list) else []:
-            front = pc.get("front_tyre_data_path") if isinstance(pc, dict) else None
-            rear = pc.get("rear_tyre_data_paths") if isinstance(pc, dict) else None
-            if isinstance(rear, list):
-                rear = rear[0] if rear else None
-            if not (isinstance(front, str) and isinstance(rear, str)):
+            pair = compound_pair(pc)
+            if pair is None:
                 continue
-            front, rear = game_path_key(front), game_path_key(rear)
+            front, rear = pair
             if (front.startswith(GAME_SHARED) and rear.startswith(GAME_SHARED) and tyre_present(root, front)
                     and tyre_present(root, rear) and (front, rear) not in pairs):
                 pairs.append((front, rear))
@@ -1895,12 +1936,21 @@ def tyre_rows(work, tyre_id, catalogue=None):
     return rows
 
 
+def garage_key(text):
+    """("own", tyre id) or ("stock", "<front>|<rear>") for an entry of the "_tyres" list of a state, None for anything else."""
+    if isinstance(text, str):
+        for kind, prefix in (("own", OWN_KEY), ("stock", STOCK_KEY)):
+            if text.startswith(prefix) and len(text) > len(prefix):
+                return kind, text[len(prefix):]
+    return None
+
+
 def tyre_in_state(work, car_id, tune, tyre_id):
     try:
         used = load_state(work, car_id, tune).get(TYRE_KEY)
     except (ValueError, OSError):
         return False
-    return isinstance(used, list) and "own:" + tyre_id in used
+    return isinstance(used, list) and any(garage_key(k) == ("own", tyre_id) for k in used)
 
 
 def tyre_users(work, tyre_id):
@@ -1929,6 +1979,305 @@ def delete_tyre(work, tyre_id):
             "%s (draft)" % u["car"] if u["tune"] == DRAFT else "%s / %s" % (u["car"], u["tune"]) for u in users)))
     os.remove(kspkg.long_path(tyre_path(work, tyre_id)))
     return {"id": tyre_id, "deleted": True}
+
+
+def car_stock_tyres(work, car_id):
+    """The stock tyre pairs of a car from the presets of its own base (preset_tyre_pairs: shared game files present in the
+    base), in the order of the presets: [{key ("stock:<front>|<rear>"), label, front, rear}]. A car without a base or
+    without presets has none."""
+    try:
+        pairs = preset_tyre_pairs(base_dir(work, car_id), car_id)
+    except (ValueError, OSError):
+        return []
+    return [{"key": "%s%s|%s" % (STOCK_KEY, front, rear), "label": source_label(front, rear), "front": front, "rear": rear}
+            for front, rear in pairs]
+
+
+def garage_entries(work, car_id):
+    """The choices of a car's garage in their fixed order: [{key, kind, label}], the library tyres first (by name, then id;
+    a damaged file is left out), then the stock tyres."""
+    own = [{"key": OWN_KEY + t["id"], "kind": "own", "label": t["name"]} for t in list_tyres(work) if "error" not in t]
+    return own + [{"key": s["key"], "kind": "stock", "label": s["label"]} for s in car_stock_tyres(work, car_id)]
+
+
+def saved_garage(state):
+    """The list of the "_tyres" entry of a state, None when it has none."""
+    if TYRE_KEY not in state:
+        return None
+    saved = state[TYRE_KEY]
+    if not (isinstance(saved, list) and all(isinstance(k, str) for k in saved)):
+        raise ValueError("the saved tyre selection (%s) must be a list of tyre keys" % TYRE_KEY)
+    return saved
+
+
+def garage_choices(work, car_id, tune=None):
+    """The garage of a car: {choices: [{key, kind (own, stock), label, ticked, start}], custom, missing}. Without a saved
+    selection every stock tyre is ticked; start marks the first ticked choice; missing lists the saved keys that are no
+    choice any more (deleted or damaged library tyre, stock pair gone)."""
+    saved = saved_garage(load_state(work, car_id, tune))
+    entries = garage_entries(work, car_id)
+    ticked = {e["key"] for e in entries if e["kind"] == "stock"} if saved is None else set(saved)
+    choices = [dict(e, ticked=e["key"] in ticked, start=False) for e in entries]
+    first = next((c for c in choices if c["ticked"]), None)
+    if first:
+        first["start"] = True
+    known = {e["key"] for e in entries}
+    return {"choices": choices, "custom": saved is not None,
+            "missing": list(dict.fromkeys(k for k in saved or [] if k not in known))}
+
+
+def set_garage(work, car_id, keys, tune=None):
+    """Tick exactly the tyres in keys (own:<tyre id> of a library tyre, stock:<front>|<rear> of car_stock_tyres) and store
+    them in the state in the fixed order; returns {keys, start}. All stock tyres and no own tyre is the default: the entry
+    is removed and the result has default True."""
+    if not isinstance(keys, list):
+        raise ValueError("the tyre keys must be a list, got %r" % (keys,))
+    if not keys:
+        raise ValueError("tick at least one tyre")
+    entries = garage_entries(work, car_id)
+    stock = [e["key"] for e in entries if e["kind"] == "stock"]
+    for key in keys:
+        if not isinstance(key, str):
+            raise ValueError("a tyre key must be text, got %r" % (key,))
+        if keys.count(key) > 1:
+            raise ValueError("tyre key %s is listed twice" % key)
+        parsed = garage_key(key)
+        if parsed is None:
+            raise ValueError("bad tyre key %r: use own:<tyre id> or stock:<front>|<rear>, garage lists them" % key)
+        if parsed[0] == "own":
+            load_tyre(work, parsed[1])
+        elif key not in stock:
+            raise ValueError("unknown stock tyre %s of %s, garage lists the tyres of the car" % (parsed[1], car_id))
+    order = {e["key"]: i for i, e in enumerate(entries)}
+    keys = sorted(keys, key=lambda k: order[k])
+    state = load_state(work, car_id, tune)
+    if keys == stock:
+        if state.pop(TYRE_KEY, None) is not None:
+            save_state(work, car_id, state, tune)
+        return {"keys": keys, "start": keys[0], "default": True}
+    state[TYRE_KEY] = keys
+    save_state(work, car_id, state, tune)
+    return {"keys": keys, "start": keys[0]}
+
+
+def reset_garage(work, car_id, tune=None):
+    """Remove the garage selection of a state: the car is not touched any more. Returns {removed}."""
+    state = load_state(work, car_id, tune)
+    removed = state.pop(TYRE_KEY, None) is not None
+    if removed:
+        save_state(work, car_id, state, tune)
+    return {"removed": removed}
+
+
+def garage_selection(work, car_id, state):
+    """Check the saved selection of a state against the library and the car and resolve it for apply: the ticked entries in
+    the fixed order, each {key, kind, label} plus front and rear (stock) or id, tyre, source (front, rear game paths) and
+    files (front, rear: the source tyre file in the base of the extracted car that offers the source; own). Writes nothing."""
+    saved = saved_garage(state)
+    if not saved:
+        raise ValueError("garage: the tyre selection is empty, tick at least one tyre or reset it")
+    stock = {s["key"]: s for s in car_stock_tyres(work, car_id)}
+    offers, chosen = None, {}
+    for key in saved:
+        parsed = garage_key(key)
+        if parsed is None:
+            raise ValueError("garage: bad tyre key %r" % key)
+        kind, rest = parsed
+        if kind == "stock":
+            if key not in stock:
+                raise ValueError("garage: the stock tyre %s is not in the presets of %s" % (rest, car_id))
+            chosen[key] = dict(stock[key], kind="stock")
+            continue
+        try:
+            tyre = load_tyre(work, rest)
+        except ValueError as e:
+            raise ValueError("garage: %s" % e) from None
+        src = tyre["source"]
+        if offers is None:
+            offers = {e["key"]: e for e in list_source_tyres(work)}
+        offer = offers.get(src["front"] + "|" + src["rear"])
+        if offer is None:
+            raise ValueError("garage: tyre %s: no extracted car offers its source %s, extract one with init or pick another "
+                             "source" % (rest, source_label(src["front"], src["rear"])))
+        src_car = offer["cars"][0]
+        src_root = base_dir(work, src_car)
+        files = {}
+        for axle in ("front", "rear"):
+            try:
+                files[axle] = car_path(car_root_of(src_root, src_car), shared_rel(src_root, src[axle]))
+            except ValueError as e:
+                raise ValueError("garage: tyre %s: %s" % (rest, e)) from None
+        chosen[key] = {"key": key, "kind": "own", "label": tyre["name"], "id": rest, "tyre": tyre, "files": files,
+                       "source": (game_path_key(src["front"]), game_path_key(src["rear"]))}
+    order = {e["key"]: i for i, e in enumerate(garage_entries(work, car_id))}
+    return sorted(chosen.values(), key=lambda e: order[e["key"]])
+
+
+def tyre_values_into(obj, entry, axle, cat):
+    """Write the changed values of the library tyre of an entry that target the file of an axle into obj (the loaded source
+    file): the same value handling as the per-car tyre values (float32, choice text), every target of a setting."""
+    tyre = entry["tyre"]
+    for s in tyre_settings(cat):
+        if s["id"] not in tyre["values"]:
+            continue
+        try:
+            v = coerce(s, tyre["values"][s["id"]])
+        except ValueError as e:
+            raise ValueError("garage: tyre %s: %s" % (entry["id"], e)) from None
+        v = to_f32(v) if s["type"] == "float" else v
+        if s.get("choice_values"):
+            v = s["choice_values"][v]
+        for t in s["targets"]:
+            if t["file"] != "@tyre_" + axle:
+                continue
+            try:
+                paths = expand_path(obj, t["path"], bool(s.get("create_missing")))
+                if not paths:
+                    raise ValueError("%s: the list has no elements" % t["path"])
+                for path in paths:
+                    get_value(obj, path, bool(s.get("create_missing")))
+            except ValueError as e:
+                if t.get("optional"):
+                    continue
+                raise ValueError("garage: tyre %s: %s cannot be written into the source file: %s" % (entry["id"], s["id"], e)) from None
+            for path in paths:
+                put_value(obj, path, v)
+
+
+def set_list(obj, key, values):
+    """Replace a repeated field of obj; the names of the field in the wire order (_order) follow the new length."""
+    obj[key] = values
+    order = obj.get("_order")
+    if isinstance(order, list):
+        at = order.index(key) if key in order else len(order)
+        order[:] = [k for k in order if k != key]
+        order[at:at] = [key] * len(values)
+
+
+def compounds_of(preset):
+    compounds = preset.get("physic_compounds", [])
+    return compounds if isinstance(compounds, list) else []
+
+
+def own_compound(template, entry):
+    """A physic compound for an own tyre: a copy of the template compound with the own front and rear files."""
+    pc = copy.deepcopy(template)
+    put_value(pc, "front_tyre_data_path", entry["front_text"])
+    if isinstance(pc.get("rear_tyre_data_paths"), list):
+        set_list(pc, "rear_tyre_data_paths", [entry["rear_text"]])
+    else:
+        put_value(pc, "rear_tyre_data_paths", entry["rear_text"])
+    return pc
+
+
+def garage_compounds(compounds, plan, name):
+    """The physic_compounds of one presets/*.compatibletyres (named name in errors) for the garage selection: one compound
+    per ticked tyre in order (a stock tyre keeps its compound of this file and is skipped when the file has none; an own tyre
+    is a copy of the compound of its source pair, else of the first compound), then the compounds that no stock pair of the
+    car names, unchanged."""
+    pairs = [compound_pair(pc) for pc in compounds]
+    first = {}
+    for pc, pair in zip(compounds, pairs):
+        if pair is not None:
+            first.setdefault(pair, pc)
+    out = []
+    for e in plan["entries"]:
+        if e["kind"] == "stock":
+            if (e["front"], e["rear"]) in first:
+                out.append(first[(e["front"], e["rear"])])
+        elif compounds:
+            out.append(own_compound(first.get(e["source"]) or compounds[0], e))
+    out += [pc for pc, pair in zip(compounds, pairs) if pair not in plan["pairs"]]
+    if not out:
+        raise ValueError("garage: presets/%s would be left without a tyre compound, tick a tyre it lists or an own tyre" % name)
+    return out
+
+
+def garage_list(current, plan, axle, texts):
+    """frontTyreCompounds / rearTyreCompounds (axle front / rear) for the garage selection: the ticked tyres in order (the
+    path text of a stock tyre as the list or else the presets have it), then the entries that no stock pair names."""
+    have = {}
+    for t in current:
+        if isinstance(t, str):
+            have.setdefault(game_path_key(t), t)
+    out = {}
+    for e in plan["entries"]:
+        text = e[axle + "_text"] if e["kind"] == "own" else have.get(e[axle]) or texts.get(e[axle]) or e[axle]
+        out.setdefault(game_path_key(text), text)
+    seen, tail = set(out), []
+    for t in current:
+        key = game_path_key(t) if isinstance(t, str) else None
+        if key is None or (key not in plan[axle + "_known"] and key not in seen):
+            tail.append(t)
+            seen.add(key)
+    return list(out.values()) + tail
+
+
+def preset_files(folder):
+    return [n for n in sorted(os.listdir(kspkg.long_path(folder))) if n.lower().endswith(".compatibletyres")] \
+        if os.path.isdir(kspkg.long_path(folder)) else []
+
+
+def garage_plan(work, car_id, new_id, state, cat):
+    """Everything apply needs for the garage selection of a state, checked before anything is built: the entries (see
+    garage_selection, own ones with the game path text and the path below the car folder of their two files), files (path
+    below the car folder, message name, object: the source files with the changed values), the stock pairs of the car and
+    their fronts and rears. Raises ValueError for a tyre or source that is gone and for a preset file that would be left
+    without a compound."""
+    entries = garage_selection(work, car_id, state)
+    for e in entries:
+        for axle in ("front", "rear"):
+            if e["kind"] == "own":
+                e[axle + "_rel"] = "data/tyres/own_%s_%s.tyre" % (e["id"], axle)
+                e[axle + "_text"] = "content\\cars\\%s\\%s" % (new_id, e[axle + "_rel"].replace("/", "\\"))
+    files = []
+    for e in entries:
+        for axle in ("front", "rear") if e["kind"] == "own" else ():
+            obj, name = load_msg(e["files"][axle])
+            tyre_values_into(obj, e, axle, cat)
+            files.append((e[axle + "_rel"], name, obj))
+    pairs = {(s["front"], s["rear"]) for s in car_stock_tyres(work, car_id)}
+    plan = {"entries": entries, "files": files, "pairs": pairs, "front_known": {f for f, _ in pairs},
+            "rear_known": {r for _, r in pairs}}
+    root = base_dir(work, car_id)
+    try:
+        folder = find_ci(car_root_of(root, car_id), "presets")
+    except ValueError:
+        folder = None
+    for n in preset_files(folder) if folder else []:
+        garage_compounds(compounds_of(load_msg(os.path.join(folder, n))[0]), plan, n)
+    return plan
+
+
+def write_garage(root, car_id, new_id, car_root, plan, cache):
+    """Write the garage selection of a plan into the build of the tuned car: the own tyre files, the tyre lists of the .car
+    and the physic_compounds of every presets/*.compatibletyres. Returns the notes for the build log."""
+    for rel, name, obj in plan["files"]:
+        path = car_path(car_root, rel)
+        os.makedirs(kspkg.long_path(os.path.dirname(path)), exist_ok=True)
+        save_msg(path, name, obj)
+    folder = os.path.join(car_root, "presets")
+    presets = [(n,) + load_msg(os.path.join(folder, n)) for n in preset_files(folder)]
+    texts = {}
+    for _, preset, _ in presets:
+        for pc in compounds_of(preset):
+            pair = compound_pair(pc)
+            if pair:
+                rear = pc["rear_tyre_data_paths"]
+                texts.setdefault(pair[0], pc["front_tyre_data_path"])
+                texts.setdefault(pair[1], rear[0] if isinstance(rear, list) else rear)
+    car_file = car_path(car_root, renamed(resolve_file("@car", root, car_id, cache), car_id, new_id))
+    car, car_name = load_msg(car_file)
+    for axle, field in (("front", "frontTyreCompounds"), ("rear", "rearTyreCompounds")):
+        current = car.get(field)
+        set_list(car, field, garage_list(current if isinstance(current, list) else [], plan, axle, texts))
+    save_msg(car_file, car_name, car)
+    for n, preset, name in presets:
+        set_list(preset, "physic_compounds", garage_compounds(compounds_of(preset), plan, n))
+        save_msg(os.path.join(folder, n), name, preset)
+    first = plan["entries"][0]
+    return (["note: garage: own tyre %s -> %s, %s" % (e["id"], e["front_rel"], e["rear_rel"]) for e in plan["entries"] if e["kind"] == "own"]
+            + ["note: garage: %d tyre(s), starting on %s" % (len(plan["entries"]), first["label"])])
 
 
 def table(headers, rows):
@@ -2239,6 +2588,35 @@ def main():
                 usage()
             res = delete_tyre(work_arg(opts), pos[0])
             print("deleted tyre %s" % res["id"])
+        elif cmd == "garage":
+            pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+            if pos or ("tune" in opts and "draft" in opts):
+                usage()
+            work, car_id = start(opts)
+            res = garage_choices(work, car_id, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+            print("garage of %s: %s" % (car_id, "saved selection" if res["custom"] else "default (all stock tyres, the car is not touched)"))
+            if res["choices"]:
+                print(table(["ticked", "start", "key", "label"],
+                            [["x" if c["ticked"] else "", "start" if c["start"] else "", c["key"], c["label"]] for c in res["choices"]]))
+            else:
+                print("note: no tyres to choose from (the presets of the car offer no tyre pair and the library is empty)")
+            for key in res["missing"]:
+                print("warning: the saved tyre %s is not available any more" % key, file=sys.stderr)
+        elif cmd == "garage-set":
+            pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+            if not pos or ("tune" in opts and "draft" in opts):
+                usage()
+            work, car_id = start(opts)
+            res = set_garage(work, car_id, pos, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+            print("garage: %d tyre(s), starting on %s%s" % (len(res["keys"]), res["start"],
+                                                           " (the default selection, nothing is stored)" if res.get("default") else ""))
+        elif cmd == "garage-reset":
+            pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+            if pos or ("tune" in opts and "draft" in opts):
+                usage()
+            work, car_id = start(opts)
+            res = reset_garage(work, car_id, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+            print("garage selection %s" % ("removed from the state" if res["removed"] else "was not set"))
         else:
             usage()
     except (ValueError, OSError) as e:

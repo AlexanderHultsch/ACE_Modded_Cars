@@ -2962,7 +2962,7 @@ class TestUsageText(unittest.TestCase):
         main_src = src[src.index("def main():"):]
         commands = [line.split()[2] for line in self.usage_lines()]
         self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "duplicate", "doc", "tyres", "tyre-sources",
-                                    "tyre-new", "tyre-show", "tyre-set", "tyre-unset", "tyre-delete"])
+                                    "tyre-new", "tyre-show", "tyre-set", "tyre-unset", "tyre-delete", "garage", "garage-set", "garage-reset"])
         for cmd in commands:
             self.assertIn('cmd == "%s"' % cmd, main_src)
 
