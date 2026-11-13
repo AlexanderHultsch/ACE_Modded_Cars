@@ -192,6 +192,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
       <label class="carpick">Car
         <select id="car-select" aria-label="Car" disabled></select>
       </label>
+      <button id="btn-install-tested" type="button" disabled>Install the tested cars</button>
     </div>
     <div class="actions">
       <button id="btn-apply" class="primary" type="button" disabled>Create modded car&hellip;</button>
@@ -226,9 +227,9 @@ button.reset { padding: 2px 8px; font-size: 12px; }
   <section id="progress" class="panel" hidden aria-live="polite"></section>
 
   <section id="init-panel" class="panel" hidden>
-    <h2>Stock car not extracted yet</h2>
-    <p id="init-text">The tuner needs the stock car from the game files as its starting point. This is done once.</p>
-    <button id="btn-init" class="primary" type="button">Extract stock car (one time, ~20 s)</button>
+    <h2>Car not installed yet</h2>
+    <p id="init-text">The tuner needs the car's files from the game as its starting point. Installing pulls them once (about 20 seconds).</p>
+    <button id="btn-init" class="primary" type="button">Install car (pull game files)</button>
   </section>
 
   <section id="tuner" hidden>
@@ -437,11 +438,7 @@ function renderStatus() {
 }
 
 function optionText(c) {
-  const flags = [];
-  if (!c.extracted) flags.push("not extracted");
-  if (c.installed) flags.push("installed");
-  const name = c.display_name || c.label;
-  return flags.length ? name + " (" + flags.join(", ") + ")" : name;
+  return c.display_name || c.label;
 }
 
 function renderCars() {
@@ -449,8 +446,8 @@ function renderCars() {
   const list = info && info.cars ? info.cars : [];
   const byName = (a, b) => (a.display_name || a.label).localeCompare(b.display_name || b.label);
   const groupsOf = [
-    ["Base Cars: tested", list.filter((c) => c.tested).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
-    ["Base Cars: all other game cars", list.filter((c) => !c.tested).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
+    ["Installed Cars", list.filter((c) => c.extracted).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
+    ["Other Cars", list.filter((c) => !c.extracted).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
     ["Modded Cars", moddedList().map((m) => ["mod:" + m.id, m.label + (m.installed ? " - installed" : " - not installed")])]
   ];
   const sig = JSON.stringify([groupsOf, selection]);
@@ -475,10 +472,9 @@ function renderCars() {
   $("untested").textContent = entry && !entry.tested ?
     "This car has not been tested with the tuner yet; check the results before you trust them." : "";
   if (entry) {
-    const name = carName();
     $("caption").textContent = "Settings of " + shownName();
-    $("init-text").textContent = "The tuner needs the stock " + name +
-      " from the game files as its starting point. This is done once.";
+    $("init-text").textContent = "The tuner needs the car's files from the game as its starting point. " +
+      "Installing pulls them once (about 20 seconds).";
   }
 }
 
@@ -502,6 +498,14 @@ function renderButtons() {
   for (const id of ["dialog-id", "dialog-suffix", "dialog-ok"]) $(id).disabled = locked;
   $("dialog-cancel").disabled = dialog !== null && dialog.busy;
   $("btn-init").disabled = !info || running;
+  const tested = info && info.cars ? info.cars.filter((c) => c.tested) : [];
+  let whyInstall = "";
+  if (!info) whyInstall = serverError || "server not reachable";
+  else if (running) whyInstall = "a job is running";
+  else if (tested.every((c) => c.extracted)) whyInstall = "every tested car is installed already";
+  $("btn-install-tested").textContent = tested.length ? "Install the " + tested.length + " tested cars" : "Install the tested cars";
+  $("btn-install-tested").disabled = whyInstall !== "";
+  $("btn-install-tested").title = whyInstall;
   $("btn-reset-all").disabled = running;
   for (const r of headerRow ? rows.concat(headerRow) : rows) {
     r.field.disabled = running;
@@ -546,7 +550,7 @@ function renderProgress() {
   const show = job.state !== "idle" || errors.length > 0;
   box.hidden = !show;
   if (!show) return;
-  const title = job.kind === "init" ? "Extract stock car" : "Apply";
+  const title = job.kind === "init" ? "Install car" : job.kind === "install_tested" ? "Install the tested cars" : "Apply";
   if (errors.length) {
     box.classList.add("err");
     box.appendChild(el("h2", "", "Error"));
@@ -561,7 +565,8 @@ function renderProgress() {
     if (!errors.length) box.classList.add("ok");
     box.appendChild(el("h2", "", title + ": finished"));
     if (job.kind === "apply" && job.result) summaryApply(box, job.result);
-    if (job.kind === "init") addLine(box, "The stock car is ready, the table is available.");
+    if (job.kind === "init") addLine(box, "The car is installed, the table is available.");
+    if (job.kind === "install_tested") addLine(box, "The tested cars are installed.");
   } else if (job.state === "error") {
     if (!errors.length) box.classList.add("err");
     box.appendChild(el("h2", "", title + ": failed"));
@@ -595,7 +600,7 @@ async function refresh() {
     carConfirmed = true;
   }
   if (createdCar()) return;
-  const extracting = !!info && info.job.kind === "init" && info.job.state === "running";
+  const extracting = !!info && ["init", "install_tested"].includes(info.job.kind) && info.job.state === "running";
   if (info && info.base_present && !tableLoaded && !extracting) await loadSettings();
   renderCars();
   renderStatus();
@@ -1070,6 +1075,7 @@ $("btn-apply").addEventListener("click", () => {
 });
 $("btn-duplicate").addEventListener("click", () => openDialog("duplicate"));
 $("btn-init").addEventListener("click", () => startJob("/api/init", {}));
+$("btn-install-tested").addEventListener("click", () => startJob("/api/install_tested", {}));
 $("btn-reset-all").addEventListener("click", resetAll);
 $("btn-expand-all").addEventListener("click", () => setAllGroups(true));
 $("btn-collapse-all").addEventListener("click", () => setAllGroups(false));

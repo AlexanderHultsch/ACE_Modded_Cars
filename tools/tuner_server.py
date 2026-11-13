@@ -19,6 +19,8 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765, allo
                         (value: text, number, or true/false for the settings of type bool, which are on/off switches
                         and appear in the rows with type "bool" and true/false as default and value)
   POST /api/reset_all   clears every changed value         POST /api/init   extracts the stock car (background job)
+  POST /api/install_tested   runs init for every tested car of tuner/cars.json, one after the other (background job); a car
+                        that fails does not stop the others, the job then ends in state error naming the failed ids
   POST /api/duplicate   {"tune": source, "new_id": ..., "suffix": ...}   copies a modded car or the draft to a new modded
                         car (new_id and suffix are optional, automatic when left out); answers {"id", "stock", "name_suffix"}
   POST /api/apply       {"tune": ..., "new_id": ..., "suffix": ...}   builds and installs (background job): a modded car
@@ -32,7 +34,7 @@ Every route also takes an optional tune next to the car (?tune=<x> on GET, the f
 the default tune of the car (the modded car <new_id>), "draft" the draft of the base car (the values of the base car
 that are not saved as a modded car yet), any other value the id of a modded car of that car (400 otherwise).
 
-Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
+Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, game running, mods folder not expandable), 500 (internal error); /api/init, /api/install_tested and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
 
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of the selected modded car; the old single-car layout of the work folder
@@ -68,7 +70,7 @@ DEFAULT_PORT = 8765
 GAME_CHECK_SECONDS = 4.0
 MAX_BODY = 65536
 # routes that start a background job answer 202 instead of 200
-ACCEPTED = ("/api/init", "/api/apply")
+ACCEPTED = ("/api/init", "/api/install_tested", "/api/apply")
 
 CONFIG = {"port": DEFAULT_PORT, "work": None, "mods": None, "game": tune.DEFAULT_GAME}
 JOB = {"kind": None, "state": "idle", "log": [], "result": None, "error": None, "thread": None}
@@ -190,6 +192,27 @@ def init_task(car):
     return task
 
 
+def install_tested_task():
+    def task():
+        tested = tune.load_cars()["cars"]
+        results, failed = [], []
+        for n, c in enumerate(tested, 1):
+            log_line("%d/%d: %s ..." % (n, len(tested), c["label"]))
+            try:
+                res = tune.init(CONFIG["work"], c["id"], CONFIG["game"])
+            except (ValueError, OSError, SystemExit) as e:
+                log_line("error: %s" % (e.code if isinstance(e, SystemExit) else e))
+                failed.append(c["id"])
+                continue
+            log_line("already installed" if res["present"] else "installed")
+            log_line("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
+            results.append(dict(res, id=c["id"]))
+        if failed:
+            raise ValueError("%d of %d cars failed: %s" % (len(failed), len(tested), ", ".join(failed)))
+        return {"cars": results}
+    return task
+
+
 def apply_lines(res):
     lines = ["applied %d setting(s)" % len(res["applied"])]
     for a in res["applied"]:
@@ -236,7 +259,7 @@ def row_of(work, car, cat, setting_id, tune_id=None):
 
 def settings_counts(work, car):
     job = job_snapshot()
-    if not base_present(work, car) or (job["kind"] == "init" and job["state"] == "running"):
+    if not base_present(work, car) or (job["kind"] in ("init", "install_tested") and job["state"] == "running"):
         return None, None
     rows = tune.resolve_defaults(work, car, hidden=True)
     applicable = sum(1 for r in rows if r["applicable"])
@@ -335,6 +358,11 @@ def api_init(car, body):
     return {"job": "started"}
 
 
+def api_install_tested(car, body):
+    run_job("install_tested", install_tested_task())
+    return {"job": "started"}
+
+
 def optional_text(body, field):
     value = body.get(field)
     if value is not None and not isinstance(value, str):
@@ -416,7 +444,8 @@ def request_tune(value, query, car):
 
 GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings}
 POST_ROUTES = {"/api/set": api_set, "/api/unset": api_unset, "/api/reset_all": api_reset_all,
-               "/api/init": api_init, "/api/duplicate": api_duplicate, "/api/apply": api_apply}
+               "/api/init": api_init, "/api/install_tested": api_install_tested, "/api/duplicate": api_duplicate,
+               "/api/apply": api_apply}
 
 
 # DNS rebinding: a hostile site resolving to 127.0.0.1 sends its own Host header

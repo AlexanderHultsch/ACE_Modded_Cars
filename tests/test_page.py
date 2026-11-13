@@ -321,7 +321,7 @@ class TestTexts(unittest.TestCase):
         self.assertTrue(README.startswith("# " + TITLE), README[:60])
 
     def test_the_buttons_carry_the_labels_the_readme_names(self):
-        for label in ("Create modded car&hellip;", "Duplicate&hellip;", "Extract stock car (one time, ~20 s)", "Reset all"):
+        for label in ("Create modded car&hellip;", "Duplicate&hellip;", "Install car (pull game files)", "Reset all"):
             with self.subTest(label):
                 self.assertIn(">%s</button>" % label, MARKUP)
         self.assertIn("changed only", MARKUP)
@@ -509,6 +509,60 @@ class TestJobRunning(unittest.TestCase):
         self.assertLess(note, body.index('job.state === "done"'))
 
 
+class TestInstallCars(unittest.TestCase):
+    def test_the_init_panel_says_install_not_extract(self):
+        panel = re.search(r'<section id="init-panel".*?</section>', MARKUP, re.S).group(0)
+        self.assertIn("<h2>Car not installed yet</h2>", panel)
+        self.assertIn("The tuner needs the car's files from the game as its starting point. Installing pulls them once (about 20 seconds).", panel)
+        self.assertIn('<button id="btn-init" class="primary" type="button">Install car (pull game files)</button>', panel)
+        self.assertIn("Installing pulls them once (about 20 seconds).", function_body("renderCars"))
+        for old in ("Extract stock car", "not extracted yet", "stock car from the game files"):
+            with self.subTest(old):
+                self.assertNotIn(old, HTML)
+
+    def test_the_install_button_sits_in_the_header_next_to_the_car_selector_and_is_off_until_the_page_knows_better(self):
+        header = re.search(r'<header class="bar">.*?</header>', MARKUP, re.S).group(0)
+        button = '<button id="btn-install-tested" type="button" disabled>Install the tested cars</button>'
+        self.assertIn(button, header)
+        self.assertLess(header.index('id="car-select"'), header.index(button))
+        self.assertLess(header.index(button), header.index('<div class="actions">'))
+
+    def test_the_label_counts_the_tested_cars_of_the_state(self):
+        body = function_body("renderButtons")
+        self.assertIn("const tested = info && info.cars ? info.cars.filter((c) => c.tested) : [];", body)
+        self.assertIn('$("btn-install-tested").textContent = tested.length ? "Install the " + tested.length + " tested cars" : "Install the tested cars";', body)
+        self.assertNotRegex(CODE, r"Install the \d")
+
+    def test_the_install_button_is_off_while_a_job_runs_without_info_or_with_every_tested_car_installed(self):
+        body = function_body("renderButtons")
+        self.assertIn('if (!info) whyInstall = serverError || "server not reachable";', body)
+        self.assertIn('else if (running) whyInstall = "a job is running";', body)
+        self.assertIn('else if (tested.every((c) => c.extracted)) whyInstall = "every tested car is installed already";', body)
+        self.assertIn('$("btn-install-tested").disabled = whyInstall !== "";', body)
+        self.assertIn('$("btn-install-tested").title = whyInstall;', body)
+
+    def test_the_install_button_starts_the_job_of_all_tested_cars(self):
+        self.assertIn('$("btn-install-tested").addEventListener("click", () => startJob("/api/install_tested", {}));', CODE)
+        self.assertIn('$("btn-init").addEventListener("click", () => startJob("/api/init", {}));', CODE)
+
+    def test_the_progress_panel_names_both_install_jobs(self):
+        body = function_body("renderProgress")
+        self.assertIn('job.kind === "init" ? "Install car" : job.kind === "install_tested" ? "Install the tested cars" : "Apply"', body)
+        self.assertIn('if (job.kind === "init") addLine(box, "The car is installed, the table is available.");', body)
+        self.assertIn('if (job.kind === "install_tested") addLine(box, "The tested cars are installed.");', body)
+        self.assertNotIn("Extract stock car", body)
+
+    def test_the_table_is_not_loaded_while_either_install_job_runs(self):
+        body = function_body("refresh")
+        self.assertIn('const extracting = !!info && ["init", "install_tested"].includes(info.job.kind) && info.job.state === "running";', body)
+        self.assertIn("!tableLoaded && !extracting", body)
+
+    def test_every_job_kind_the_progress_panel_knows_is_started_by_the_server(self):
+        kinds = set(re.findall(r'job\.kind === "(\w+)"', function_body("renderProgress")))
+        self.assertEqual(kinds, {"apply", "init", "install_tested"})
+        self.assertEqual(kinds - set(re.findall(r'run_job\("(\w+)"', inspect.getsource(ts))), set())
+
+
 class TestErrorHandling(unittest.TestCase):
     def test_a_failed_job_start_or_reset_shows_the_error(self):
         self.assertIn("localError = e.message;", function_body("startJob"))
@@ -533,10 +587,29 @@ class TestErrorHandling(unittest.TestCase):
 
 class TestModdedCars(unittest.TestCase):
     def test_the_selector_has_the_three_groups_in_order(self):
-        labels = re.findall(r'\["((?:Base|Modded) Cars[^"]*)", ', function_body("renderCars"))
-        self.assertEqual(labels, ["Base Cars: tested", "Base Cars: all other game cars", "Modded Cars"])
+        labels = re.findall(r'\["((?:Installed|Other|Modded) Cars)", ', function_body("renderCars"))
+        self.assertEqual(labels, ["Installed Cars", "Other Cars", "Modded Cars"])
         self.assertIn('<select id="car-select" aria-label="Car"', MARKUP)
         self.assertEqual(MARKUP.count("<optgroup"), 0)
+
+    def test_the_installed_group_holds_the_extracted_cars_and_the_other_group_the_rest(self):
+        body = function_body("renderCars")
+        self.assertIn('["Installed Cars", list.filter((c) => c.extracted).sort(byName)', body)
+        self.assertIn('["Other Cars", list.filter((c) => !c.extracted).sort(byName)', body)
+        self.assertNotIn("c.tested", body)
+        self.assertNotIn("Base Cars", HTML)
+
+    def test_an_option_is_the_name_of_the_car_without_flags(self):
+        self.assertEqual(function_body("optionText").strip(), "return c.display_name || c.label;")
+        for old in ("not extracted", "(installed", "flags", '" ("'):
+            with self.subTest(old):
+                self.assertNotIn(old, function_body("optionText"))
+                self.assertNotIn(old, function_body("renderCars"))
+
+    def test_the_note_for_untested_cars_stays(self):
+        body = function_body("renderCars")
+        self.assertIn('$("untested").hidden = !entry || entry.tested;', body)
+        self.assertIn("This car has not been tested with the tuner yet; check the results before you trust them.", body)
 
     def test_the_option_values_encode_the_target(self):
         body = function_body("renderCars")
