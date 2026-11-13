@@ -105,8 +105,10 @@ class TestDomIds(unittest.TestCase):
         self.assertEqual(sorted(referenced_ids() - set(dom_ids())), [])
 
     def test_the_script_looks_up_a_known_set_of_ids(self):
-        self.assertTrue({"status", "progress", "init-panel", "tuner", "rows", "car-select", "btn-apply", "btn-copy", "btn-init",
-                         "btn-reset-all", "search", "changed-only", "name-host", "untested", "caption", "empty", "init-text"}
+        self.assertTrue({"status", "progress", "init-panel", "tuner", "rows", "car-select", "btn-apply", "btn-duplicate", "btn-init",
+                         "btn-reset-all", "search", "changed-only", "name-host", "untested", "caption", "empty", "init-text",
+                         "dialog", "dialog-title", "dialog-id", "dialog-suffix", "dialog-hint", "dialog-error", "dialog-ok",
+                         "dialog-cancel"}
                         <= referenced_ids(), sorted(referenced_ids()))
 
     # R4-026: no id may be left without a reader
@@ -118,7 +120,8 @@ class TestFunctions(unittest.TestCase):
     def test_the_script_defines_the_functions_the_page_needs(self):
         names = set(re.findall(r"^(?:async )?function (\w+)", CODE, re.M))
         self.assertTrue({"api", "refresh", "renderStatus", "renderCars", "renderButtons", "renderProgress", "buildTable", "buildRow",
-                         "loadSettings", "startJob", "resetAll", "switchCar", "applyFilter"} <= names, sorted(names))
+                         "loadSettings", "startJob", "resetAll", "switchCar", "applyFilter", "openDialog", "closeDialog", "submitDialog",
+                         "dialogKey"} <= names, sorted(names))
 
     def test_every_function_is_referenced_at_least_once_besides_its_definition(self):
         for name in re.findall(r"^(?:async )?function (\w+)", CODE, re.M):
@@ -182,20 +185,41 @@ class TestApiContract(unittest.TestCase):
         self.assertIn('"X-Tuner": "1"', body)
         self.assertIn('method: "POST"', body)
 
-    def test_the_car_goes_in_the_query_of_a_get_and_in_the_body_of_a_post(self):
+    def test_the_car_and_the_tune_go_in_the_query_of_a_get_and_in_the_body_of_a_post(self):
         body = function_body("api")
-        self.assertIn('"?car=" + encodeURIComponent(car)', body)
-        self.assertIn("{ car: car }", body)
+        self.assertIn('"car=" + encodeURIComponent(target.car)', body)
+        self.assertIn('"tune=" + encodeURIComponent(target.tune)', body)
+        self.assertIn("{ car: target.car, tune: target.tune }", body)
 
-    def test_the_apply_bodies_use_the_modes_of_the_server(self):
-        modes = set(re.findall(r'mode: "(\w+)"', CODE))
-        self.assertEqual(modes, set(ts.MODES))
-        self.assertIn("new_id:", CODE)
+    def test_every_api_call_of_the_page_passes_the_selection_which_carries_the_tune(self):
+        calls = re.findall(r"await api\((.*)\);$", CODE, re.M)
+        self.assertEqual(len(calls), 8, calls)
+        for call in calls:
+            with self.subTest(call):
+                self.assertRegex(call, r", (?:want|target|r\.target|selection)$")
+        self.assertEqual(sorted(set(re.findall(r'\b(?:api|startJob)\("(/api/[a-z_]+)"', CODE))), sorted(self.ROUTES))
+        self.assertEqual(re.findall(r"async function api\((.*?)\) \{", CODE), ["path, body, target"])
+
+    def test_the_bodies_of_apply_and_duplicate_use_the_fields_of_the_server(self):
+        self.assertNotRegex(CODE, r"\bmode\b")
+        self.assertEqual(re.findall(r'api\("/api/apply", (\{[^}]*\}), \w+\)', CODE), ["{ new_id: newId, suffix: suffix }"])
+        self.assertEqual(re.findall(r'api\("/api/duplicate", (\{[^}]*\}), \w+\)', CODE), ["{ new_id: newId, suffix: suffix }"])
+        self.assertIn('startJob("/api/apply", {})', CODE)
+        sent = set(re.findall(r'"(\w+)"', inspect.getsource(ts.api_apply) + inspect.getsource(ts.api_duplicate)))
+        self.assertTrue({"new_id", "suffix", "tune"} <= sent, sorted(sent))
+        # an empty field sends nothing: undefined is dropped by JSON.stringify
+        body = function_body("submitDialog")
+        self.assertIn('const newId = $("dialog-id").value.trim() || undefined;', body)
+        self.assertIn('const suffix = $("dialog-suffix").value || undefined;', body)
+
+    def test_the_routes_of_the_page_are_the_routes_of_the_server(self):
+        self.assertEqual(set(re.findall(r'"(/api/[^"?]*)"', CODE)), set(self.ROUTES))
 
     def test_the_state_fields_the_page_reads_are_sent_by_the_server(self):
-        sent = quoted_words(ts.api_state, ts.installed_info) | set(ts.JOB)
+        sent = quoted_words(ts.api_state, ts.installed_info, ts.modded_cars, ts.tune_proposals) | set(ts.JOB)
         read = set(re.findall(r"\binfo\.(\w+)", CODE)) | set(re.findall(r"\binst\.(\w+)", CODE)) | set(re.findall(r"\bjob\.(\w+)", CODE))
-        self.assertTrue({"base_present", "game_running", "job", "installed", "cars", "car", "work"} <= read, sorted(read))
+        self.assertTrue({"base_present", "game_running", "job", "installed", "cars", "car", "work", "tune", "modded", "modded_error",
+                         "proposed_new_id", "proposed_suffix", "stock_id_length"} <= read, sorted(read))
         self.assertEqual(sorted(read - sent), [])
 
     def test_the_row_fields_the_page_reads_are_sent_by_the_server(self):
@@ -257,21 +281,22 @@ class TestTexts(unittest.TestCase):
         self.assertTrue(README.startswith("# " + TITLE), README[:60])
 
     def test_the_buttons_carry_the_labels_the_readme_names(self):
-        for label in ("Apply (update my car)", "Save as new copy&hellip;", "Extract stock car (one time, ~20 s)", "Reset all"):
+        for label in ("Create modded car&hellip;", "Duplicate&hellip;", "Extract stock car (one time, ~20 s)", "Reset all"):
             with self.subTest(label):
                 self.assertIn(">%s</button>" % label, MARKUP)
         self.assertIn("changed only", MARKUP)
         self.assertIn('el("button", "reset", "reset")', CODE)
-        for label in ("Apply (update my car)", "Save as new copy", "Extract stock car", "changed only", "reset", "Reset all"):
+        for label in ("Extract stock car", "changed only", "reset", "Reset all"):
             self.assertIn(label, README)
 
     def test_the_table_has_the_four_documented_columns_in_order(self):
         heads = re.findall(r'<th scope="col">(.*?)</th>', MARKUP)
         self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Description"])
 
-    def test_the_prompt_tells_the_id_rules_of_the_server(self):
-        self.assertIn("only lowercase a-z, 0-9 and _", CODE)
-        self.assertIn("info.stock_id_length", CODE)
+    def test_the_dialog_tells_the_id_rules_of_the_server(self):
+        body = function_body("openDialog")
+        self.assertIn('"The id has exactly " + info.stock_id_length +', body)
+        self.assertIn('" characters: lower case letters, digits, underscore"', body)
 
 
 class TestAccessibility(unittest.TestCase):
@@ -367,6 +392,142 @@ class TestErrorHandling(unittest.TestCase):
         self.assertIn('throw new Error("server not reachable")', body)
         self.assertIn("data.error", body)
         self.assertIn('"HTTP " + res.status', body)
+
+
+class TestModdedCars(unittest.TestCase):
+    def test_the_selector_has_the_three_groups_in_order(self):
+        labels = re.findall(r'\["((?:Base|Modded) Cars[^"]*)", ', function_body("renderCars"))
+        self.assertEqual(labels, ["Base Cars: tested", "Base Cars: all other game cars", "Modded Cars"])
+        self.assertIn('<select id="car-select" aria-label="Car"', MARKUP)
+        self.assertEqual(MARKUP.count("<optgroup"), 0)
+
+    def test_the_option_values_encode_the_target(self):
+        body = function_body("renderCars")
+        self.assertEqual(re.findall(r'\["(base|mod):" \+ (\w)\.id, ', body), [("base", "c"), ("base", "c"), ("mod", "m")])
+        self.assertIn("o.value = value;", body)
+        self.assertIn('startsWith("base:")', function_body("choiceOf"))
+        self.assertIn('startsWith("mod:")', function_body("choiceOf"))
+        self.assertIn("{ car: value.slice(5), tune: DRAFT }", function_body("choiceOf"))
+        self.assertIn("{ car: m.stock, tune: m.id }", function_body("choiceOf"))
+
+    def test_a_modded_option_says_whether_the_car_is_installed(self):
+        body = function_body("renderCars")
+        self.assertIn('m.label + (m.installed ? " - installed" : " - not installed")', body)
+
+    def test_the_modded_group_is_absent_while_the_list_is_empty(self):
+        body = function_body("renderCars")
+        self.assertIn("moddedList().map(", body)
+        self.assertIn("if (!options.length) continue;", body)
+        self.assertIn("info && info.modded ? info.modded : []", function_body("moddedList"))
+
+    def test_the_selection_survives_a_poll_and_is_part_of_the_selector_signature(self):
+        body = function_body("renderCars")
+        self.assertIn("JSON.stringify([groupsOf, selection])", body)
+        self.assertIn("select.value = choiceValue(selection);", body)
+        self.assertIn("selection = { car: info.car, tune: info.tune };", function_body("refresh"))
+
+    def test_the_selection_is_one_object_with_car_and_tune(self):
+        self.assertRegex(CODE, r"(?m)^let selection = storedSelection\(\);")
+        self.assertNotRegex(CODE, r"\bcarId\b")
+        self.assertIn("{ car: null, tune: DRAFT }", CODE)
+        self.assertIn('const DRAFT = "draft";', CODE)
+        for name in ("sendSet", "sendUnset"):
+            self.assertIn("r.target)", function_body(name))
+        self.assertIn("target.tune === DRAFT", function_body("buildHeaderRow"))
+
+    def test_a_damaged_modded_state_is_shown_in_the_message_area(self):
+        body = function_body("renderProgress")
+        self.assertIn("info.modded_error", body)
+        self.assertIn("errors.push(", body)
+        self.assertIn("for (const text of errors) addLine(box, text);", body)
+        self.assertIn("JSON.stringify([job, errors])", body)
+
+    def test_the_header_line_names_the_kind_of_car(self):
+        body = function_body("buildHeaderRow")
+        self.assertIn('"Base car: Apply creates a new modded car"', body)
+        self.assertIn('"Modded car " + target.tune + " of " + carName()', body)
+        self.assertIn('el("span", "tunenote"', body)
+
+    def test_the_buttons_follow_the_kind_of_car(self):
+        self.assertIn('<button id="btn-apply" class="primary" type="button" disabled>Create modded car&hellip;</button>', MARKUP)
+        self.assertIn('<button id="btn-duplicate" type="button" disabled>Duplicate&hellip;</button>', MARKUP)
+        body = function_body("renderButtons")
+        self.assertIn('draft ? "Create modded car\\u2026" : "Apply (update this car)"', body)
+        self.assertIn('$("btn-duplicate").disabled = whyDuplicate !== "";', body)
+        self.assertIn('whyDuplicate = "select a modded car to duplicate it"', body)
+        self.assertIn('whyDuplicate = info.base_present ? "" : "extract the stock car first"', body)
+
+    def test_the_old_copy_flow_is_gone(self):
+        for old in ("btn-copy", "askNewCopy", "Save as new copy", "new_copy", "window.prompt", "Apply (update my car)"):
+            with self.subTest(old):
+                self.assertNotIn(old, HTML)
+
+    def test_the_dialog_is_an_inline_panel_with_two_labelled_inputs(self):
+        panel = re.search(r'<section id="dialog".*?</section>', MARKUP, re.S).group(0)
+        self.assertIn("hidden>", panel.split("\n")[0])
+        self.assertIn('aria-labelledby="dialog-title"', panel)
+        for field in ("dialog-id", "dialog-suffix"):
+            with self.subTest(field):
+                self.assertRegex(panel, r'<label for="%s">[^<]+</label>\s*<input id="%s"[^>]*type="text"' % (field, field))
+        for button in ("dialog-ok", "dialog-cancel"):
+            self.assertRegex(panel, r'<button id="%s"[^>]*type="button">' % button)
+        self.assertIn(">OK</button>", panel)
+        self.assertIn(">Cancel</button>", panel)
+        self.assertNotIn("window.prompt", CODE)
+        self.assertNotIn("window.alert", CODE)
+
+    def test_the_dialog_is_prefilled_from_the_proposals_of_the_server(self):
+        body = function_body("openDialog")
+        self.assertIn('$("dialog-id").value = info.proposed_new_id || "";', body)
+        self.assertIn('create ? info.proposed_suffix || "" : ""', body)
+        self.assertIn('create ? "" : "automatic"', body)
+
+    def test_enter_confirms_and_escape_cancels_the_dialog(self):
+        body = function_body("dialogKey")
+        self.assertIn('ev.key === "Escape"', body)
+        self.assertIn("closeDialog(true)", body)
+        self.assertIn('ev.key === "Enter" && ev.target.tagName === "INPUT"', body)
+        self.assertIn("submitDialog()", body)
+        self.assertIn('$("dialog").addEventListener("keydown", dialogKey);', CODE)
+
+    def test_the_focus_moves_into_the_panel_and_back(self):
+        self.assertIn('$("dialog-id").focus();', function_body("openDialog"))
+        self.assertIn("opener", function_body("openDialog"))
+        body = function_body("closeDialog")
+        self.assertIn("if (restoreFocus) {", body)
+        self.assertIn("back.focus();", body)
+
+    def test_a_server_error_stays_inside_the_open_panel(self):
+        body = function_body("submitDialog")
+        failure = body[body.index("} catch (e) {"):]
+        self.assertIn("showDialogError(e.message);", failure)
+        self.assertNotIn("closeDialog", failure)
+        self.assertIn("mine.busy = false;", failure)
+        self.assertIn('$("dialog-error").textContent = text;', function_body("showDialogError"))
+
+    def test_create_selects_the_new_car_when_the_job_has_created_it(self):
+        body = function_body("submitDialog")
+        self.assertIn("awaitCreated = { car: target.car, known: known };", body)
+        self.assertIn("job.result.created", function_body("createdCar"))
+        self.assertIn("{ car: awaitCreated.car, tune: job.result.new_id }", function_body("createdCar"))
+        self.assertIn("if (createdCar()) return;", function_body("refresh"))
+
+    def test_duplicate_selects_the_new_car_at_once(self):
+        self.assertIn("switchCar({ car: res.stock, tune: res.id });", function_body("submitDialog"))
+
+    def test_a_switch_closes_the_panel_and_reloads_the_table(self):
+        body = function_body("switchCar")
+        for part in ("storeSelection(next);", "closeDialog(false);", "tableLoaded = false;", "clearTable();", "refresh();"):
+            self.assertIn(part, body)
+        self.assertIn("sameSelection(next, selection)", body)
+
+    def test_the_new_buttons_and_inputs_are_disabled_while_a_job_runs(self):
+        body = function_body("renderButtons")
+        self.assertIn('const locked = running || (dialog !== null && dialog.busy);', body)
+        self.assertIn('for (const id of ["dialog-id", "dialog-suffix", "dialog-ok"]) $(id).disabled = locked;', body)
+        self.assertIn('$("btn-duplicate").disabled = whyDuplicate !== "";', body)
+        self.assertIn('if (why === "close the game first")', body)
+        self.assertIn("whyDuplicate = why;", body)
 
 
 class TestStartBat(unittest.TestCase):

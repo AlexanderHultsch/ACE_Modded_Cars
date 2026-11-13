@@ -83,6 +83,7 @@ body {
   background: var(--panel); color: var(--text);
 }
 .namerow .msg { flex: 1 0 100%; margin-top: 0; }
+.tunenote { font-size: 13px; color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button {
   font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
@@ -115,6 +116,13 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .panel.err { background: var(--err-bg); color: var(--err-text); border-color: var(--err-text); }
 .panel ul { margin: 4px 0 8px; padding-left: 20px; }
 .panel p { margin: 6px 0; }
+.dialog .field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0; }
+.dialog .field label { min-width: 12em; }
+.dialog .field input {
+  font: inherit; width: 16em; max-width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--text);
+}
+.dialog .hint { font-size: 13px; color: var(--muted); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
 .toolbar input[type="search"] {
   font: inherit; padding: 7px 10px; min-width: 260px; border: 1px solid var(--border);
@@ -184,10 +192,28 @@ button.reset { padding: 2px 8px; font-size: 12px; }
       </label>
     </div>
     <div class="actions">
-      <button id="btn-apply" class="primary" type="button" disabled>Apply (update my car)</button>
-      <button id="btn-copy" type="button" disabled>Save as new copy&hellip;</button>
+      <button id="btn-apply" class="primary" type="button" disabled>Create modded car&hellip;</button>
+      <button id="btn-duplicate" type="button" disabled>Duplicate&hellip;</button>
     </div>
   </header>
+
+  <section id="dialog" class="panel dialog" role="group" aria-labelledby="dialog-title" hidden>
+    <h2 id="dialog-title"></h2>
+    <div class="field">
+      <label for="dialog-id">Tuned car id</label>
+      <input id="dialog-id" class="mono" type="text" autocomplete="off" spellcheck="false" aria-describedby="dialog-hint">
+    </div>
+    <div class="field">
+      <label for="dialog-suffix">Name suffix</label>
+      <input id="dialog-suffix" type="text" autocomplete="off" spellcheck="false">
+    </div>
+    <p id="dialog-hint" class="hint"></p>
+    <p id="dialog-error" class="msg err" role="alert" hidden></p>
+    <div class="actions">
+      <button id="dialog-ok" class="primary" type="button">OK</button>
+      <button id="dialog-cancel" type="button">Cancel</button>
+    </div>
+  </section>
 
   <div id="name-host" hidden></div>
 
@@ -236,7 +262,8 @@ const DEBOUNCE_MS = 700;
 const POLL_BUSY_MS = 1500;
 const POLL_IDLE_MS = 5000;
 const POLL_HIDDEN_MS = 30000;
-const CAR_KEY = "tuner.car";
+const SELECTION_KEY = "tuner.selection";
+const DRAFT = "draft";
 
 const $ = (id) => document.getElementById(id);
 
@@ -260,27 +287,61 @@ let pollTimer = null;
 let jobSig = "";
 let statusSig = "";
 let carsSig = "";
-let carId = storedCar();
+// the selected car: car is the stock id (null until the server named its default car), tune is "draft" for a base car
+// and the id of the modded car otherwise
+let selection = storedSelection();
 let carConfirmed = false;
+// the open Create / Duplicate panel: {kind, opener, busy}, else null
+let dialog = null;
+// set after Create started its job: {car, known: ids of the modded cars before}; the new car is selected when the job ends
+let awaitCreated = null;
 
-function storedCar() {
+function storedSelection() {
+  const none = { car: null, tune: DRAFT };
   try {
-    return window.localStorage.getItem(CAR_KEY) || null;
+    const s = JSON.parse(window.localStorage.getItem(SELECTION_KEY));
+    return s && typeof s.car === "string" && typeof s.tune === "string" ? { car: s.car, tune: s.tune } : none;
   } catch (e) {
-    return null;
+    return none;
   }
 }
 
-function storeCar(id) {
+function storeSelection(s) {
   try {
-    window.localStorage.setItem(CAR_KEY, id);
+    window.localStorage.setItem(SELECTION_KEY, JSON.stringify(s));
   } catch (e) {
     /* the page works without it */
   }
 }
 
+function sameSelection(a, b) {
+  return a.car === b.car && a.tune === b.tune;
+}
+
+function choiceValue(s) {
+  if (!s.car) return "";
+  return s.tune === DRAFT ? "base:" + s.car : "mod:" + s.tune;
+}
+
+function choiceOf(value) {
+  if (value.startsWith("base:")) return { car: value.slice(5), tune: DRAFT };
+  if (value.startsWith("mod:")) {
+    const m = moddedList().find((x) => x.id === value.slice(4));
+    return m ? { car: m.stock, tune: m.id } : null;
+  }
+  return null;
+}
+
+function moddedList() {
+  return info && info.modded ? info.modded : [];
+}
+
+function moddedEntry() {
+  return moddedList().find((m) => m.id === selection.tune) || null;
+}
+
 function carEntry() {
-  return info && info.cars ? info.cars.find((c) => c.id === carId) || null : null;
+  return info && info.cars ? info.cars.find((c) => c.id === selection.car) || null : null;
 }
 
 function carName() {
@@ -288,12 +349,19 @@ function carName() {
   return c ? c.display_name || c.label : "the car";
 }
 
-async function api(path, body, car) {
-  if (car && body === undefined) path += "?car=" + encodeURIComponent(car);
+function shownName() {
+  const m = moddedEntry();
+  return m ? m.label : carName();
+}
+
+async function api(path, body, target) {
+  if (target && body === undefined) {
+    path += "?" + (target.car ? "car=" + encodeURIComponent(target.car) + "&" : "") + "tune=" + encodeURIComponent(target.tune);
+  }
   const opts = body === undefined ? {} : {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Tuner": "1" },
-    body: JSON.stringify(car ? Object.assign({}, body, { car: car }) : body)
+    body: JSON.stringify(target ? Object.assign({}, body, { car: target.car, tune: target.tune }) : body)
   };
   let res;
   try {
@@ -339,7 +407,7 @@ function addStat(box, label, value, cls, mono) {
 }
 
 function renderStatus() {
-  const sig = JSON.stringify([serverError, info && [info.work, info.base_present, info.game_running, info.default_new_id, info.installed, info.settings_hidden]]);
+  const sig = JSON.stringify([serverError, info && [info.work, info.base_present, info.game_running, info.tune, info.installed, info.settings_hidden]]);
   if (sig === statusSig) return;
   statusSig = sig;
   const box = $("status");
@@ -352,8 +420,10 @@ function renderStatus() {
   addStat(box, "Base car present", info.base_present ? "yes" : "no", info.base_present ? "ok" : "bad");
   addStat(box, "Game running", info.game_running ? "yes" : "no", info.game_running ? "warn" : "");
   const inst = info.installed;
-  addStat(box, "Installed package", info.default_new_id + ": " +
-    (inst.exists ? fmtBytes(inst.bytes) + ", " + fmtTime(inst.modified) : "not installed"), "", true);
+  if (info.tune !== DRAFT) {
+    addStat(box, "Installed package", info.tune + ": " +
+      (inst.exists ? fmtBytes(inst.bytes) + ", " + fmtTime(inst.modified) : "not installed"), "", true);
+  }
   if (info.settings_hidden > 0) {
     box.appendChild(el("span", "note", info.settings_hidden + (info.settings_hidden === 1 ? " setting is" : " settings are") +
       " not available for this car (hidden)"));
@@ -369,37 +439,38 @@ function optionText(c) {
 }
 
 function renderCars() {
-  const sel = $("car-select");
+  const select = $("car-select");
   const list = info && info.cars ? info.cars : [];
   const byName = (a, b) => (a.display_name || a.label).localeCompare(b.display_name || b.label);
   const groupsOf = [
-    ["Tested cars", list.filter((c) => c.tested).sort(byName)],
-    ["Other cars (not tested)", list.filter((c) => !c.tested).sort(byName)]
-  ].map(([title, cars]) => [title, cars.map((c) => [c.id, optionText(c)])]);
-  const sig = JSON.stringify([groupsOf, carId]);
+    ["Base Cars: tested", list.filter((c) => c.tested).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
+    ["Base Cars: all other game cars", list.filter((c) => !c.tested).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
+    ["Modded Cars", moddedList().map((m) => ["mod:" + m.id, m.label + (m.installed ? " - installed" : " - not installed")])]
+  ];
+  const sig = JSON.stringify([groupsOf, selection]);
   if (sig === carsSig) return;
   carsSig = sig;
-  sel.replaceChildren();
+  select.replaceChildren();
   for (const [title, options] of groupsOf) {
     if (!options.length) continue;
     const g = el("optgroup");
     g.label = title;
-    for (const [id, text] of options) {
+    for (const [value, text] of options) {
       const o = el("option", "", text);
-      o.value = id;
+      o.value = value;
       g.appendChild(o);
     }
-    sel.appendChild(g);
+    select.appendChild(g);
   }
-  sel.value = carId || "";
-  sel.disabled = list.length === 0;
+  select.value = choiceValue(selection);
+  select.disabled = list.length === 0;
   const entry = carEntry();
   $("untested").hidden = !entry || entry.tested;
   $("untested").textContent = entry && !entry.tested ?
     "This car has not been tested with the tuner yet; check the results before you trust them." : "";
   if (entry) {
     const name = carName();
-    $("caption").textContent = "Settings of " + name;
+    $("caption").textContent = "Settings of " + shownName();
     $("init-text").textContent = "The tuner needs the stock " + name +
       " from the game files as its starting point. This is done once.";
   }
@@ -407,15 +478,23 @@ function renderCars() {
 
 function renderButtons() {
   const running = !!info && info.job.state === "running";
+  const draft = selection.tune === DRAFT;
   let why = "";
   if (!info) why = serverError || "server not reachable";
   else if (running) why = "a job is running";
   else if (info.game_running) why = "close the game first";
   else if (!info.base_present) why = "extract the stock car first";
-  for (const id of ["btn-apply", "btn-copy"]) {
-    $(id).disabled = why !== "";
-    $(id).title = why;
-  }
+  let whyDuplicate = why;
+  if (why === "close the game first") whyDuplicate = info.base_present ? "" : "extract the stock car first";
+  if (whyDuplicate === "" && draft) whyDuplicate = "select a modded car to duplicate it";
+  $("btn-apply").textContent = draft ? "Create modded car\u2026" : "Apply (update this car)";
+  $("btn-apply").disabled = why !== "";
+  $("btn-apply").title = why;
+  $("btn-duplicate").disabled = whyDuplicate !== "";
+  $("btn-duplicate").title = whyDuplicate;
+  const locked = running || (dialog !== null && dialog.busy);
+  for (const id of ["dialog-id", "dialog-suffix", "dialog-ok"]) $(id).disabled = locked;
+  $("dialog-cancel").disabled = dialog !== null && dialog.busy;
   $("btn-init").disabled = !info || running;
   $("btn-reset-all").disabled = running;
   for (const r of headerRow ? rows.concat(headerRow) : rows) {
@@ -450,20 +529,22 @@ function summaryApply(box, res) {
 function renderProgress() {
   const box = $("progress");
   const job = info ? info.job : { state: "idle", log: [], result: null, error: null, kind: null };
-  // rebuild the panel only when the job or the error changed, so the log keeps its scroll position
-  const sig = JSON.stringify([job, localError]);
+  const errors = localError ? [localError] : [];
+  if (info && info.modded_error) errors.push("The modded cars cannot be read: " + info.modded_error);
+  // rebuild the panel only when the job or the errors changed, so the log keeps its scroll position
+  const sig = JSON.stringify([job, errors]);
   if (sig === jobSig) return;
   jobSig = sig;
   box.replaceChildren();
   box.className = "panel";
-  const show = job.state !== "idle" || localError !== "";
+  const show = job.state !== "idle" || errors.length > 0;
   box.hidden = !show;
   if (!show) return;
   const title = job.kind === "init" ? "Extract stock car" : "Apply";
-  if (localError) {
+  if (errors.length) {
     box.classList.add("err");
     box.appendChild(el("h2", "", "Error"));
-    addLine(box, localError);
+    for (const text of errors) addLine(box, text);
     if (job.state === "idle") return;
     box.appendChild(el("h2", "", "Previous job: " + title));
   }
@@ -471,12 +552,12 @@ function renderProgress() {
     box.appendChild(el("h2", "", title + ": running ..."));
     addLine(box, "Do not close the console window while this runs.");
   } else if (job.state === "done") {
-    if (!localError) box.classList.add("ok");
+    if (!errors.length) box.classList.add("ok");
     box.appendChild(el("h2", "", title + ": finished"));
     if (job.kind === "apply" && job.result) summaryApply(box, job.result);
     if (job.kind === "init") addLine(box, "The stock car is ready, the table is available.");
   } else if (job.state === "error") {
-    if (!localError) box.classList.add("err");
+    if (!errors.length) box.classList.add("err");
     box.appendChild(el("h2", "", title + ": failed"));
     addLine(box, job.error || "unknown error");
   }
@@ -489,24 +570,25 @@ function renderProgress() {
 
 async function refresh() {
   clearTimeout(pollTimer);
-  const want = carId;
+  const want = selection;
   try {
     info = await api("/api/state", undefined, want);
     serverError = "";
   } catch (e) {
-    // the stored car may no longer exist: fall back to the default car once
-    if (want && !carConfirmed && e.message !== "server not reachable") {
-      carId = null;
+    // the stored car or modded car may no longer exist: fall back to the draft of the default car once
+    if (want.car && !carConfirmed && e.message !== "server not reachable") {
+      selection = { car: null, tune: DRAFT };
       return refresh();
     }
     info = null;
     serverError = e.message;
   }
-  if (want !== carId) return;
+  if (want !== selection) return;
   if (info && !carConfirmed) {
-    carId = info.car;
+    selection = { car: info.car, tune: info.tune };
     carConfirmed = true;
   }
+  if (createdCar()) return;
   const extracting = !!info && info.job.kind === "init" && info.job.state === "running";
   if (info && info.base_present && !tableLoaded && !extracting) await loadSettings();
   renderCars();
@@ -548,7 +630,7 @@ function showRow(r, data, refilter = true) {
 
 async function sendSet(r, text) {
   try {
-    const res = await api("/api/set", { id: r.data.id, value: text }, r.car);
+    const res = await api("/api/set", { id: r.data.id, value: text }, r.target);
     showRow(r, res.row);
     setMsg(r, res.warnings.join(" "), "warn");
   } catch (e) {
@@ -559,7 +641,7 @@ async function sendSet(r, text) {
 
 async function sendUnset(r) {
   try {
-    const res = await api("/api/unset", { id: r.data.id }, r.car);
+    const res = await api("/api/unset", { id: r.data.id }, r.target);
     showRow(r, res.row);
     setMsg(r, "", "");
   } catch (e) {
@@ -646,16 +728,16 @@ function buildReset(r) {
   return b;
 }
 
-function newRow(data, car) {
-  const r = { data: data, car: car, shown: "", timer: null, msgTimer: null };
+function newRow(data, target) {
+  const r = { data: data, target: target, shown: "", timer: null, msgTimer: null };
   r.msg = el("div", "msg");
   r.msg.hidden = true;
   r.msg.setAttribute("role", "alert");
   return r;
 }
 
-function buildHeaderRow(data, car) {
-  const r = newRow(data, car);
+function buildHeaderRow(data, target) {
+  const r = newRow(data, target);
   r.tr = el("div", "namerow");
   r.tr.appendChild(el("span", "label", "Name in the game's car list:"));
   const joined = el("span", "namefield");
@@ -666,14 +748,16 @@ function buildHeaderRow(data, car) {
   r.tr.appendChild(joined);
   r.reset = buildReset(r);
   r.tr.appendChild(r.reset);
+  r.tr.appendChild(el("span", "tunenote", target.tune === DRAFT ?
+    "Base car: Apply creates a new modded car" : "Modded car " + target.tune + " of " + carName()));
   r.tr.appendChild(r.msg);
   $("name-host").replaceChildren(r.tr);
   showRow(r, data, false);
   return r;
 }
 
-function buildRow(data, car) {
-  const r = newRow(data, car);
+function buildRow(data, target) {
+  const r = newRow(data, target);
   r.tr = el("tr");
 
   const nameCell = el("td", "name");
@@ -728,13 +812,13 @@ function clearTable() {
   headerRow = null;
 }
 
-function buildTable(list, car) {
+function buildTable(list, target) {
   const body = $("rows");
   clearTable();
   let current = null;
   for (const data of list) {
     if (data.ui === "header") {
-      headerRow = buildHeaderRow(data, car);
+      headerRow = buildHeaderRow(data, target);
       continue;
     }
     if (!current || current.name !== data.group) {
@@ -750,7 +834,7 @@ function buildTable(list, car) {
         groups.push(current);
       }
     }
-    const r = buildRow(data, car);
+    const r = buildRow(data, target);
     current.rows.push(r);
     rows.push(r);
     const after = current.rows.length > 1 ? current.rows[current.rows.length - 2].tr : current.tr;
@@ -777,11 +861,11 @@ function applyFilter() {
 }
 
 async function loadSettings() {
-  const car = carId;
+  const target = selection;
   try {
-    const list = await api("/api/settings", undefined, car);
-    if (car !== carId) return;
-    buildTable(list, car);
+    const list = await api("/api/settings", undefined, target);
+    if (target !== selection) return;
+    buildTable(list, target);
     tableLoaded = true;
     localError = "";
   } catch (e) {
@@ -794,29 +878,116 @@ async function loadSettings() {
 async function startJob(path, body) {
   localError = "";
   try {
-    await api(path, body, carId);
+    await api(path, body, selection);
   } catch (e) {
     localError = e.message;
   }
   await refresh();
 }
 
-function askNewCopy() {
-  const n = info.stock_id_length;
-  const text = "Save a new copy of " + carName() + ".\n" +
-    "New car id: exactly " + n + " characters, only lowercase a-z, 0-9 and _.\n" +
-    "It must differ from " + info.default_new_id + " (used by Apply).";
-  const id = window.prompt(text, "");
-  if (id === null) return;
-  startJob("/api/apply", { mode: "new_copy", new_id: id.trim() });
+// Create has started its job: when it ends with a new modded car, that car is selected
+function createdCar() {
+  if (!awaitCreated || !info) return false;
+  const job = info.job;
+  if (job.kind !== "apply") return false;
+  if (job.state === "error") {
+    awaitCreated = null;
+  } else if (job.state === "done" && job.result && job.result.created && !awaitCreated.known.includes(job.result.new_id)) {
+    const next = { car: awaitCreated.car, tune: job.result.new_id };
+    switchCar(next);
+    return true;
+  }
+  return false;
+}
+
+function showDialogError(text) {
+  $("dialog-error").textContent = text;
+  $("dialog-error").hidden = text === "";
+}
+
+function openDialog(kind) {
+  if (!info) return;
+  const create = kind === "create";
+  const opener = dialog ? dialog.opener : document.activeElement;
+  dialog = { kind: kind, opener: opener, busy: false };
+  $("dialog-title").textContent = create ? "Create a modded car from " + carName() : "Duplicate " + shownName();
+  $("dialog-id").value = info.proposed_new_id || "";
+  $("dialog-suffix").value = create ? info.proposed_suffix || "" : "";
+  $("dialog-suffix").placeholder = create ? "" : "automatic";
+  $("dialog-hint").textContent = "The id has exactly " + info.stock_id_length +
+    " characters: lower case letters, digits, underscore";
+  showDialogError("");
+  $("dialog").hidden = false;
+  renderButtons();
+  $("dialog-id").focus();
+  $("dialog-id").select();
+}
+
+function closeDialog(restoreFocus) {
+  if (!dialog) return;
+  const opener = dialog.opener;
+  dialog = null;
+  $("dialog").hidden = true;
+  if (restoreFocus) {
+    const back = opener && document.contains(opener) && !opener.disabled ? opener : $("car-select");
+    back.focus();
+  }
+}
+
+async function submitDialog() {
+  if (!dialog || dialog.busy || !info || info.job.state === "running") return;
+  const mine = dialog;
+  const create = mine.kind === "create";
+  const target = selection;
+  const known = moddedList().map((m) => m.id);
+  // an empty field sends nothing, the server then picks the id or suffix itself
+  const newId = $("dialog-id").value.trim() || undefined;
+  const suffix = $("dialog-suffix").value || undefined;
+  mine.busy = true;
+  showDialogError("");
+  renderButtons();
+  try {
+    if (create) {
+      await api("/api/apply", { new_id: newId, suffix: suffix }, target);
+      localError = "";
+      if (dialog === mine) {
+        awaitCreated = { car: target.car, known: known };
+        closeDialog(true);
+      }
+      await refresh();
+    } else {
+      const res = await api("/api/duplicate", { new_id: newId, suffix: suffix }, target);
+      if (dialog !== mine) return;
+      closeDialog(true);
+      switchCar({ car: res.stock, tune: res.id });
+    }
+  } catch (e) {
+    mine.busy = false;
+    if (dialog === mine) {
+      showDialogError(e.message);
+      $("dialog-id").focus();
+    }
+    renderButtons();
+  }
+}
+
+function dialogKey(ev) {
+  if (!dialog) return;
+  if (ev.key === "Escape") {
+    ev.preventDefault();
+    if (!dialog.busy) closeDialog(true);
+  } else if (ev.key === "Enter" && ev.target.tagName === "INPUT") {
+    ev.preventDefault();
+    submitDialog();
+  }
 }
 
 async function resetAll() {
-  if (!window.confirm("Reset all settings of " + carName() + " to their defaults?")) return;
-  const car = carId;
+  if (!window.confirm("Reset all settings of " + shownName() + " to their defaults?")) return;
+  const target = selection;
   queue = queue.then(async () => {
     try {
-      await api("/api/reset_all", {}, car);
+      await api("/api/reset_all", {}, target);
       await loadSettings();
     } catch (e) {
       localError = e.message;
@@ -825,10 +996,12 @@ async function resetAll() {
   });
 }
 
-function switchCar(id) {
-  if (!id || id === carId) return;
-  carId = id;
-  storeCar(id);
+function switchCar(next) {
+  if (!next || sameSelection(next, selection)) return;
+  selection = next;
+  storeSelection(next);
+  awaitCreated = null;
+  closeDialog(false);
   tableLoaded = false;
   clearTable();
   localError = "";
@@ -837,11 +1010,17 @@ function switchCar(id) {
   refresh();
 }
 
-$("car-select").addEventListener("change", () => switchCar($("car-select").value));
-$("btn-apply").addEventListener("click", () => startJob("/api/apply", { mode: "update" }));
-$("btn-copy").addEventListener("click", askNewCopy);
+$("car-select").addEventListener("change", () => switchCar(choiceOf($("car-select").value)));
+$("btn-apply").addEventListener("click", () => {
+  if (selection.tune === DRAFT) openDialog("create");
+  else startJob("/api/apply", {});
+});
+$("btn-duplicate").addEventListener("click", () => openDialog("duplicate"));
 $("btn-init").addEventListener("click", () => startJob("/api/init", {}));
 $("btn-reset-all").addEventListener("click", resetAll);
+$("dialog-ok").addEventListener("click", submitDialog);
+$("dialog-cancel").addEventListener("click", () => closeDialog(true));
+$("dialog").addEventListener("keydown", dialogKey);
 $("search").addEventListener("input", applyFilter);
 $("changed-only").addEventListener("change", applyFilter);
 document.addEventListener("visibilitychange", () => {

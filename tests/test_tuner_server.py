@@ -25,14 +25,16 @@ import tuner_server as ts
 USAGE = ts.__doc__.split("\n\n")[1]
 REAL_GAME_RUNNING = ts.game_running
 GAME_ARGV = ["tasklist", "/FI", "IMAGENAME eq AssettoCorsaEVO.exe", "/NH", "/FO", "CSV"]
-STATE_KEYS = {"work", "car", "default_car", "cars", "base_present", "game_running", "installed", "stock_id_length",
-              "default_new_id", "settings_applicable", "settings_hidden", "job"}
+STATE_KEYS = {"work", "car", "tune", "default_car", "cars", "base_present", "game_running", "installed", "stock_id_length",
+              "default_new_id", "settings_applicable", "settings_hidden", "job", "modded", "default_tune_taken",
+              "proposed_new_id", "proposed_suffix"}
+MODDED_KEYS = {"id", "stock", "label", "name_suffix", "default", "installed", "built"}
 CAR_KEYS = {"id", "label", "display_name", "extracted", "tested", "new_id", "installed"}
 JOB_KEYS = {"kind", "state", "log", "result", "error"}
 ROW_KEYS = {"id", "group", "label", "kind", "type", "unit", "description", "verified", "default", "value", "changed",
             "absent", "copies_differ"}
 INIT_RESULT = {"present": False, "dir": "/w/ks_x/base/content/cars/ks_x", "files": 3, "dirs": 1, "bytes": 10}
-APPLY_RESULT = {"new_id": "ax_x", "build_dir": "/w/ks_x/build/ax_x", "package": "/w/ks_x/build/ax_x/ax_x.kspkg", "size": 7,
+APPLY_RESULT = {"new_id": "ax_x", "tune": "ax_x", "name_suffix": "_MY", "build_dir": "/w/ks_x/build/ax_x", "package": "/w/ks_x/build/ax_x/ax_x.kspkg", "size": 7,
                 "applied": [{"id": "limiter", "old": 7000, "new": 8000, "files": ["data/engine.carengine", "data/x.car"]}],
                 "notes": ["note: from build"], "installed": "/m/ax_x.kspkg", "backup": None}
 
@@ -62,7 +64,7 @@ def gated(test, fn):
             test.gate.wait(10)
         if test.errors.get(fn):
             raise test.errors[fn]
-        return dict(INIT_RESULT if fn == "init" else APPLY_RESULT)
+        return dict(INIT_RESULT) if fn == "init" else dict(APPLY_RESULT, new_id=args[2], tune=args[2])
     return stub
 
 
@@ -226,7 +228,7 @@ class TestRoutes(ServerCase):
 
     def test_route_tables(self):
         self.assertEqual(sorted(ts.GET_ROUTES), ["/api/settings", "/api/state"])
-        self.assertEqual(sorted(ts.POST_ROUTES), ["/api/apply", "/api/init", "/api/reset_all", "/api/set", "/api/unset"])
+        self.assertEqual(sorted(ts.POST_ROUTES), ["/api/apply", "/api/duplicate", "/api/init", "/api/reset_all", "/api/set", "/api/unset"])
         self.assertEqual(ts.ACCEPTED, ("/api/init", "/api/apply"))
 
     def test_the_index_page_is_served_from_the_repo_file(self):
@@ -265,7 +267,7 @@ class TestRoutes(ServerCase):
         i = self.post("/api/init")
         self.assertEqual((i.status, i.json), (202, {"job": "started"}))
         self.wait_job()
-        a = self.post("/api/apply", {"mode": "update"})
+        a = self.post("/api/apply", {"tune": "draft"})
         self.assertEqual((a.status, a.json), (202, {"job": "started"}))
 
     def test_unknown_paths_are_404_json(self):
@@ -307,7 +309,7 @@ class TestRoutes(ServerCase):
         self.assertEqual(self.request("HEAD", "/").data, b"")
 
     def test_an_unexpected_exception_is_a_500_with_only_the_class_name(self):
-        def boom(car):
+        def boom(car, tune_id):
             raise RuntimeError("secret detail")
         with mock.patch.dict(ts.GET_ROUTES, {"/api/state": boom}):
             r = self.get("/api/state")
@@ -316,7 +318,7 @@ class TestRoutes(ServerCase):
 
     def test_value_and_os_errors_are_a_500_with_their_text(self):
         for exc in (ValueError("bad stock info"), OSError("disk gone")):
-            def boom(car, exc=exc):
+            def boom(car, tune_id, exc=exc):
                 raise exc
             with self.subTest(type(exc).__name__), mock.patch.dict(ts.GET_ROUTES, {"/api/state": boom}):
                 r = self.get("/api/state")
@@ -614,8 +616,9 @@ class TestMissingBase(ServerCase):
 
     def test_the_input_checks_come_before_the_base_check(self):
         self.assertEqual(self.post("/api/set", {"id": 5, "value": 1}).status, 400)
-        self.assertEqual(self.post("/api/apply", {"mode": "bad"}).status, 400)
-        self.assertEqual(self.post("/api/apply", {"mode": "new_copy", "new_id": "../../x"}).status, 400)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft", "new_id": 5}).status, 400)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft", "suffix": ["_X"]}).status, 400)
+        self.assertEqual(self.post("/api/duplicate", {"new_id": 5}).status, 400)
 
     def test_init_needs_no_base(self):
         self.assertEqual(self.post("/api/init").status, 202)
@@ -746,99 +749,267 @@ class TestStateRoutes(ServerCase):
 
 
 # -------------------------------------------------------------------------------------------------- apply and init
-class TestApplyRoute(ServerCase):
+class TuneCase(ServerCase):
+    """ServerCase with the stub car ks_x extracted and helpers for modded cars (tunes) of it."""
+
     def setUp(self):
         super().setUp()
         self.make_car()
 
-    def test_the_mode_must_be_update_or_new_copy(self):
-        for body in ({}, {"mode": "bad"}, {"mode": None}, {"mode": 5}, {"mode": ["update"]}, {"mode": "UPDATE"}, {"mode": ""}):
-            with self.subTest(body):
-                r = self.post("/api/apply", body)
-                self.assertEqual((r.status, r.json), (400, {"error": 'mode must be "update" or "new_copy"'}))
-        self.assertEqual(self.calls, [])
+    def make_tune(self, tune_id=None, state=None):
+        """A modded car of ks_x with the given saved values (tune_id None = the default tune ax_x)."""
+        tune.save_state(self.work, "ks_x", dict(state or {}), tune_id)
 
-    def test_new_copy_needs_a_new_id(self):
-        for body in ({"mode": "new_copy"}, {"mode": "new_copy", "new_id": ""}, {"mode": "new_copy", "new_id": None},
-                     {"mode": "new_copy", "new_id": 5}, {"mode": "new_copy", "new_id": ["ax_y"]}):
-            with self.subTest(body):
-                r = self.post("/api/apply", body)
-                self.assertEqual((r.status, r.json), (400, {"error": "new_id is required for mode new_copy"}))
+    def tune_state(self, tune_id=None):
+        return tune.load_state(self.work, "ks_x", tune_id)
 
-    def test_a_new_id_that_is_not_a_plain_same_length_id_is_400(self):
-        for new_id in ("../../x", "../x", "AX_Y", "ax y", "ax_yy", "ax", "ax-y", "ax_\u00e9", "ax/y", "a\x00b_"):
+    def tune_ids(self):
+        return [t["id"] for t in tune.list_tunes(self.work, "ks_x")]
+
+    def put_package(self, name, data=b"12345"):
+        os.makedirs(self.mods, exist_ok=True)
+        with open(os.path.join(self.mods, name + ".kspkg"), "wb") as f:
+            f.write(data)
+
+    def game_arg(self):
+        return os.path.expandvars(tune.DEFAULT_GAME)
+
+
+class TestApplyRoute(TuneCase):
+    def test_a_new_id_or_suffix_that_is_not_text_is_400_for_the_draft(self):
+        for body, text in (({"new_id": 5}, "new_id must be text"), ({"new_id": ["ax_y"]}, "new_id must be text"),
+                           ({"suffix": 5}, "suffix must be text"), ({"suffix": {"a": 1}}, "suffix must be text")):
+            with self.subTest(body):
+                r = self.post("/api/apply", dict(body, tune="draft"))
+                self.assertEqual((r.status, r.json), (400, {"error": text}))
+        self.assertEqual((self.calls, self.tune_ids(), ts.job_snapshot()["state"]), ([], [], "idle"))
+
+    def test_an_explicit_new_id_that_is_not_a_plain_same_length_id_is_400_and_creates_nothing(self):
+        for new_id in ("../../x", "../x", "AX_Y", "ax y", "ax_yy", "ax", "ax-y", "ax_\u00e9", "ax/y", "a\x00b_", ""):
             with self.subTest(new_id):
-                r = self.post("/api/apply", {"mode": "new_copy", "new_id": new_id})
+                r = self.post("/api/apply", {"tune": "draft", "new_id": new_id})
                 self.assertEqual(r.status, 400, r.json)
-        self.assertEqual(self.calls, [])
-        self.assertEqual(ts.job_snapshot()["state"], "idle")
+        self.assertEqual((self.calls, self.tune_ids(), ts.job_snapshot()["state"]), ([], [], "idle"))
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "tunes")))
 
-    def test_the_stock_id_and_the_update_id_are_refused_as_new_ids(self):
-        stock = self.post("/api/apply", {"mode": "new_copy", "new_id": "ks_x"})
+    def test_the_stock_id_and_the_id_of_an_existing_default_car_are_refused_as_new_ids(self):
+        stock = self.post("/api/apply", {"tune": "draft", "new_id": "ks_x"})
         self.assertEqual((stock.status, stock.json["error"]), (400, "new id equals the old id 'ks_x'"))
-        update = self.post("/api/apply", {"mode": "new_copy", "new_id": "ax_x"})
-        self.assertEqual((update.status, update.json["error"]),
-                         (400, "new id equals ax_x, the id used by Apply (update), pick another one"))
+        self.make_tune()
+        default = self.post("/api/apply", {"tune": "draft", "new_id": "ax_x"})
+        self.assertEqual((default.status, default.json["error"]), (400, "ax_x is already a tune of ks_x"))
+        self.assertEqual((self.calls, self.tune_ids()), ([], ["ax_x"]))
 
-    def test_update_builds_the_default_new_id_and_installs(self):
-        r = self.post("/api/apply", {"mode": "update"})
+    def test_a_new_id_that_another_modded_car_or_a_package_uses_is_400(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        self.put_package("ax02")
+        for new_id in ("ax01", "ax02"):
+            with self.subTest(new_id):
+                r = self.post("/api/apply", {"tune": "draft", "new_id": new_id})
+                self.assertEqual((r.status, r.json["error"]), (400, "tuned car id %s is already used or reserved" % new_id))
+        self.assertEqual((self.calls, self.tune_ids()), ([], ["ax01"]))
+
+    def test_an_explicit_suffix_that_another_modded_car_uses_is_400_and_creates_nothing(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        r = self.post("/api/apply", {"tune": "draft", "suffix": "_A"})
+        self.assertEqual((r.status, r.json), (400, {"error": "name suffix already used by ax_x"}))
+        self.assertEqual((self.calls, self.tune_ids()), ([], ["ax_x"]))
+        bad = self.post("/api/apply", {"tune": "draft", "suffix": ""})
+        self.assertEqual(bad.status, 400)
+        self.assertEqual(self.tune_ids(), ["ax_x"])
+
+    def test_the_draft_creates_the_first_modded_car_under_the_default_id_and_builds_it(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        r = self.post("/api/apply", {"tune": "draft"})
         self.assertEqual((r.status, r.json), (202, {"job": "started"}))
         snap = self.wait_job()
-        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_x", True, self.mods), {"game": os.path.expandvars(tune.DEFAULT_GAME)})])
+        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_x", True, self.mods), {"game": self.game_arg()})])
         self.assertEqual((snap["kind"], snap["state"], snap["error"]), ("apply", "done", None))
-        self.assertEqual(snap["result"], dict(APPLY_RESULT, mode="update"))
+        self.assertEqual(snap["result"], dict(APPLY_RESULT, created=True))
+        self.assertEqual(self.tune_ids(), ["ax_x"])
+        self.assertEqual(self.tune_state(), {"limiter": 8000, "name_suffix": "_MY"})
 
-    def test_new_copy_builds_the_given_id(self):
-        r = self.post("/api/apply", {"mode": "new_copy", "new_id": "ax_y"})
-        self.assertEqual(r.status, 202)
-        snap = self.wait_job()
-        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_y", True, self.mods), {"game": os.path.expandvars(tune.DEFAULT_GAME)})])
-        self.assertEqual(snap["result"]["mode"], "new_copy")
-
-    def test_update_ignores_a_new_id_in_the_body(self):
-        self.post("/api/apply", {"mode": "update", "new_id": "../../x"})
+    def test_the_second_modded_car_of_the_draft_gets_a_counter_id_and_the_next_suffix(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        self.post("/api/apply", {"tune": "draft"})
         self.wait_job()
-        self.assertEqual(self.calls[0][1][2], "ax_x")
+        self.make_tune(tune.DRAFT, {"limiter": 9000})
+        self.post("/api/apply", {"tune": "draft"})
+        snap = self.wait_job()
+        self.assertEqual([c[1][2] for c in self.calls], ["ax_x", "ax01"])
+        self.assertEqual((snap["result"]["new_id"], snap["result"]["tune"], snap["result"]["created"]), ("ax01", "ax01", True))
+        self.assertEqual(self.tune_ids(), ["ax_x", "ax01"])
+        self.assertEqual(self.tune_state("ax01"), {"limiter": 9000, "name_suffix": "_MY2"})
+        self.assertEqual(self.tune_state(), {"limiter": 8000, "name_suffix": "_MY"})
+
+    def test_an_explicit_new_id_and_suffix_are_used_for_the_draft(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        self.post("/api/apply", {"tune": "draft", "new_id": "ax_z", "suffix": "_Z"})
+        snap = self.wait_job()
+        self.assertEqual(self.calls[0][1][2], "ax_z")
+        self.assertEqual((snap["result"]["new_id"], snap["result"]["created"]), ("ax_z", True))
+        self.assertEqual(self.tune_state("ax_z"), {"limiter": 8000, "name_suffix": "_Z"})
+        self.assertEqual(self.tune_ids(), ["ax_z"])
+
+    def test_the_draft_is_cleared_after_a_successful_build(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000, "aids_off": True})
+        self.post("/api/apply", {"tune": "draft"})
+        self.wait_job()
+        self.assertEqual(self.tune_state(tune.DRAFT), {})
+        self.assertFalse(any(r["changed"] for r in self.get("/api/settings?tune=draft").json))
+
+    def test_the_draft_is_cleared_under_state_lock(self):
+        held = []
+        real = tune.save_state
+
+        def spy(work, car, state, tune_id=None):
+            held.append((tune_id, ts.STATE_LOCK.locked()))
+            return real(work, car, state, tune_id)
+        self.patch(tune, "save_state", spy)
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        self.post("/api/apply", {"tune": "draft"})
+        self.wait_job()
+        self.assertEqual(held[-1], (tune.DRAFT, True))
+
+    def test_a_failed_build_keeps_the_draft_and_leaves_the_created_modded_car_listed(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        self.errors["apply"] = ValueError("clone self-check failed")
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
+        snap = self.wait_job()
+        self.assertEqual((snap["state"], snap["error"], snap["result"]), ("error", "clone self-check failed", None))
+        self.assertEqual(self.tune_state(tune.DRAFT), {"limiter": 8000})
+        self.assertEqual(self.tune_ids(), ["ax_x"])
+        self.assertEqual([m["id"] for m in self.get("/api/state").json["modded"]], ["ax_x"])
+
+    def test_a_retry_after_a_failed_build_creates_one_more_modded_car(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        self.errors["apply"] = ValueError("boom")
+        self.post("/api/apply", {"tune": "draft"})
+        self.wait_job()
+        self.errors.clear()
+        self.post("/api/apply", {"tune": "draft"})
+        self.wait_job()
+        self.assertEqual(self.tune_ids(), ["ax_x", "ax01"])
+        self.assertEqual(self.tune_state(tune.DRAFT), {})
+
+    def test_an_empty_draft_creates_a_modded_car_with_the_stock_values(self):
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
+        self.wait_job()
+        self.assertEqual(self.tune_state(), {"name_suffix": "_MY"})
+
+    def test_a_modded_car_is_updated_under_its_own_id(self):
+        self.make_tune("ax01", {"limiter": 8000, "name_suffix": "_A"})
+        self.make_tune(tune.DRAFT, {"limiter": 9000})
+        r = self.post("/api/apply", {"tune": "ax01"})
+        self.assertEqual((r.status, r.json), (202, {"job": "started"}))
+        snap = self.wait_job()
+        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax01", True, self.mods), {"game": self.game_arg()})])
+        self.assertEqual((snap["state"], snap["error"]), ("done", None))
+        self.assertEqual(snap["result"], dict(APPLY_RESULT, new_id="ax01", tune="ax01", created=False))
+        self.assertEqual(self.tune_ids(), ["ax01"])
+        self.assertEqual(self.tune_state(tune.DRAFT), {"limiter": 9000})
+
+    def test_without_a_tune_the_default_modded_car_is_updated(self):
+        self.make_tune()
+        self.assertEqual(self.post("/api/apply", {}).status, 202)
+        snap = self.wait_job()
+        self.assertEqual(self.calls, [("apply", (self.work, "ks_x", "ax_x", True, self.mods), {"game": self.game_arg()})])
+        self.assertEqual((snap["state"], snap["result"]["created"]), ("done", False))
+        self.assertEqual(self.post("/api/apply", {"tune": None}).status, 202)
+
+    def test_without_a_tune_and_without_a_default_modded_car_apply_is_400(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        r = self.post("/api/apply", {})
+        self.assertEqual((r.status, r.json), (400, {"error": "no modded car selected, pick one or use the draft of the car to create it"}))
+        self.assertEqual((self.calls, self.tune_ids(), ts.job_snapshot()["state"]), ([], ["ax01"], "idle"))
+
+    def test_an_update_ignores_new_id_and_suffix_in_the_body(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        self.post("/api/apply", {"tune": "ax01", "new_id": "../../x", "suffix": 5})
+        self.wait_job()
+        self.assertEqual(self.calls[0][1][2], "ax01")
+        self.assertEqual((self.tune_ids(), self.tune_state("ax01")), (["ax01"], {"name_suffix": "_A"}))
+
+    def test_an_update_whose_suffix_another_modded_car_uses_is_400_with_the_message(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        r = self.post("/api/apply", {"tune": "ax01"})
+        self.assertEqual((r.status, r.json), (400, {"error": "name suffix _A is already used by ax_x"}))
+        self.assertEqual(self.post("/api/apply", {}).json, {"error": "name suffix _A is already used by ax01"})
+        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
+
+    def test_a_suffix_conflict_found_by_tune_apply_ends_the_job_in_the_error_state(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        self.errors["apply"] = ValueError("name suffix _A is already used by ax_x")
+        self.assertEqual(self.post("/api/apply", {"tune": "ax01"}).status, 202)
+        snap = self.wait_job()
+        self.assertEqual((snap["state"], snap["error"]), ("error", "name suffix _A is already used by ax_x"))
+
+    def test_an_unknown_modded_car_is_400_and_starts_no_job(self):
+        r = self.post("/api/apply", {"tune": "ax01"})
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car ax01 of ks_x"}))
+        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
 
     def test_the_apply_log_has_the_build_line_and_the_result_lines(self):
-        self.post("/api/apply", {"mode": "update"})
+        self.make_tune()
+        self.post("/api/apply", {})
         self.assertEqual(self.wait_job()["log"], [
-            "building ax_x (update), this takes a while ...", "applied 1 setting(s)",
+            "building ax_x, this takes a while ...", "applied 1 setting(s)",
             "  limiter: 7000 -> 8000  [data/engine.carengine, data/x.car]", "note: from build",
             "package: /w/ks_x/build/ax_x/ax_x.kspkg (7 bytes)", "installed: /m/ax_x.kspkg", "backup: no previous install"])
 
-    def test_apply_is_refused_while_the_game_runs(self):
+    def test_apply_is_refused_while_the_game_runs_and_creates_no_modded_car(self):
         self.game_up = True
-        r = self.post("/api/apply", {"mode": "update"})
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        r = self.post("/api/apply", {"tune": "draft"})
         self.assertEqual((r.status, r.json), (409, {"error": "close the game first, AssettoCorsaEVO.exe is running"}))
-        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
-        self.assertEqual(self.post("/api/apply", {"mode": "new_copy", "new_id": "ax_y"}).status, 409)
+        self.assertEqual((self.calls, self.tune_ids(), ts.job_snapshot()["state"]), ([], [], "idle"))
+        self.make_tune()
+        self.assertEqual(self.post("/api/apply", {}).status, 409)
+        self.assertEqual(self.tune_state(tune.DRAFT), {"limiter": 8000})
 
     def test_apply_is_allowed_again_once_the_game_is_closed(self):
         self.game_up = True
-        self.post("/api/apply", {"mode": "update"})
+        self.post("/api/apply", {"tune": "draft"})
         self.game_up = False
-        self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
 
     def test_the_configured_game_package_reaches_tune_apply(self):
         ts.CONFIG["game"] = "other.kspkg"
-        self.post("/api/apply", {"mode": "update"})
+        self.post("/api/apply", {"tune": "draft"})
         self.wait_job()
         args, kw = self.calls[0][1:]
         self.assertIn("other.kspkg", list(args) + list(kw.values()))
 
-    def test_an_unexpandable_mods_folder_is_a_409_and_starts_no_job(self):
+    def test_an_unexpandable_mods_folder_is_a_409_and_starts_no_job_and_creates_no_modded_car(self):
         ts.CONFIG["mods"] = "%ACE_TEST_NO_SUCH_VAR%/m"
-        r = self.post("/api/apply", {"mode": "update"})
+        r = self.post("/api/apply", {"tune": "draft"})
         self.assertEqual((r.status, r.json), (409, {"error": "cannot expand the mods folder '%ACE_TEST_NO_SUCH_VAR%/m'"}))
-        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
+        self.assertEqual((self.calls, ts.job_snapshot()["state"], self.tune_ids()), ([], "idle", []))
+
+    def test_a_running_job_refuses_the_draft_before_a_modded_car_is_created(self):
+        self.hold_jobs()
+        self.assertEqual(self.post("/api/init").status, 202)
+        self.entered.wait(5)
+        r = self.post("/api/apply", {"tune": "draft"})
+        self.assertEqual(r.status, 409, r.json)
+        self.assertEqual(self.tune_ids(), [])
+        self.finish_held_job()
 
     def test_a_failing_apply_ends_in_the_error_state(self):
         self.errors["apply"] = ValueError("no base car in x, run init first")
-        self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
         snap = self.wait_job()
         self.assertEqual((snap["state"], snap["error"], snap["result"]), ("error", "no base car in x, run init first", None))
         self.assertEqual(snap["log"][-1], "error: no base car in x, run init first")
+
+    def test_the_proposed_ids_of_the_state_are_what_apply_from_the_draft_creates(self):
+        for _ in range(3):
+            state = self.get("/api/state").json
+            self.post("/api/apply", {"tune": "draft"})
+            new_id = self.wait_job()["result"]["new_id"]
+            self.assertEqual(new_id, state["proposed_new_id"])
+            self.assertEqual(self.tune_state(new_id)["name_suffix"], state["proposed_suffix"])
 
 
 class TestInitRoute(ServerCase):
@@ -875,6 +1046,507 @@ class TestInitRoute(ServerCase):
         self.assertEqual((snap["state"], snap["error"], snap["log"][-1]), ("error", "game package not found: x", "error: game package not found: x"))
 
 
+# -------------------------------------------------------------------------------------------------- tunes: resolution, state, edits, duplicate
+class TestTuneResolution(TuneCase):
+    def setUp(self):
+        super().setUp()
+        self.make_tune("ax01", {"name_suffix": "_A"})
+
+    def test_without_a_tune_the_state_echoes_null(self):
+        for path in ("/api/state", "/api/state?car=ks_x", "/api/state?tune=", "/api/state?tune"):
+            with self.subTest(path):
+                self.assertEqual(self.get(path).json["tune"], None)
+
+    def test_the_draft_and_a_modded_car_are_echoed(self):
+        self.assertEqual(self.get("/api/state?tune=draft").json["tune"], "draft")
+        self.assertEqual(self.get("/api/state?car=ks_x&tune=ax01").json["tune"], "ax01")
+
+    def test_the_draft_needs_no_modded_car(self):
+        os.remove(tune.state_path(self.work, "ks_x", "ax01"))
+        self.assertEqual(self.tune_ids(), [])
+        self.assertEqual(self.get("/api/state?tune=draft").status, 200)
+        self.assertEqual(self.get("/api/settings?tune=draft").status, 200)
+
+    def test_the_default_modded_car_can_be_selected_only_when_it_exists(self):
+        r = self.get("/api/state?tune=ax_x")
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car ax_x of ks_x"}))
+        self.make_tune()
+        self.assertEqual(self.get("/api/state?tune=ax_x").json["tune"], "ax_x")
+
+    def test_an_unknown_modded_car_is_400_on_both_get_routes(self):
+        for path in ("/api/state?tune=nope", "/api/settings?tune=nope", "/api/state?tune=../x", "/api/state?tune=%2e%2e%2fx",
+                     "/api/state?tune=DRAFT", "/api/state?tune=ax02", "/api/state?tune=ks_x"):
+            with self.subTest(path):
+                r = self.get(path)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith("unknown modded car "), r.json)
+                self.assertTrue(r.json["error"].endswith(" of ks_x"), r.json)
+
+    def test_a_modded_car_of_another_stock_car_is_unknown(self):
+        tune.save_state(self.work, "ks_y", {}, "ax02")
+        r = self.get("/api/state?tune=ax02")
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car ax02 of ks_x"}))
+        self.assertEqual(self.get("/api/state?car=ks_y&tune=ax02").json["tune"], "ax02")
+        self.assertEqual(self.get("/api/state?car=ks_y&tune=ax01").status, 400)
+
+    def test_an_unknown_modded_car_is_400_on_every_post_route(self):
+        for path in ("/api/set", "/api/unset", "/api/reset_all", "/api/init", "/api/duplicate", "/api/apply"):
+            with self.subTest(path):
+                r = self.post(path, {"tune": "nope", "id": "limiter", "value": "1"})
+                self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car nope of ks_x"}))
+        self.assertEqual((self.calls, ts.job_snapshot()["state"], self.tune_ids()), ([], "idle", ["ax01"]))
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_x", "draft")))
+
+    def test_the_tune_must_be_text(self):
+        for value in (5, ["draft"], {"id": "ax01"}, True, 0, 1.5):
+            for path in ("/api/set", "/api/reset_all", "/api/duplicate", "/api/apply"):
+                with self.subTest(repr(value), path=path):
+                    r = self.post(path, {"tune": value, "id": "limiter", "value": "1"})
+                    self.assertEqual((r.status, r.json), (400, {"error": "tune must be text"}))
+
+    def test_a_null_tune_is_the_default_tune(self):
+        self.assertEqual(self.post("/api/set", {"id": "limiter", "value": "8000", "tune": None}).status, 200)
+        self.assertEqual(self.saved_state(), {"limiter": 8000})
+
+    def test_an_empty_text_tune_in_the_body_is_unknown(self):
+        r = self.post("/api/reset_all", {"tune": ""})
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car  of ks_x"}))
+
+    def test_a_post_takes_the_tune_from_the_query_when_the_body_has_none_and_the_body_wins(self):
+        self.post("/api/set?tune=ax01", {"id": "limiter", "value": "8000"})
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A", "limiter": 8000})
+        self.post("/api/set?tune=ax01", {"id": "limiter", "value": "9000", "tune": "draft"})
+        self.assertEqual((self.tune_state("ax01")["limiter"], self.tune_state("draft")), (8000, {"limiter": 9000}))
+
+    def test_an_unknown_car_is_reported_before_an_unknown_tune(self):
+        r = self.get("/api/state?car=nope&tune=nope")
+        self.assertTrue(r.json["error"].startswith("unknown car"), r.json)
+
+    def test_request_tune(self):
+        self.assertIsNone(ts.request_tune(None, "", "ks_x"))
+        self.assertIsNone(ts.request_tune(None, "car=ks_x", "ks_x"))
+        self.assertEqual(ts.request_tune(None, "tune=ax01", "ks_x"), "ax01")
+        self.assertEqual(ts.request_tune("draft", "tune=ax01", "ks_x"), "draft")
+        self.assertEqual(ts.request_tune("ax01", "tune=nope", "ks_x"), "ax01")
+        self.assertEqual(ts.request_tune(None, "a=1&tune=draft&b=2", "ks_x"), "draft")
+        for value, query, text in (("nope", "", "unknown modded car nope of ks_x"), (None, "tune=nope", "unknown modded car nope of ks_x"),
+                                   (5, "", "tune must be text"), (["ax01"], "", "tune must be text")):
+            with self.subTest(value, query=query), self.assertRaises(ts.ApiError) as cm:
+                ts.request_tune(value, query, "ks_x")
+            self.assertEqual((cm.exception.status, cm.exception.message), (400, text))
+
+
+class TestStateOfTunes(TuneCase):
+    def test_a_car_without_modded_cars_proposes_the_default_id_and_suffix(self):
+        r = self.get("/api/state").json
+        self.assertEqual((r["modded"], r["default_tune_taken"], r["proposed_new_id"], r["proposed_suffix"]), ([], False, "ax_x", "_MY"))
+        self.assertNotIn("modded_error", r)
+        self.assertEqual(r["default_new_id"], "ax_x")
+
+    def test_the_modded_cars_are_listed_with_their_flags(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        self.put_package("ax01")
+        build = os.path.join(tune.build_dir(self.work, "ks_x"), "ax_x")
+        os.makedirs(build)
+        with open(os.path.join(build, "ax_x.kspkg"), "wb"):
+            pass
+        r = self.get("/api/state").json
+        self.assertEqual([set(m) for m in r["modded"]], [MODDED_KEYS, MODDED_KEYS])
+        self.assertEqual(r["modded"], [
+            {"id": "ax_x", "stock": "ks_x", "label": "Car X_A", "name_suffix": "_A", "default": True, "installed": False, "built": True},
+            {"id": "ax01", "stock": "ks_x", "label": "Car X_B", "name_suffix": "_B", "default": False, "installed": True, "built": False}])
+
+    def test_the_list_is_the_one_of_tune_list_modded_for_the_configured_mods_folder(self):
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        seen = []
+
+        def spy(work, mods_dir=None):
+            seen.append((work, mods_dir))
+            return [{"id": "ax01"}]
+        self.patch(tune, "list_modded", spy)
+        self.assertEqual(self.get("/api/state").json["modded"], [{"id": "ax01"}])
+        self.assertEqual(seen, [(self.work, os.path.abspath(self.mods))])
+
+    def test_the_modded_cars_of_every_stock_car_are_listed(self):
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        tune.save_state(self.work, "ks_y", {"name_suffix": "_C"}, "ax02")
+        self.assertEqual(sorted(m["id"] for m in self.get("/api/state").json["modded"]), ["ax01", "ax02"])
+        self.assertEqual(sorted(m["id"] for m in self.get("/api/state?car=ks_y").json["modded"]), ["ax01", "ax02"])
+
+    def test_a_list_that_cannot_be_read_gives_an_empty_list_and_the_error_text(self):
+        def broken(work, mods_dir=None):
+            raise ValueError("tune_state.json: expected an object")
+        self.patch(tune, "list_modded", broken)
+        r = self.get("/api/state")
+        self.assertEqual(r.status, 200)
+        self.assertEqual((r.json["modded"], r.json["modded_error"]), ([], "tune_state.json: expected an object"))
+        self.assertEqual((r.json["proposed_new_id"], r.json["default_tune_taken"]), ("ax_x", False))
+
+    def test_a_damaged_state_file_does_not_make_the_state_a_500(self):
+        self.write(self.state_file(), "[1, 2]")
+        r = self.get("/api/state")
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.json["modded"], [])
+        self.assertIn("expected an object", r.json["modded_error"])
+        self.assertEqual((r.json["default_tune_taken"], r.json["proposed_new_id"], r.json["proposed_suffix"]), (False, None, None))
+
+    def test_an_existing_default_modded_car_is_taken_and_the_next_id_and_suffix_are_proposed(self):
+        self.make_tune()
+        r = self.get("/api/state").json
+        self.assertEqual((r["default_tune_taken"], r["proposed_new_id"], r["proposed_suffix"]), (True, "ax01", "_MY2"))
+        self.make_tune("ax01", {"name_suffix": "_MY2"})
+        r = self.get("/api/state").json
+        self.assertEqual((r["proposed_new_id"], r["proposed_suffix"]), ("ax02", "_MY3"))
+
+    def test_a_build_folder_alone_takes_the_default_modded_car(self):
+        os.makedirs(os.path.join(tune.build_dir(self.work, "ks_x"), "ax_x"))
+        r = self.get("/api/state").json
+        self.assertEqual((r["default_tune_taken"], r["proposed_new_id"], [m["id"] for m in r["modded"]]), (True, "ax01", ["ax_x"]))
+
+    def test_installed_packages_take_their_ids_out_of_the_proposals(self):
+        self.make_tune()
+        self.put_package("ax01")
+        self.assertEqual(self.get("/api/state").json["proposed_new_id"], "ax02")
+
+    def test_the_proposals_are_per_stock_car(self):
+        self.make_tune()
+        r = self.get("/api/state?car=ks_y").json
+        self.assertEqual((r["default_tune_taken"], r["proposed_new_id"], r["proposed_suffix"]), (False, "ax_y", "_MY"))
+
+    def test_no_free_id_proposes_null(self):
+        self.make_tune()
+
+        def full(*args, **kw):
+            raise ValueError("no free tuned car id left for ks_x")
+        self.patch(tune, "free_tune_id", full)
+        r = self.get("/api/state")
+        self.assertEqual((r.status, r.json["proposed_new_id"], r.json["default_tune_taken"]), (200, None, True))
+
+    def test_installed_is_the_package_of_the_selected_modded_car(self):
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        self.put_package("ax01", b"123456")
+        sel = self.get("/api/state?tune=ax01").json["installed"]
+        self.assertEqual((sel["path"], sel["exists"], sel["bytes"]), (os.path.join(os.path.abspath(self.mods), "ax01.kspkg"), True, 6))
+        self.assertRegex(sel["modified"], r"^20\d\d-\d\d-\d\dT\d\d:\d\d:\d\d$")
+
+    def test_installed_of_the_draft_and_of_no_tune_is_the_package_of_the_default_id(self):
+        self.put_package("ax01")
+        self.put_package("ax_x", b"12")
+        for path in ("/api/state", "/api/state?tune=draft"):
+            with self.subTest(path):
+                inst = self.get(path).json["installed"]
+                self.assertEqual((os.path.basename(inst["path"]), inst["exists"], inst["bytes"]), ("ax_x.kspkg", True, 2))
+        os.remove(os.path.join(self.mods, "ax_x.kspkg"))
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        self.assertFalse(self.get("/api/state?tune=draft").json["installed"]["exists"])
+        self.assertTrue(self.get("/api/state?tune=ax01").json["installed"]["exists"])
+
+    def test_installed_info_for_a_tune(self):
+        self.assertTrue(ts.installed_info("ks_x", "ax01")["path"].endswith("ax01.kspkg"))
+        for tune_id in (None, "draft"):
+            self.assertTrue(ts.installed_info("ks_x", tune_id)["path"].endswith("ax_x.kspkg"))
+
+    def test_the_cars_list_keeps_the_default_package_flag(self):
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        self.put_package("ax01")
+        self.assertFalse(self.get("/api/state?tune=ax01").json["cars"][0]["installed"])
+
+    def test_an_unexpandable_mods_folder_is_409_with_a_tune_too(self):
+        ts.CONFIG["mods"] = "%ACE_TEST_NO_SUCH_VAR%/m"
+        self.assertEqual(self.get("/api/state?tune=draft").status, 409)
+
+
+class TestSettingsOfTunes(TuneCase):
+    def row(self, rows, setting_id="limiter"):
+        return next(r for r in rows if r["id"] == setting_id)
+
+    def test_settings_show_the_values_of_the_selected_modded_car(self):
+        self.make_tune("ax01", {"limiter": 8000, "name_suffix": "_A"})
+        rows = self.get("/api/settings?tune=ax01").json
+        self.assertEqual([r["id"] for r in rows], ["limiter", "aids_off", "name_suffix"])
+        self.assertEqual((self.row(rows)["value"], self.row(rows)["default"], self.row(rows)["changed"]), (8000, 7000, True))
+        self.assertEqual((self.row(rows, "name_suffix")["value"], self.row(rows, "name_suffix")["changed"]), ("_A", True))
+
+    def test_settings_of_the_draft_start_from_the_stock_defaults(self):
+        self.make_tune(None, {"limiter": 8000})
+        rows = self.get("/api/settings?tune=draft").json
+        self.assertEqual((self.row(rows)["value"], self.row(rows)["changed"]), (7000, False))
+        self.assertEqual(self.row(rows, "name_suffix")["value"], "_MY")
+
+    def test_settings_without_a_tune_are_those_of_the_default_modded_car(self):
+        self.make_tune("ax01", {"limiter": 9000, "name_suffix": "_A"})
+        self.make_tune(tune.DRAFT, {"limiter": 6000})
+        self.assertEqual(self.row(self.get("/api/settings").json)["value"], 7000)
+        self.make_tune(None, {"limiter": 8000})
+        self.assertEqual(self.row(self.get("/api/settings").json)["value"], 8000)
+        self.assertEqual(self.row(self.get("/api/settings?tune=ax_x").json)["value"], 8000)
+
+    def test_settings_of_a_tune_are_409_without_a_base(self):
+        tune.save_state(self.work, "ks_y", {"name_suffix": "_C"}, "ax02")
+        for tune_id in ("draft", "ax02"):
+            with self.subTest(tune_id):
+                r = self.get("/api/settings?car=ks_y&tune=" + tune_id)
+                self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+
+    def test_set_on_a_modded_car_changes_only_its_state(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        r = self.post("/api/set", {"id": "limiter", "value": "8000", "tune": "ax01"})
+        self.assertEqual((r.status, r.json["row"]["value"], r.json["row"]["changed"], r.json["warnings"]), (200, 8000, True, []))
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A", "limiter": 8000})
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_x", "draft")))
+
+    def test_set_on_the_draft_needs_only_the_base_car(self):
+        r = self.post("/api/set", {"id": "limiter", "value": "8000", "tune": "draft"})
+        self.assertEqual((r.status, r.json["row"]["value"]), (200, 8000))
+        self.assertEqual(self.tune_state("draft"), {"limiter": 8000})
+        self.assertEqual(os.path.basename(tune.state_path(self.work, "ks_x", "draft")), "draft_state.json")
+        self.assertEqual(self.tune_ids(), [])
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_set_on_a_tune_without_a_base_is_409_and_writes_nothing(self):
+        tune.save_state(self.work, "ks_y", {"name_suffix": "_C"}, "ax02")
+        for tune_id in ("draft", "ax02"):
+            with self.subTest(tune_id):
+                r = self.post("/api/set", {"car": "ks_y", "tune": tune_id, "id": "limiter", "value": "8000"})
+                self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+        self.assertEqual(tune.load_state(self.work, "ks_y", "ax02"), {"name_suffix": "_C"})
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_y", "draft")))
+
+    def test_the_default_the_draft_and_a_modded_car_keep_separate_values(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        self.post("/api/set", {"id": "limiter", "value": "8000"})
+        self.post("/api/set", {"id": "limiter", "value": "9000", "tune": "ax01"})
+        self.post("/api/set", {"id": "limiter", "value": "6000", "tune": "draft"})
+        self.assertEqual(self.saved_state(), {"limiter": 8000})
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A", "limiter": 9000})
+        self.assertEqual(self.tune_state("draft"), {"limiter": 6000})
+        for query, value in (("", 8000), ("?tune=ax_x", 8000), ("?tune=ax01", 9000), ("?tune=draft", 6000)):
+            with self.subTest(query):
+                self.assertEqual(self.row(self.get("/api/settings" + query).json)["value"], value)
+
+    def test_set_with_a_bad_value_on_a_tune_changes_nothing(self):
+        self.make_tune("ax01", {"limiter": 7500, "name_suffix": "_A"})
+        r = self.post("/api/set", {"id": "limiter", "value": "fast", "tune": "ax01"})
+        self.assertEqual(r.status, 400)
+        self.assertEqual(self.tune_state("ax01"), {"limiter": 7500, "name_suffix": "_A"})
+
+    def test_unset_on_a_modded_car_and_on_the_draft(self):
+        self.make_tune("ax01", {"limiter": 8000, "aids_off": True, "name_suffix": "_A"})
+        self.make_tune(tune.DRAFT, {"limiter": 6000})
+        self.make_tune(None, {"limiter": 5000})
+        r = self.post("/api/unset", {"id": "limiter", "tune": "ax01"})
+        self.assertEqual((r.status, r.json["row"]["value"], r.json["row"]["changed"]), (200, 7000, False))
+        self.assertEqual(self.tune_state("ax01"), {"aids_off": True, "name_suffix": "_A"})
+        r = self.post("/api/unset", {"id": "limiter", "tune": "draft"})
+        self.assertEqual((r.status, self.tune_state("draft")), (200, {}))
+        self.assertEqual(self.saved_state(), {"limiter": 5000})
+
+    def test_edits_on_a_tune_are_refused_while_a_job_runs(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        self.hold_jobs()
+        self.assertEqual(self.post("/api/apply", {"tune": "ax01"}).status, 202)
+        for path, body in (("/api/set", {"id": "limiter", "value": "8000"}), ("/api/unset", {"id": "limiter"}), ("/api/reset_all", {}),
+                           ("/api/duplicate", {})):
+            for tune_id in ("ax01", "draft"):
+                with self.subTest(path, tune=tune_id):
+                    self.assertEqual(self.post(path, dict(body, tune=tune_id)).status, 409)
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A"})
+
+    def test_every_state_write_for_a_tune_happens_under_state_lock(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        held = []
+        real = tune.save_state
+
+        def spy(*args, **kw):
+            held.append(ts.STATE_LOCK.locked())
+            return real(*args, **kw)
+        self.patch(tune, "save_state", spy)
+        self.post("/api/set", {"id": "limiter", "value": "8000", "tune": "ax01"})
+        self.post("/api/unset", {"id": "limiter", "tune": "ax01"})
+        self.post("/api/reset_all", {"tune": "ax01"})
+        self.post("/api/reset_all", {"tune": "draft"})
+        self.post("/api/duplicate", {"tune": "ax01"})
+        self.assertEqual(held, [True] * 5)
+
+    def test_the_settings_of_a_tune_are_built_under_state_lock(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        held = []
+        real = tune.effective_rows
+
+        def spy(*args, **kw):
+            held.append((kw.get("tune"), ts.STATE_LOCK.locked()))
+            return real(*args, **kw)
+        self.patch(tune, "effective_rows", spy)
+        self.get("/api/settings?tune=ax01")
+        self.assertEqual(held, [("ax01", True)])
+
+
+class TestResetAllOfTunes(TuneCase):
+    def test_the_default_modded_car_is_cleared_completely(self):
+        self.make_tune(None, {"limiter": 8000, "name_suffix": "_A"})
+        self.assertEqual(self.post("/api/reset_all").json, {"ok": True})
+        self.assertEqual(self.saved_state(), {})
+        self.assertEqual(self.post("/api/reset_all", {"tune": "ax_x"}).status, 200)
+        self.assertEqual(self.saved_state(), {})
+
+    def test_the_draft_is_cleared_completely(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000, "name_suffix": "_A"})
+        self.make_tune("ax01", {"limiter": 9000, "name_suffix": "_B"})
+        r = self.post("/api/reset_all", {"tune": "draft"})
+        self.assertEqual((r.status, r.json), (200, {"ok": True}))
+        self.assertEqual(self.tune_state("draft"), {})
+        self.assertEqual(self.tune_state("ax01"), {"limiter": 9000, "name_suffix": "_B"})
+
+    def test_another_modded_car_keeps_its_name_suffix(self):
+        self.make_tune(None, {"limiter": 8000, "name_suffix": "_A"})
+        self.make_tune("ax01", {"limiter": 9000, "aids_off": True, "name_suffix": "_B"})
+        r = self.post("/api/reset_all", {"tune": "ax01"})
+        self.assertEqual((r.status, r.json), (200, {"ok": True}))
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_B"})
+        self.assertEqual(self.saved_state(), {"limiter": 8000, "name_suffix": "_A"})
+        self.assertEqual([t["name_suffix"] for t in tune.list_tunes(self.work, "ks_x")], ["_A", "_B"])
+        rows = self.get("/api/settings?tune=ax01").json
+        self.assertEqual([r["changed"] for r in rows], [False, False, True])
+
+    def test_a_modded_car_without_a_saved_suffix_is_reset_to_an_empty_state(self):
+        self.make_tune("ax01", {"limiter": 9000})
+        self.post("/api/reset_all", {"tune": "ax01"})
+        self.assertEqual(self.tune_state("ax01"), {})
+        self.assertEqual(self.tune_ids(), ["ax01"])
+
+    def test_reset_all_of_a_tune_without_a_base_is_409_and_writes_nothing(self):
+        tune.save_state(self.work, "ks_y", {"name_suffix": "_C", "limiter": 1}, "ax02")
+        for tune_id in ("draft", "ax02"):
+            with self.subTest(tune_id):
+                r = self.post("/api/reset_all", {"car": "ks_y", "tune": tune_id})
+                self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+        self.assertEqual(tune.load_state(self.work, "ks_y", "ax02"), {"name_suffix": "_C", "limiter": 1})
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_y", "draft")))
+
+
+class TestDuplicateRoute(TuneCase):
+    def test_the_default_modded_car_is_copied_with_an_automatic_id_and_suffix(self):
+        self.make_tune(None, {"limiter": 8000, "name_suffix": "_A"})
+        r = self.post("/api/duplicate", {})
+        self.assertEqual((r.status, r.json), (200, {"id": "ax01", "stock": "ks_x", "name_suffix": "_A2"}))
+        self.assertEqual(self.tune_state("ax01"), {"limiter": 8000, "name_suffix": "_A2"})
+        self.assertEqual(self.saved_state(), {"limiter": 8000, "name_suffix": "_A"})
+        self.assertEqual(self.tune_ids(), ["ax_x", "ax01"])
+
+    def test_a_modded_car_is_copied_and_the_counter_goes_on(self):
+        self.make_tune("ax01", {"limiter": 8000, "name_suffix": "_A"})
+        self.make_tune("ax02", {"limiter": 9000, "name_suffix": "_B"})
+        r = self.post("/api/duplicate", {"tune": "ax01"})
+        self.assertEqual((r.status, r.json), (200, {"id": "ax03", "stock": "ks_x", "name_suffix": "_A2"}))
+        self.assertEqual(self.tune_state("ax03"), {"limiter": 8000, "name_suffix": "_A2"})
+        self.assertEqual(self.tune_state("ax01"), {"limiter": 8000, "name_suffix": "_A"})
+
+    def test_the_draft_is_copied_and_stays_as_it_is(self):
+        self.make_tune(tune.DRAFT, {"limiter": 8000})
+        r = self.post("/api/duplicate", {"tune": "draft"})
+        self.assertEqual((r.status, r.json), (200, {"id": "ax01", "stock": "ks_x", "name_suffix": "_MY"}))
+        self.assertEqual(self.tune_state("ax01"), {"limiter": 8000, "name_suffix": "_MY"})
+        self.assertEqual(self.tune_state("draft"), {"limiter": 8000})
+
+    def test_an_explicit_id_and_suffix_are_used(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        r = self.post("/api/duplicate", {"new_id": "ax_z", "suffix": "_Z"})
+        self.assertEqual((r.status, r.json), (200, {"id": "ax_z", "stock": "ks_x", "name_suffix": "_Z"}))
+        self.assertEqual(self.tune_state("ax_z"), {"name_suffix": "_Z"})
+
+    def test_null_id_and_suffix_mean_automatic(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        r = self.post("/api/duplicate", {"new_id": None, "suffix": None})
+        self.assertEqual((r.json["id"], r.json["name_suffix"]), ("ax01", "_A2"))
+
+    def test_an_id_that_is_used_is_400_with_the_message_and_changes_nothing(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        self.put_package("ax02")
+        for new_id, text in (("ax01", "tuned car id ax01 is already used or reserved"), ("ax02", "tuned car id ax02 is already used or reserved"),
+                             ("ax_x", "ax_x is already a tune of ks_x"), ("ax_y", "tuned car id ax_y is already used or reserved"),
+                             ("ks_x", "new id equals the old id 'ks_x'")):
+            with self.subTest(new_id):
+                r = self.post("/api/duplicate", {"new_id": new_id})
+                self.assertEqual((r.status, r.json), (400, {"error": text}))
+        self.assertEqual(self.tune_ids(), ["ax_x", "ax01"])
+
+    def test_an_id_that_is_not_a_plain_same_length_id_is_400(self):
+        for new_id in ("../../x", "../x", "AX_Y", "ax y", "ax_yy", "ax", "ax-y", "ax_\u00e9", "ax/y", "a\x00b_", ""):
+            with self.subTest(new_id):
+                self.assertEqual(self.post("/api/duplicate", {"new_id": new_id}).status, 400)
+        self.assertEqual(self.tune_ids(), [])
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "tunes")))
+
+    def test_a_suffix_that_another_modded_car_uses_is_400_with_the_message(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.make_tune("ax01", {"name_suffix": "_B"})
+        r = self.post("/api/duplicate", {"suffix": "_B"})
+        self.assertEqual((r.status, r.json), (400, {"error": "name suffix already used by ax01"}))
+        self.assertEqual(self.post("/api/duplicate", {"suffix": ""}).status, 400)
+        self.assertEqual(self.post("/api/duplicate", {"suffix": "x" * 31}).status, 400)
+        self.assertEqual(self.tune_ids(), ["ax_x", "ax01"])
+
+    def test_an_id_or_suffix_that_is_not_text_is_400(self):
+        for body, text in (({"new_id": 5}, "new_id must be text"), ({"new_id": ["ax01"]}, "new_id must be text"),
+                           ({"suffix": 5}, "suffix must be text"), ({"suffix": True}, "suffix must be text")):
+            with self.subTest(body):
+                self.assertEqual(self.post("/api/duplicate", body).json, {"error": text})
+        self.assertEqual(self.tune_ids(), [])
+
+    def test_duplicate_is_409_while_a_job_runs_and_writes_nothing(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.hold_jobs()
+        self.assertEqual(self.post("/api/init").status, 202)
+        self.entered.wait(5)
+        r = self.post("/api/duplicate", {})
+        self.assertEqual(r.status, 409, r.json)
+        self.assertEqual(self.tune_ids(), ["ax_x"])
+        self.finish_held_job()
+        self.assertEqual(self.post("/api/duplicate", {}).status, 200)
+
+    def test_duplicate_needs_the_base_car(self):
+        tune.save_state(self.work, "ks_y", {"name_suffix": "_C"}, "ax02")
+        for tune_id in (None, "draft", "ax02"):
+            with self.subTest(tune_id):
+                r = self.post("/api/duplicate", {"car": "ks_y", "tune": tune_id})
+                self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+        self.assertEqual([t["id"] for t in tune.list_tunes(self.work, "ks_y")], ["ax02"])
+
+    def test_an_unexpandable_mods_folder_is_409(self):
+        ts.CONFIG["mods"] = "%ACE_TEST_NO_SUCH_VAR%/m"
+        r = self.post("/api/duplicate", {})
+        self.assertEqual((r.status, r.json), (409, {"error": "cannot expand the mods folder '%ACE_TEST_NO_SUCH_VAR%/m'"}))
+        self.assertEqual(self.tune_ids(), [])
+
+    def test_a_duplicate_shows_up_in_the_state_and_starts_no_job(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.post("/api/duplicate", {})
+        state = self.get("/api/state").json
+        self.assertEqual([(m["id"], m["label"]) for m in state["modded"]], [("ax_x", "Car X_A"), ("ax01", "Car X_A2")])
+        self.assertEqual((state["job"]["state"], self.calls), ("idle", []))
+
+    def test_the_duplicate_is_not_built_or_installed(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.post("/api/duplicate", {})
+        self.assertFalse(os.path.exists(os.path.join(tune.build_dir(self.work, "ks_x"), "ax01")))
+        self.assertFalse(os.path.exists(os.path.join(self.mods, "ax01.kspkg")))
+        modded = {m["id"]: m for m in self.get("/api/state").json["modded"]}
+        self.assertEqual((modded["ax01"]["built"], modded["ax01"]["installed"]), (False, False))
+
+    def test_the_automatic_id_takes_the_installed_packages_into_account(self):
+        self.make_tune(None, {"name_suffix": "_A"})
+        self.put_package("ax01")
+        self.assertEqual(self.post("/api/duplicate", {}).json["id"], "ax02")
+
+    def test_the_default_modded_car_is_the_source_when_no_tune_is_given_even_if_it_does_not_exist(self):
+        r = self.post("/api/duplicate", {})
+        self.assertEqual((r.status, r.json), (200, {"id": "ax01", "stock": "ks_x", "name_suffix": "_MY"}))
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_MY"})
+
+
 # -------------------------------------------------------------------------------------------------- job lifecycle
 class TestJobs(ServerCase):
     def setUp(self):
@@ -882,24 +1554,28 @@ class TestJobs(ServerCase):
         self.make_car()
 
     def test_a_second_job_while_one_runs_is_409_for_init_and_apply(self):
+        tune.save_state(self.work, "ks_x", {})
         self.hold_jobs()
         self.assertEqual(self.post("/api/init").status, 202)
         self.entered.wait(5)
-        for path, body in (("/api/init", {}), ("/api/apply", {"mode": "update"}), ("/api/apply", {"mode": "new_copy", "new_id": "ax_y"})):
+        for path, body, text in (("/api/init", {}, "another job is running, wait until it has finished"),
+                                 ("/api/apply", {}, "another job is running, wait until it has finished"),
+                                 ("/api/apply", {"tune": "draft"}, "a job is running, wait until it has finished")):
             with self.subTest(path, body=body):
                 r = self.post(path, body)
-                self.assertEqual((r.status, r.json), (409, {"error": "another job is running, wait until it has finished"}))
+                self.assertEqual((r.status, r.json), (409, {"error": text}))
         self.assertEqual([c[0] for c in self.calls], ["init"])
+        self.assertEqual([t["id"] for t in tune.list_tunes(self.work, "ks_x")], ["ax_x"])
         self.finish_held_job()
 
     def test_a_job_that_is_running_shows_in_the_state(self):
         self.hold_jobs()
-        self.post("/api/apply", {"mode": "update"})
+        self.post("/api/apply", {"tune": "draft"})
         self.entered.wait(5)
         job = self.get("/api/state").json["job"]
         self.assertEqual(set(job), JOB_KEYS)
         self.assertEqual((job["kind"], job["state"], job["result"], job["error"]), ("apply", "running", None, None))
-        self.assertEqual(job["log"], ["building ax_x (update), this takes a while ..."])
+        self.assertEqual(job["log"], ["building ax_x, this takes a while ..."])
         self.finish_held_job()
         self.assertEqual(self.get("/api/state").json["job"]["state"], "done")
 
@@ -915,7 +1591,7 @@ class TestJobs(ServerCase):
         self.wait_job()
         self.hold_jobs()
         self.entered.clear()
-        self.post("/api/apply", {"mode": "update"})
+        self.post("/api/apply", {"tune": "draft"})
         job = ts.job_snapshot()
         self.assertEqual((job["kind"], job["state"], job["result"], job["error"]), ("apply", "running", None, None))
         self.assertNotIn("extracted the stock car", job["log"])
@@ -925,7 +1601,7 @@ class TestJobs(ServerCase):
         self.errors["init"] = ValueError("x")
         self.post("/api/init")
         self.assertEqual(self.wait_job()["state"], "error")
-        self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
 
     def test_the_game_check_is_not_used_by_init(self):
         self.game_up = True
@@ -933,19 +1609,19 @@ class TestJobs(ServerCase):
 
     def test_set_is_refused_while_a_job_runs(self):
         self.hold_jobs()
-        self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
         r = self.post("/api/set", {"id": "limiter", "value": "8000"})
         self.assertEqual(r.status, 409, r.json)
 
     def test_unset_is_refused_while_a_job_runs(self):
         self.hold_jobs()
-        self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
         r = self.post("/api/unset", {"id": "limiter"})
         self.assertEqual(r.status, 409, r.json)
 
     def test_reset_all_is_refused_while_a_job_runs(self):
         self.hold_jobs()
-        self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
         r = self.post("/api/reset_all")
         self.assertEqual(r.status, 409, r.json)
 
@@ -1152,7 +1828,7 @@ class TestStatePollCost(ServerCase):
         self.patch(tune.subprocess, "run", run)
         self.get("/api/state")
         before = run.call_count
-        self.assertEqual(self.post("/api/apply", {"mode": "update"}).status, 202)
+        self.assertEqual(self.post("/api/apply", {"tune": "draft"}).status, 202)
         self.assertEqual(run.call_count, before + 1)
 
 
@@ -1257,20 +1933,6 @@ class TestHelpers(Env):
     def test_apply_lines_without_an_install(self):
         res = dict(APPLY_RESULT, applied=[], notes=[], installed=None)
         self.assertEqual(ts.apply_lines(res), ["applied 0 setting(s)", "package: /w/ks_x/build/ax_x/ax_x.kspkg (7 bytes)"])
-
-    def test_check_new_id(self):
-        self.assertEqual(ts.check_new_id("ax_y", "ks_x", self.work), "ax_y")
-        for bad, text in ((None, "new_id is required"), ("", "new_id is required"), (7, "new_id is required"),
-                          ("ax_x", "new id equals ax_x"), ("ks_x", "new id equals the old id"), ("ax_yy", "must have exactly 4"),
-                          ("AX_Y", "may only contain lowercase"), ("../x", "may only contain lowercase")):
-            with self.subTest(bad), self.assertRaises(ts.ApiError) as cm:
-                ts.check_new_id(bad, "ks_x", self.work)
-            self.assertEqual(cm.exception.status, 400)
-            self.assertIn(text.replace("must have exactly 4", "it must have exactly 4"), cm.exception.message)
-
-    def test_check_new_id_touches_no_file(self):
-        ts.check_new_id("ax_y", "ks_x", self.work)
-        self.assertFalse(os.path.exists(self.work))
 
     def test_request_car(self):
         self.write_index([{"id": "ks_x", "display_name": "Car X"}, {"id": "ks_y", "display_name": "Car Y"}])
