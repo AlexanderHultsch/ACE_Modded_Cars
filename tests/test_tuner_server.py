@@ -37,6 +37,15 @@ INIT_RESULT = {"present": False, "dir": "/w/ks_x/base/content/cars/ks_x", "files
 APPLY_RESULT = {"new_id": "ax_x", "tune": "ax_x", "name_suffix": "_MY", "build_dir": "/w/ks_x/build/ax_x", "package": "/w/ks_x/build/ax_x/ax_x.kspkg", "size": 7,
                 "applied": [{"id": "limiter", "old": 7000, "new": 8000, "files": ["data/engine.carengine", "data/x.car"]}],
                 "notes": ["note: from build"], "installed": "/m/ax_x.kspkg", "backup": None}
+GS = "content\\cars\\common_phsx\\"
+ROAD_A, ROAD_B, SLICK_S = GS + "tyres\\road\\a.tyre", GS + "tyres\\road\\b.tyre", GS + "tyres\\slick\\s.tyre"
+KEY_AB, KEY_SS = ROAD_A + "|" + ROAD_B, SLICK_S + "|" + SLICK_S
+ST_AB, ST_SS = "stock:" + KEY_AB, "stock:" + KEY_SS
+TYRE_KEYS = {"id", "name", "source", "changed"}
+TYRE_ROW_KEYS = {"id", "label", "group", "unit", "type", "kind", "description", "verified", "min", "max", "axle", "default", "value",
+                 "changed", "applicable", "reason"}
+GARAGE_KEYS = {"choices", "custom", "missing", "car", "tune"}
+JOB_RUNNING = {"error": "a job is running, wait until it has finished"}
 
 
 def limiter():
@@ -53,6 +62,10 @@ def suffix():
 
 def boost():
     return mini_setting("boost", type="float", targets=[("@turbo[0]", "max_boost")])
+
+
+def tyre_dy(axle):
+    return mini_setting("tyre_dy_" + axle, group="Tyres", unit="mu", min=0.5, max=2.5, targets=[("@tyre_" + axle, "modelData.Dy0")])
 
 
 def gated(test, fn):
@@ -227,10 +240,14 @@ class TestRoutes(ServerCase):
         self.make_car()
 
     def test_route_tables(self):
-        self.assertEqual(sorted(ts.GET_ROUTES), ["/api/settings", "/api/state"])
-        self.assertEqual(sorted(ts.POST_ROUTES), ["/api/apply", "/api/duplicate", "/api/init", "/api/install_tested", "/api/reset_all",
-                                                  "/api/set", "/api/unset"])
+        self.assertEqual(sorted(ts.GET_ROUTES), ["/api/garage", "/api/settings", "/api/state", "/api/tyre", "/api/tyres"])
+        self.assertEqual(sorted(ts.POST_ROUTES), ["/api/apply", "/api/duplicate", "/api/garage_reset", "/api/garage_set", "/api/init",
+                                                  "/api/install_tested", "/api/reset_all", "/api/set", "/api/tyre_delete",
+                                                  "/api/tyre_new", "/api/tyre_rename", "/api/tyre_reset", "/api/tyre_set",
+                                                  "/api/tyre_source", "/api/tyre_unset", "/api/unset"])
         self.assertEqual(ts.ACCEPTED, ("/api/init", "/api/install_tested", "/api/apply"))
+        self.assertEqual(ts.QUERY_ROUTES, ("/api/tyre",))
+        self.assertTrue(set(ts.QUERY_ROUTES) <= set(ts.GET_ROUTES))
 
     def test_the_index_page_is_served_from_the_repo_file(self):
         r = self.get("/")
@@ -1732,6 +1749,624 @@ class TestDuplicateRoute(TuneCase):
         r = self.post("/api/duplicate", {})
         self.assertEqual((r.status, r.json), (200, {"id": "ax01", "stock": "ks_x", "name_suffix": "_MY"}))
         self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_MY"})
+
+
+# -------------------------------------------------------------------------------------------------- tyre library and garage
+class TyreCase(TuneCase):
+    """TuneCase with the tyre settings in the catalogue, three shared tyre files and one preset (stock pairs a+b and s+s) in ks_x."""
+
+    def setUp(self):
+        super().setUp()
+        self.cat = mini_catalogue(limiter(), aids_off(), suffix(), boost(), tyre_dy("front"), tyre_dy("rear"))
+        self.fc.add_shared("tyres/road/a.tyre", {"modelData": {"Dy0": 1.25}})
+        self.fc.add_shared("tyres/road/b.tyre", {"modelData": {"Dy0": 1.0}})
+        self.fc.add_shared("tyres/slick/s.tyre", {"modelData": {"Dy0": 1.5}})
+        self.fc.add("presets/p.compatibletyres", {"physic_compounds": [
+            {"front_tyre_data_path": ROAD_A, "rear_tyre_data_paths": ROAD_B},
+            {"front_tyre_data_path": SLICK_S, "rear_tyre_data_paths": [SLICK_S]}]})
+
+    def make_tyre(self, name="Soft", key=KEY_AB):
+        return tune.create_tyre(self.work, name, key)["id"]
+
+    def library_bytes(self):
+        folder, out = os.path.join(self.work, "tyres"), {}
+        for n in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            with open(os.path.join(folder, n), "rb") as f:
+                out[n] = f.read()
+        return out
+
+    def rows_of(self, tyre_id):
+        return json.loads(json.dumps(tune.tyre_rows(self.work, tyre_id, self.cat)))
+
+    def row(self, rows, setting_id="tyre_dy_front"):
+        return next(r for r in rows if r["id"] == setting_id)
+
+
+class TestTyreReadRoutes(TyreCase):
+    def test_tyres_lists_the_library_and_the_sources_of_the_extracted_cars(self):
+        r = self.get("/api/tyres")
+        self.assertEqual((r.status, r.headers.get("Content-Type")), (200, "application/json; charset=utf-8"))
+        self.assertEqual(r.json, {"tyres": [], "sources": tune.list_source_tyres(self.work)})
+        self.assertEqual([(s["key"], s["cars"]) for s in r.json["sources"]], [(KEY_AB, ["ks_x"]), (KEY_SS, ["ks_x"])])
+        self.assertEqual(set(r.json["sources"][0]), {"key", "front", "rear", "label", "cars"})
+        self.make_tyre("Soft")
+        self.write(os.path.join(self.work, "tyres", "broken.json"), "not json")
+        r = self.get("/api/tyres")
+        self.assertEqual(r.json["tyres"][0], {"id": "soft", "name": "Soft", "source": {"front": ROAD_A, "rear": ROAD_B}, "changed": 0})
+        self.assertEqual([t["id"] for t in r.json["tyres"]], ["soft", "broken"])
+        self.assertIn("error", r.json["tyres"][1])
+        self.assertEqual(r.json, json.loads(json.dumps({"tyres": tune.list_tyres(self.work), "sources": tune.list_source_tyres(self.work)})))
+
+    def test_tyres_of_an_empty_work_folder_are_two_empty_lists(self):
+        self.fc.store.clear()
+        self.assertEqual(self.get("/api/tyres?car=ks_y").json, {"tyres": [], "sources": []})
+
+    def test_the_library_routes_need_no_base_car(self):
+        self.assertFalse(ts.base_present(self.work, "ks_y"))
+        self.assertEqual(self.get("/api/tyres?car=ks_y").status, 200)
+        r = self.post("/api/tyre_new", {"car": "ks_y", "name": "Soft", "source": KEY_AB})
+        self.assertEqual(r.status, 200)
+        self.assertEqual(self.get("/api/tyre?car=ks_y&id=soft").status, 200)
+
+    def test_tyre_answers_with_the_tyre_and_its_rows(self):
+        self.make_tyre("Soft")
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_rear", "1.5", self.cat)
+        r = self.get("/api/tyre?id=soft")
+        self.assertEqual((r.status, set(r.json)), (200, {"tyre", "rows"}))
+        self.assertEqual(r.json["tyre"], {"id": "soft", "name": "Soft", "source": {"front": ROAD_A, "rear": ROAD_B}, "changed": 1})
+        rows = r.json["rows"]
+        self.assertEqual([x["id"] for x in rows], ["tyre_dy_front", "tyre_dy_rear"])
+        self.assertEqual([set(x) for x in rows], [TYRE_ROW_KEYS, TYRE_ROW_KEYS])
+        self.assertEqual(rows, self.rows_of("soft"))
+        front, rear = rows
+        self.assertEqual((front["axle"], front["default"], front["value"], front["changed"], front["applicable"], front["reason"]),
+                         ("front", 1.25, 1.25, False, True, None))
+        self.assertEqual((rear["axle"], rear["default"], rear["value"], rear["changed"]), ("rear", 1.0, 1.5, True))
+        self.assertEqual((front["min"], front["max"], front["unit"], front["group"]), (0.5, 2.5, "mu", "Tyres"))
+
+    def test_tyre_reads_the_id_from_the_query_among_other_parameters(self):
+        self.make_tyre("Soft")
+        self.make_tyre("Slicky", KEY_SS)
+        for path, tyre_id in (("/api/tyre?id=soft", "soft"), ("/api/tyre?car=ks_x&id=slicky&tune=draft", "slicky"),
+                              ("/api/tyre?id=slicky&car=ks_x", "slicky"), ("/api/tyre?id=soft&id=slicky", "soft")):
+            with self.subTest(path):
+                self.assertEqual(self.get(path).json["tyre"]["id"], tyre_id)
+
+    def test_tyre_without_an_id_is_400(self):
+        self.make_tyre("Soft")
+        for path in ("/api/tyre", "/api/tyre?id=", "/api/tyre?car=ks_x", "/api/tyre?tune=draft&id"):
+            with self.subTest(path):
+                r = self.get(path)
+                self.assertEqual((r.status, r.json), (400, {"error": "need id (text)"}))
+
+    def test_tyre_with_an_unknown_or_bad_id_is_400_with_the_tune_message(self):
+        r = self.get("/api/tyre?id=nope")
+        self.assertEqual((r.status, r.json), (400, {"error": "no tyre 'nope' in the library"}))
+        for path in ("/api/tyre?id=..%2fx", "/api/tyre?id=A", "/api/tyre?id=" + "x" * 25, "/api/tyre?id=a%5Cb"):
+            with self.subTest(path):
+                r = self.get(path)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith("bad tyre id "), r.json)
+
+    def test_tyre_whose_source_no_extracted_car_offers_is_400(self):
+        self.write(os.path.join(self.work, "tyres", "gone.json"), {"version": 1, "name": "Gone", "values": {},
+                                                                   "source": {"front": GS + "tyres\\x\\f.tyre", "rear": GS + "tyres\\x\\r.tyre"}})
+        r = self.get("/api/tyre?id=gone")
+        self.assertEqual(r.status, 400)
+        self.assertIn("no extracted car offers its source", r.json["error"])
+
+    def test_tyre_with_a_damaged_file_is_400_and_not_a_500(self):
+        self.write(os.path.join(self.work, "tyres", "bad.json"), "{")
+        self.assertEqual(self.get("/api/tyre?id=bad").status, 400)
+
+    def test_the_raw_query_is_the_third_argument_of_a_query_route_only(self):
+        seen, two = [], []
+
+        def spy(car, tune_id, query):
+            seen.append((car, tune_id, query))
+            return {}
+        with mock.patch.dict(ts.GET_ROUTES, {"/api/tyre": spy}):
+            self.assertEqual(self.get("/api/tyre?id=soft&car=ks_x&tune=draft").status, 200)
+        self.assertEqual(seen, [("ks_x", "draft", "id=soft&car=ks_x&tune=draft")])
+        with mock.patch.dict(ts.GET_ROUTES, {"/api/state": lambda car, tune_id: two.append((car, tune_id)) or {}}):
+            self.assertEqual(self.get("/api/state?id=soft&tune=draft").status, 200)
+        self.assertEqual(two, [("ks_x", "draft")])
+
+    def test_the_existing_get_routes_ignore_an_id_parameter(self):
+        self.make_tyre("Soft")
+        self.assertEqual(self.get("/api/state?id=soft").json["car"], "ks_x")
+        self.assertEqual(self.get("/api/settings?id=nope").json, self.get("/api/settings").json)
+
+    def test_tyre_rows_are_built_under_state_lock(self):
+        self.make_tyre("Soft")
+        held, real = [], tune.tyre_rows
+
+        def spy(*args, **kw):
+            held.append(ts.STATE_LOCK.locked())
+            return real(*args, **kw)
+        self.patch(tune, "tyre_rows", spy)
+        self.get("/api/tyre?id=soft")
+        self.assertEqual(held, [True])
+
+    def test_an_unknown_car_or_modded_car_is_400_for_the_tyre_routes_too(self):
+        self.make_tyre("Soft")
+        for path in ("/api/tyres?car=nope", "/api/tyre?id=soft&car=nope", "/api/garage?car=nope"):
+            with self.subTest(path):
+                r = self.get(path)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith("unknown car"), r.json)
+        r = self.get("/api/tyres?tune=nope")
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car nope of ks_x"}))
+        r = self.post("/api/tyre_new", {"car": "../x", "name": "Other", "source": KEY_SS})
+        self.assertEqual(r.status, 400)
+        self.assertTrue(r.json["error"].startswith("unknown car"), r.json)
+        r = self.post("/api/tyre_new", {"tune": "nope", "name": "Other", "source": KEY_SS})
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car nope of ks_x"}))
+        self.assertEqual([t["id"] for t in tune.list_tyres(self.work)], ["soft"])
+
+
+class TestTyreWriteRoutes(TyreCase):
+    def test_tyre_new_creates_a_library_tyre(self):
+        r = self.post("/api/tyre_new", {"name": "  Soft Slick ", "source": KEY_AB})
+        self.assertEqual((r.status, r.json), (200, {"tyre": {"id": "soft_slick", "name": "Soft Slick",
+                                                              "source": {"front": ROAD_A, "rear": ROAD_B}}}))
+        self.assertEqual(tune.load_tyre(self.work, "soft_slick"),
+                         {"version": 1, "name": "Soft Slick", "source": {"front": ROAD_A, "rear": ROAD_B}, "values": {}})
+        again = self.post("/api/tyre_new", {"name": "Soft Slick 2", "source": KEY_SS})
+        self.assertEqual(again.json["tyre"]["id"], "soft_slick_2")
+
+    def test_a_non_ascii_name_survives_the_round_trip(self):
+        r = self.post("/api/tyre_new", {"name": "Reifen Größe", "source": KEY_AB})
+        self.assertEqual((r.status, r.json["tyre"]["name"]), (200, "Reifen Größe"))
+        self.assertEqual(self.get("/api/tyres").json["tyres"][0]["name"], "Reifen Größe")
+
+    def test_tyre_new_with_wrong_fields_is_400_and_creates_nothing(self):
+        for body in ({}, {"name": "Soft"}, {"source": KEY_AB}, {"name": 5, "source": KEY_AB}, {"name": "Soft", "source": None},
+                     {"name": ["Soft"], "source": KEY_AB}, {"name": "Soft", "source": 5}, {"name": None, "source": None}):
+            with self.subTest(body):
+                r = self.post("/api/tyre_new", body)
+                self.assertEqual((r.status, r.json), (400, {"error": "need name (text) and source (text)"}))
+        self.assertFalse(os.path.exists(os.path.join(self.work, "tyres")))
+
+    def test_tyre_new_with_a_bad_name_or_source_is_400_with_the_tune_message(self):
+        self.make_tyre("Soft")
+        before = self.library_bytes()
+        for body, text in (({"name": "Other", "source": "nope"}, "unknown tyre source 'nope'"),
+                           ({"name": "Other", "source": ""}, "unknown tyre source ''"),
+                           ({"name": "SOFT", "source": KEY_SS}, "a tyre named 'Soft' exists already"),
+                           ({"name": "", "source": KEY_SS}, "a tyre name needs 1 to 40 characters"),
+                           ({"name": "x" * 41, "source": KEY_SS}, "a tyre name needs 1 to 40 characters"),
+                           ({"name": "a\nb", "source": KEY_SS}, "a tyre name needs 1 to 40 characters")):
+            with self.subTest(body):
+                r = self.post("/api/tyre_new", body)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith(text), r.json)
+        self.assertEqual(self.library_bytes(), before)
+
+    def test_tyre_rename_answers_with_the_tyre(self):
+        self.make_tyre("Soft")
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_front", "1.5", self.cat)
+        r = self.post("/api/tyre_rename", {"id": "soft", "name": "Hard"})
+        self.assertEqual((r.status, r.json), (200, {"tyre": {"id": "soft", "name": "Hard", "source": {"front": ROAD_A, "rear": ROAD_B},
+                                                             "changed": 1}}))
+        self.assertEqual(tune.load_tyre(self.work, "soft")["values"], {"tyre_dy_front": 1.5})
+        self.assertEqual(self.post("/api/tyre_rename", {"id": "soft", "name": "HARD"}).status, 200)
+
+    def test_tyre_rename_errors(self):
+        self.make_tyre("Soft")
+        self.make_tyre("Hard", KEY_SS)
+        before = self.library_bytes()
+        for body, status, text in (({"id": "soft", "name": "hard"}, 400, "a tyre named 'Hard' exists already"),
+                                   ({"id": "soft", "name": ""}, 400, "a tyre name needs"),
+                                   ({"id": "nope", "name": "X"}, 400, "no tyre 'nope' in the library"),
+                                   ({"id": "../x", "name": "X"}, 400, "bad tyre id"),
+                                   ({"id": "soft"}, 400, "need id (text) and name (text)"),
+                                   ({"name": "X"}, 400, "need id (text) and name (text)"),
+                                   ({"id": 5, "name": "X"}, 400, "need id (text) and name (text)"),
+                                   ({"id": "soft", "name": 5}, 400, "need id (text) and name (text)")):
+            with self.subTest(body):
+                r = self.post("/api/tyre_rename", body)
+                self.assertEqual(r.status, status)
+                self.assertTrue(r.json["error"].startswith(text), r.json)
+        self.assertEqual(self.library_bytes(), before)
+
+    def test_tyre_source_points_the_tyre_at_another_source_and_keeps_the_values(self):
+        self.make_tyre("Soft")
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_front", "1.5", self.cat)
+        r = self.post("/api/tyre_source", {"id": "soft", "source": KEY_SS})
+        self.assertEqual((r.status, r.json), (200, {"tyre": {"id": "soft", "name": "Soft", "source": {"front": SLICK_S, "rear": SLICK_S},
+                                                              "changed": 1}}))
+        t = tune.load_tyre(self.work, "soft")
+        self.assertEqual((t["source"], t["values"]), ({"front": SLICK_S, "rear": SLICK_S}, {"tyre_dy_front": 1.5}))
+        self.assertEqual(self.row(self.get("/api/tyre?id=soft").json["rows"])["default"], 1.5)
+
+    def test_tyre_source_errors(self):
+        self.make_tyre("Soft")
+        before = self.library_bytes()
+        for body, text in (({"id": "soft", "source": "nope"}, "unknown tyre source 'nope'"), ({"id": "nope", "source": KEY_SS}, "no tyre 'nope'"),
+                           ({"id": "../x", "source": KEY_SS}, "bad tyre id"), ({"id": "soft"}, "need id (text) and source (text)"),
+                           ({"source": KEY_SS}, "need id (text) and source (text)"), ({"id": "soft", "source": 5}, "need id (text) and source (text)"),
+                           ({"id": ["soft"], "source": KEY_SS}, "need id (text) and source (text)")):
+            with self.subTest(body):
+                r = self.post("/api/tyre_source", body)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith(text), r.json)
+        self.assertEqual(self.library_bytes(), before)
+
+    def test_tyre_set_answers_with_the_new_row(self):
+        self.make_tyre("Soft")
+        r = self.post("/api/tyre_set", {"id": "soft", "setting": "tyre_dy_front", "value": "1.5"})
+        self.assertEqual((r.status, set(r.json)), (200, {"row", "warnings"}))
+        row = r.json["row"]
+        self.assertEqual(set(row), TYRE_ROW_KEYS)
+        self.assertEqual((r.json["warnings"], row["id"], row["value"], row["default"], row["changed"]), ([], "tyre_dy_front", 1.5, 1.25, True))
+        self.assertEqual(row, self.row(self.rows_of("soft")))
+        self.assertEqual(tune.load_tyre(self.work, "soft")["values"], {"tyre_dy_front": 1.5})
+
+    def test_tyre_set_takes_text_numbers_and_the_rear_axle(self):
+        self.make_tyre("Soft")
+        for value in ("1.5", 1.5, 2, " 2 "):
+            with self.subTest(repr(value)):
+                r = self.post("/api/tyre_set", {"id": "soft", "setting": "tyre_dy_rear", "value": value})
+                self.assertEqual((r.status, r.json["row"]["axle"], r.json["row"]["value"]), (200, "rear", float(str(value).strip())))
+        self.assertEqual(tune.load_tyre(self.work, "soft")["values"], {"tyre_dy_rear": 2.0})
+
+    def test_tyre_set_outside_the_suggested_range_warns_but_stores(self):
+        self.make_tyre("Soft")
+        r = self.post("/api/tyre_set", {"id": "soft", "setting": "tyre_dy_front", "value": 3})
+        self.assertEqual((r.status, r.json["warnings"]), (200, ["tyre_dy_front=3.0 is outside the suggested range 0.5..2.5"]))
+        self.assertEqual(tune.load_tyre(self.work, "soft")["values"], {"tyre_dy_front": 3.0})
+
+    def test_tyre_set_with_a_value_equal_to_the_default_is_not_changed(self):
+        self.make_tyre("Soft")
+        r = self.post("/api/tyre_set", {"id": "soft", "setting": "tyre_dy_front", "value": "1.25"})
+        self.assertEqual((r.json["row"]["value"], r.json["row"]["changed"]), (1.25, False))
+
+    def test_tyre_set_errors_change_nothing(self):
+        self.make_tyre("Soft")
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_front", "1.5", self.cat)
+        before = self.library_bytes()
+        good = {"id": "soft", "setting": "tyre_dy_front", "value": "1.75"}
+        for body, text in ((dict(good, value="fast"), "tyre_dy_front expects a number"), (dict(good, value=True), "tyre_dy_front expects a number"),
+                           (dict(good, setting="nope"), "unknown setting 'nope'"), (dict(good, setting="limiter"), "limiter is not a tyre setting"),
+                           (dict(good, id="nope"), "no tyre 'nope' in the library"), (dict(good, id="../x"), "bad tyre id"),
+                           (dict(good, value=None), "need id (text), setting (text) and value (text, number or true/false)"),
+                           (dict(good, value=[1]), "need id (text), setting (text) and value (text, number or true/false)"),
+                           (dict(good, value={"a": 1}), "need id (text), setting (text) and value (text, number or true/false)"),
+                           ({"id": "soft", "value": "1"}, "need id (text), setting (text) and value (text, number or true/false)"),
+                           ({"setting": "tyre_dy_front", "value": "1"}, "need id (text), setting (text) and value (text, number or true/false)"),
+                           (dict(good, id=5), "need id (text), setting (text) and value (text, number or true/false)"),
+                           (dict(good, setting=["tyre_dy_front"]), "need id (text), setting (text) and value (text, number or true/false)")):
+            with self.subTest(body):
+                r = self.post("/api/tyre_set", body)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith(text), r.json)
+        self.assertEqual(self.library_bytes(), before)
+
+    def test_tyre_unset_removes_the_value_and_answers_with_the_default_row(self):
+        self.make_tyre("Soft")
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_front", "1.5", self.cat)
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_rear", "1.75", self.cat)
+        r = self.post("/api/tyre_unset", {"id": "soft", "setting": "tyre_dy_front"})
+        self.assertEqual((r.status, set(r.json), set(r.json["row"])), (200, {"row"}, TYRE_ROW_KEYS))
+        self.assertEqual((r.json["row"]["value"], r.json["row"]["default"], r.json["row"]["changed"]), (1.25, 1.25, False))
+        self.assertEqual(tune.load_tyre(self.work, "soft")["values"], {"tyre_dy_rear": 1.75})
+
+    def test_tyre_unset_of_a_value_that_was_never_set_is_a_noop(self):
+        self.make_tyre("Soft")
+        before = self.library_bytes()
+        r = self.post("/api/tyre_unset", {"id": "soft", "setting": "tyre_dy_rear"})
+        self.assertEqual((r.status, r.json["row"]["changed"]), (200, False))
+        self.assertEqual(self.library_bytes(), before)
+
+    def test_tyre_unset_errors(self):
+        self.make_tyre("Soft")
+        before = self.library_bytes()
+        for body, text in (({"id": "soft", "setting": "nope"}, "unknown setting 'nope'"), ({"id": "soft", "setting": "limiter"}, "limiter is not a tyre setting"),
+                           ({"id": "nope", "setting": "tyre_dy_front"}, "no tyre 'nope' in the library"),
+                           ({"id": "soft"}, "need id (text) and setting (text)"), ({"setting": "tyre_dy_front"}, "need id (text) and setting (text)"),
+                           ({"id": 5, "setting": "tyre_dy_front"}, "need id (text) and setting (text)"),
+                           ({"id": "soft", "setting": None}, "need id (text) and setting (text)")):
+            with self.subTest(body):
+                r = self.post("/api/tyre_unset", body)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith(text), r.json)
+        self.assertEqual(self.library_bytes(), before)
+
+    def test_tyre_reset_drops_every_changed_value(self):
+        self.make_tyre("Soft")
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_front", "1.5", self.cat)
+        tune.set_tyre_value(self.work, "soft", "tyre_dy_rear", "1.75", self.cat)
+        r = self.post("/api/tyre_reset", {"id": "soft"})
+        self.assertEqual((r.status, r.json), (200, {"ok": True}))
+        self.assertEqual(tune.load_tyre(self.work, "soft")["values"], {})
+        self.assertFalse(any(x["changed"] for x in self.get("/api/tyre?id=soft").json["rows"]))
+        self.assertEqual(self.post("/api/tyre_reset", {"id": "soft"}).json, {"ok": True})
+
+    def test_tyre_reset_and_delete_errors(self):
+        self.make_tyre("Soft")
+        before = self.library_bytes()
+        for path in ("/api/tyre_reset", "/api/tyre_delete"):
+            for body, text in (({"id": "nope"}, "no tyre 'nope' in the library"), ({"id": "../x"}, "bad tyre id"),
+                               ({"id": "A"}, "bad tyre id"), ({}, "need id (text)"), ({"id": 5}, "need id (text)"),
+                               ({"id": None}, "need id (text)"), ({"id": ["soft"]}, "need id (text)")):
+                with self.subTest(path, body=body):
+                    r = self.post(path, body)
+                    self.assertEqual(r.status, 400)
+                    self.assertTrue(r.json["error"].startswith(text), r.json)
+        self.assertEqual(self.library_bytes(), before)
+
+    def test_tyre_delete_removes_the_file(self):
+        self.make_tyre("Soft")
+        self.make_tyre("Slicky", KEY_SS)
+        r = self.post("/api/tyre_delete", {"id": "soft"})
+        self.assertEqual((r.status, r.json), (200, {"ok": True}))
+        self.assertEqual([t["id"] for t in tune.list_tyres(self.work)], ["slicky"])
+        self.assertEqual(self.post("/api/tyre_delete", {"id": "soft"}).status, 400)
+
+    def test_a_tyre_a_modded_car_selects_is_409_until_the_selection_is_gone(self):
+        self.make_tyre("Soft")
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        self.assertEqual(self.post("/api/garage_set", {"keys": ["own:soft", ST_AB], "tune": "ax01"}).status, 200)
+        r = self.post("/api/tyre_delete", {"id": "soft"})
+        self.assertEqual((r.status, r.json), (409, {"error": "tyre soft is used by ks_x / ax01"}))
+        self.assertTrue(tune.tyre_exists(self.work, "soft"))
+        self.assertEqual(self.post("/api/garage_set", {"keys": ["own:soft", ST_AB], "tune": "draft"}).status, 200)
+        r = self.post("/api/tyre_delete", {"id": "soft"})
+        self.assertEqual((r.status, r.json), (409, {"error": "tyre soft is used by ks_x / ax01, ks_x (draft)"}))
+        self.assertEqual(self.post("/api/garage_reset", {"tune": "ax01"}).status, 200)
+        r = self.post("/api/tyre_delete", {"id": "soft"})
+        self.assertEqual((r.status, r.json), (409, {"error": "tyre soft is used by ks_x (draft)"}))
+        self.assertEqual(self.post("/api/garage_reset", {"tune": "draft"}).status, 200)
+        r = self.post("/api/tyre_delete", {"id": "soft"})
+        self.assertEqual((r.status, r.json), (200, {"ok": True}))
+        self.assertFalse(tune.tyre_exists(self.work, "soft"))
+
+    def test_a_tyre_the_default_modded_car_selects_is_409(self):
+        self.make_tyre("Soft")
+        self.make_tune()
+        self.post("/api/garage_set", {"keys": ["own:soft"]})
+        r = self.post("/api/tyre_delete", {"id": "soft"})
+        self.assertEqual((r.status, r.json), (409, {"error": "tyre soft is used by ks_x / ax_x"}))
+
+    def test_a_missing_tyre_is_400_not_409_even_when_a_state_names_it(self):
+        self.make_tune("ax01", {"name_suffix": "_A", tune.TYRE_KEY: ["own:ghost"]})
+        r = self.post("/api/tyre_delete", {"id": "ghost"})
+        self.assertEqual((r.status, r.json), (400, {"error": "no tyre 'ghost' in the library"}))
+
+    def test_every_library_and_garage_write_happens_under_state_lock(self):
+        held = []
+        for name in ("save_tyre", "delete_tyre", "set_garage", "reset_garage"):
+            def spy(*args, _name=name, _real=getattr(tune, name), **kw):
+                held.append((_name, ts.STATE_LOCK.locked()))
+                return _real(*args, **kw)
+            self.patch(tune, name, spy)
+        steps = (("/api/tyre_new", {"name": "Soft", "source": KEY_AB}), ("/api/tyre_rename", {"id": "soft", "name": "Hard"}),
+                 ("/api/tyre_source", {"id": "soft", "source": KEY_SS}), ("/api/tyre_set", {"id": "soft", "setting": "tyre_dy_front", "value": 1.5}),
+                 ("/api/tyre_unset", {"id": "soft", "setting": "tyre_dy_front"}),
+                 ("/api/tyre_set", {"id": "soft", "setting": "tyre_dy_rear", "value": 1.5}), ("/api/tyre_reset", {"id": "soft"}),
+                 ("/api/garage_set", {"keys": ["own:soft", ST_AB]}), ("/api/garage_reset", {}), ("/api/tyre_delete", {"id": "soft"}))
+        for path, body in steps:
+            self.assertEqual(self.post(path, body).status, 200, path)
+        self.assertEqual(held, [("save_tyre", True)] * 7 + [("set_garage", True), ("reset_garage", True), ("delete_tyre", True)])
+
+    def test_every_write_route_is_409_while_a_job_runs_and_changes_nothing(self):
+        self.make_tyre("Soft")
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        before = self.library_bytes()
+        self.hold_jobs()
+        self.assertEqual(self.post("/api/init").status, 202)
+        self.entered.wait(5)
+        writes = (("/api/tyre_new", {"name": "Other", "source": KEY_SS}), ("/api/tyre_rename", {"id": "soft", "name": "X"}),
+                  ("/api/tyre_source", {"id": "soft", "source": KEY_SS}),
+                  ("/api/tyre_set", {"id": "soft", "setting": "tyre_dy_front", "value": "1.5"}),
+                  ("/api/tyre_unset", {"id": "soft", "setting": "tyre_dy_front"}), ("/api/tyre_reset", {"id": "soft"}),
+                  ("/api/tyre_delete", {"id": "soft"}))
+        for path, body in writes:
+            with self.subTest(path):
+                r = self.post(path, body)
+                self.assertEqual((r.status, r.json), (409, JOB_RUNNING))
+        for path, body in (("/api/garage_set", {"keys": ["own:soft"]}), ("/api/garage_reset", {})):
+            for tune_id in (None, "ax01", "draft"):
+                with self.subTest(path, tune=tune_id):
+                    r = self.post(path, dict(body, tune=tune_id))
+                    self.assertEqual((r.status, r.json), (409, JOB_RUNNING))
+        self.assertEqual(self.library_bytes(), before)
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A"})
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_x", "draft")))
+        for path in ("/api/tyres", "/api/tyre?id=soft", "/api/garage"):
+            self.assertEqual(self.get(path).status, 200, path)
+        self.finish_held_job()
+        self.assertEqual(self.post("/api/tyre_reset", {"id": "soft"}).status, 200)
+        self.assertEqual(self.post("/api/tyre_new", {"name": "Other", "source": KEY_SS}).status, 200)
+
+    def test_a_new_post_route_checks_the_host_and_the_post_headers_before_it_writes(self):
+        body = {"name": "Soft", "source": KEY_AB}
+        r = self.post("/api/tyre_new", body, headers={"X-Tuner": None})
+        self.assertEqual((r.status, r.json), (403, {"error": "missing header X-Tuner: 1"}))
+        r = self.post("/api/tyre_new", body, headers={"Content-Type": "text/plain"})
+        self.assertEqual((r.status, r.json), (415, {"error": "Content-Type must be application/json"}))
+        r = self.post("/api/tyre_new", body, host="evil.example")
+        self.assertEqual((r.status, r.json), (403, {"error": "forbidden host"}))
+        r = self.post("/api/garage_set", {"keys": [ST_AB]}, headers={"X-Tuner": None})
+        self.assertEqual(r.status, 403)
+        self.assertEqual(tune.list_tyres(self.work), [])
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_a_new_post_route_is_405_for_other_methods_and_404_for_a_get(self):
+        for method in ("PUT", "DELETE", "PATCH"):
+            with self.subTest(method):
+                r = self.request(method, "/api/tyre_new")
+                self.assertEqual((r.status, r.json, r.headers.get("Allow")), (405, {"error": "method not allowed"}, "GET, POST"))
+        self.assertEqual(self.get("/api/tyre_new").status, 404)
+        self.assertEqual(self.get("/api/garage_set").status, 404)
+        self.assertEqual(tune.list_tyres(self.work), [])
+
+    def test_a_new_get_route_checks_the_host_and_is_405_for_other_methods_and_404_for_a_post(self):
+        self.make_tyre("Soft")
+        for path in ("/api/tyre?id=soft", "/api/tyres", "/api/garage"):
+            with self.subTest(path):
+                r = self.get(path, host="evil.example")
+                self.assertEqual((r.status, r.json), (403, {"error": "forbidden host"}))
+        for method in ("PUT", "DELETE", "PATCH"):
+            with self.subTest(method):
+                r = self.request(method, "/api/tyre?id=soft")
+                self.assertEqual((r.status, r.json, r.headers.get("Allow")), (405, {"error": "method not allowed"}, "GET, POST"))
+        for path in ("/api/tyre", "/api/tyres", "/api/garage"):
+            self.assertEqual(self.post(path, {"id": "soft"}).status, 404, path)
+        self.assertEqual(self.get("/api/tyre?id=soft").status, 200)
+
+
+class TestGarageRoutes(TyreCase):
+    def setUp(self):
+        super().setUp()
+        self.make_tyre("Soft")
+        self.make_tyre("Slicky", KEY_SS)
+
+    def garage(self, query=""):
+        return self.get("/api/garage" + query)
+
+    def test_garage_of_the_default_car_ticks_the_stock_tyres(self):
+        r = self.garage()
+        self.assertEqual((r.status, set(r.json)), (200, GARAGE_KEYS))
+        self.assertEqual((r.json["car"], r.json["tune"], r.json["custom"], r.json["missing"]), ("ks_x", None, False, []))
+        self.assertEqual([(c["key"], c["kind"], c["ticked"], c["start"]) for c in r.json["choices"]],
+                         [("own:slicky", "own", False, False), ("own:soft", "own", False, False), (ST_AB, "stock", True, True),
+                          (ST_SS, "stock", True, False)])
+        self.assertEqual(r.json, dict(tune.garage_choices(self.work, "ks_x"), car="ks_x", tune=None))
+
+    def test_garage_echoes_the_tune_and_reads_its_own_state(self):
+        self.make_tune("ax01", {"name_suffix": "_A", tune.TYRE_KEY: ["own:soft"]})
+        r = self.garage("?tune=ax01")
+        self.assertEqual((r.json["tune"], r.json["custom"], [c["key"] for c in r.json["choices"] if c["ticked"]]), ("ax01", True, ["own:soft"]))
+        self.assertEqual([c["key"] for c in r.json["choices"] if c["start"]], ["own:soft"])
+        self.assertEqual(self.garage("?tune=draft").json["tune"], "draft")
+        self.assertFalse(self.garage("?tune=draft").json["custom"])
+        self.assertFalse(self.garage().json["custom"])
+
+    def test_garage_lists_the_saved_keys_that_are_no_choice_any_more(self):
+        self.make_tune(None, {tune.TYRE_KEY: ["own:ghost", ST_AB]})
+        r = self.garage()
+        self.assertEqual((r.json["custom"], r.json["missing"]), (True, ["own:ghost"]))
+
+    def test_garage_needs_the_base_car(self):
+        r = self.garage("?car=ks_y")
+        self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+        r = self.garage("?car=ks_y&tune=draft")
+        self.assertEqual(r.status, 409)
+
+    def test_garage_with_a_damaged_selection_is_400(self):
+        self.make_tune(None, {tune.TYRE_KEY: "own:soft"})
+        r = self.garage()
+        self.assertEqual(r.status, 400)
+        self.assertIn("must be a list of tyre keys", r.json["error"])
+
+    def test_garage_is_read_under_state_lock(self):
+        held, real = [], tune.garage_choices
+
+        def spy(*args, **kw):
+            held.append(ts.STATE_LOCK.locked())
+            return real(*args, **kw)
+        self.patch(tune, "garage_choices", spy)
+        self.garage()
+        self.assertEqual(held, [True])
+
+    def test_garage_set_ticks_the_tyres_of_the_default_tune_in_the_fixed_order(self):
+        r = self.post("/api/garage_set", {"keys": [ST_AB, "own:soft"]})
+        self.assertEqual((r.status, set(r.json)), (200, {"result", "garage"}))
+        self.assertEqual(r.json["result"], {"keys": ["own:soft", ST_AB], "start": "own:soft"})
+        self.assertEqual(r.json["garage"], self.garage().json)
+        self.assertEqual((r.json["garage"]["custom"], [c["key"] for c in r.json["garage"]["choices"] if c["ticked"]]),
+                         (True, ["own:soft", ST_AB]))
+        self.assertEqual(self.saved_state(), {tune.TYRE_KEY: ["own:soft", ST_AB]})
+
+    def test_garage_set_keeps_the_other_values_of_the_state(self):
+        self.write(self.state_file(), {"limiter": 8000})
+        self.post("/api/garage_set", {"keys": [ST_SS]})
+        self.assertEqual(self.saved_state(), {"limiter": 8000, tune.TYRE_KEY: [ST_SS]})
+
+    def test_garage_set_to_all_stock_tyres_is_the_default_and_removes_the_entry(self):
+        self.write(self.state_file(), {"limiter": 8000, tune.TYRE_KEY: ["own:soft"]})
+        r = self.post("/api/garage_set", {"keys": [ST_SS, ST_AB]})
+        self.assertEqual((r.status, r.json["result"]), (200, {"keys": [ST_AB, ST_SS], "start": ST_AB, "default": True}))
+        self.assertFalse(r.json["garage"]["custom"])
+        self.assertEqual(self.saved_state(), {"limiter": 8000})
+
+    def test_garage_set_of_a_modded_car_changes_only_its_state(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        r = self.post("/api/garage_set", {"keys": ["own:slicky"], "tune": "ax01"})
+        self.assertEqual((r.status, r.json["result"], r.json["garage"]["tune"]), (200, {"keys": ["own:slicky"], "start": "own:slicky"}, "ax01"))
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A", tune.TYRE_KEY: ["own:slicky"]})
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_x", "draft")))
+        self.assertEqual(self.garage("?tune=ax01").json, r.json["garage"])
+
+    def test_garage_set_of_the_draft_needs_no_modded_car(self):
+        r = self.post("/api/garage_set", {"keys": ["own:soft"], "tune": "draft"})
+        self.assertEqual((r.status, r.json["garage"]["tune"]), (200, "draft"))
+        self.assertEqual(self.tune_state("draft"), {tune.TYRE_KEY: ["own:soft"]})
+        self.assertEqual(self.tune_ids(), [])
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_garage_set_errors_change_nothing(self):
+        self.write(self.state_file(), {"limiter": 8000, tune.TYRE_KEY: [ST_SS]})
+        for body, text in (({}, "need keys (a list of text)"), ({"keys": "own:soft"}, "need keys (a list of text)"),
+                           ({"keys": None}, "need keys (a list of text)"), ({"keys": {"own:soft": 1}}, "need keys (a list of text)"),
+                           ({"keys": ["own:soft", 5]}, "need keys (a list of text)"), ({"keys": [None]}, "need keys (a list of text)"),
+                           ({"keys": []}, "tick at least one tyre"), ({"keys": ["own:ghost"]}, "no tyre 'ghost' in the library"),
+                           ({"keys": ["own:../x"]}, "bad tyre id"), ({"keys": ["stock:nope|nope"]}, "unknown stock tyre nope|nope of ks_x"),
+                           ({"keys": ["soft"]}, "bad tyre key 'soft'"), ({"keys": ["own:soft", "own:soft"]}, "tyre key own:soft is listed twice")):
+            with self.subTest(body):
+                r = self.post("/api/garage_set", body)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].startswith(text), r.json)
+        self.assertEqual(self.saved_state(), {"limiter": 8000, tune.TYRE_KEY: [ST_SS]})
+
+    def test_garage_set_without_a_base_is_409_and_writes_nothing(self):
+        for tune_id in (None, "draft"):
+            with self.subTest(tune_id):
+                r = self.post("/api/garage_set", {"car": "ks_y", "keys": ["own:soft"], "tune": tune_id})
+                self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_y")))
+
+    def test_garage_set_with_an_unknown_modded_car_is_400(self):
+        r = self.post("/api/garage_set", {"keys": ["own:soft"], "tune": "nope"})
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car nope of ks_x"}))
+
+    def test_garage_reset_removes_the_selection(self):
+        self.write(self.state_file(), {"limiter": 8000, tune.TYRE_KEY: ["own:soft"]})
+        r = self.post("/api/garage_reset", {})
+        self.assertEqual((r.status, set(r.json), r.json["removed"]), (200, {"removed", "garage"}, True))
+        self.assertEqual((r.json["garage"]["custom"], set(r.json["garage"])), (False, GARAGE_KEYS))
+        self.assertEqual(r.json["garage"], self.garage().json)
+        self.assertEqual(self.saved_state(), {"limiter": 8000})
+
+    def test_garage_reset_without_a_selection_changes_nothing(self):
+        r = self.post("/api/garage_reset")
+        self.assertEqual((r.status, r.json["removed"], r.json["garage"]["custom"]), (200, False, False))
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_garage_reset_of_a_modded_car_and_of_the_draft(self):
+        self.make_tune("ax01", {"name_suffix": "_A", tune.TYRE_KEY: ["own:soft"]})
+        self.make_tune(tune.DRAFT, {tune.TYRE_KEY: ["own:slicky"], "limiter": 8000})
+        self.make_tune(None, {tune.TYRE_KEY: [ST_SS]})
+        r = self.post("/api/garage_reset", {"tune": "ax01"})
+        self.assertEqual((r.status, r.json["removed"], r.json["garage"]["tune"]), (200, True, "ax01"))
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A"})
+        self.assertEqual(self.post("/api/garage_reset", {"tune": "draft"}).json["removed"], True)
+        self.assertEqual(self.tune_state("draft"), {"limiter": 8000})
+        self.assertEqual(self.saved_state(), {tune.TYRE_KEY: [ST_SS]})
+
+    def test_garage_reset_without_a_base_is_409(self):
+        r = self.post("/api/garage_reset", {"car": "ks_y"})
+        self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+
+    def test_garage_reset_with_a_damaged_selection_still_removes_it(self):
+        self.write(self.state_file(), {tune.TYRE_KEY: "own:soft"})
+        r = self.post("/api/garage_reset", {})
+        self.assertEqual((r.status, r.json["removed"], r.json["garage"]["custom"]), (200, True, False))
+        self.assertEqual(self.saved_state(), {})
 
 
 # -------------------------------------------------------------------------------------------------- job lifecycle

@@ -27,6 +27,25 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765, allo
                         (without "tune": the default one, which must exist) is updated, the draft ("tune": "draft") creates a new modded car (new_id and suffix are optional,
                         automatic when left out; ignored when a modded car is updated) and builds it, the draft is
                         cleared after a successful build; the job result has new_id, tune, name_suffix and created
+  GET  /api/tyres       the tyre library ("tyres": id, name, source {front, rear}, changed; {id, error} for a damaged file) and
+                        the tyre pairs the extracted cars offer ("sources": key, front, rear, label, cars)
+  GET  /api/tyre?id=<tyre id>
+                        one library tyre ("tyre": id, name, source, changed) and its settings ("rows": the tyre settings with
+                        axle, default, value, changed, applicable and reason); 400 for an unknown id
+  POST /api/tyre_new    {"name": ..., "source": key}      creates a library tyre; answers {"tyre": {id, name, source}}
+  POST /api/tyre_rename {"id": ..., "name": ...}          POST /api/tyre_source {"id": ..., "source": key}
+                        both answer {"tyre": {id, name, source, changed}}
+  POST /api/tyre_set    {"id": ..., "setting": ..., "value": ...}   (value as for /api/set) answers {"row", "warnings"}
+  POST /api/tyre_unset  {"id": ..., "setting": ...}       answers {"row"}
+  POST /api/tyre_reset  {"id": ...}                       drops the changed values of the tyre; answers {"ok": true}
+  POST /api/tyre_delete {"id": ...}                       removes the tyre (409 while a modded car or the draft selects it);
+                        answers {"ok": true}
+  GET  /api/garage      the tyre selection of the car and the tune: "choices" (key, kind own or stock, label, ticked, start),
+                        "custom", "missing", "car" and "tune"; needs the base car
+  POST /api/garage_set  {"keys": [text, ...]}             ticks exactly these tyres (own:<tyre id>, stock:<front>|<rear>);
+                        answers {"result": {keys, start, maybe default}, "garage": the answer of GET /api/garage}
+  POST /api/garage_reset  {}                              removes the selection; answers {"removed", "garage"}
+The tyre library is shared by all cars: its routes ignore the car and the tune and need no base car.
 Every route takes an optional car id of the game (the list is cached in <work>/cars_index.json, see tune.py; without it
 and without the game package only the tested cars of tuner/cars.json): the query parameter ?car=<id> on GET, the field
 "car" in the JSON body on POST (any other id is a 400 error). Without it the default car of tuner/cars.json is used.
@@ -34,7 +53,7 @@ Every route also takes an optional tune next to the car (?tune=<x> on GET, the f
 the default tune of the car (the modded car <new_id>), "draft" the draft of the base car (the values of the base car
 that are not saved as a modded car yet), any other value the id of a modded car of that car (400 otherwise).
 
-Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, game running, mods folder not expandable), 500 (internal error); /api/init, /api/install_tested and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
+Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, tyre library or garage edit while a job runs, tyre deleted while a modded car selects it, game running, mods folder not expandable), 500 (internal error); /api/init, /api/install_tested and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
 
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of the selected modded car; the old single-car layout of the work folder
@@ -71,6 +90,8 @@ GAME_CHECK_SECONDS = 4.0
 MAX_BODY = 65536
 # routes that start a background job answer 202 instead of 200
 ACCEPTED = ("/api/init", "/api/install_tested", "/api/apply")
+# GET routes that take the raw query string as a third argument
+QUERY_ROUTES = ("/api/tyre",)
 
 CONFIG = {"port": DEFAULT_PORT, "work": None, "mods": None, "game": tune.DEFAULT_GAME}
 JOB = {"kind": None, "state": "idle", "log": [], "result": None, "error": None, "thread": None}
@@ -421,6 +442,167 @@ def api_apply(car, body):
     return {"job": "started"}
 
 
+def tyre_json(work, tyre_id):
+    t = tune.load_tyre(work, tyre_id)
+    return {"id": tyre_id, "name": t["name"], "source": {"front": t["source"]["front"], "rear": t["source"]["rear"]},
+            "changed": len(t["values"])}
+
+
+def tyre_row(work, tyre_id, cat, setting_id):
+    return next(r for r in tune.tyre_rows(work, tyre_id, cat) if r["id"] == setting_id)
+
+
+def api_tyres(car, tune_id):
+    work = CONFIG["work"]
+    return {"tyres": tune.list_tyres(work), "sources": tune.list_source_tyres(work)}
+
+
+def api_tyre(car, tune_id, query):
+    work, cat = CONFIG["work"], tune.load_catalogue()
+    tyre_id = (urllib.parse.parse_qs(query).get("id") or [None])[0]
+    if tyre_id is None:
+        raise ApiError(400, "need id (text)")
+    with STATE_LOCK:
+        try:
+            return {"tyre": tyre_json(work, tyre_id), "rows": tune.tyre_rows(work, tyre_id, cat)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_tyre_new(car, body):
+    work, name, source = CONFIG["work"], body.get("name"), body.get("source")
+    refuse_while_job_runs()
+    if not isinstance(name, str) or not isinstance(source, str):
+        raise ApiError(400, "need name (text) and source (text)")
+    with STATE_LOCK:
+        try:
+            return {"tyre": tune.create_tyre(work, name, source)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_tyre_rename(car, body):
+    work, tyre_id, name = CONFIG["work"], body.get("id"), body.get("name")
+    refuse_while_job_runs()
+    if not isinstance(tyre_id, str) or not isinstance(name, str):
+        raise ApiError(400, "need id (text) and name (text)")
+    with STATE_LOCK:
+        try:
+            tune.rename_tyre(work, tyre_id, name)
+            return {"tyre": tyre_json(work, tyre_id)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_tyre_source(car, body):
+    work, tyre_id, source = CONFIG["work"], body.get("id"), body.get("source")
+    refuse_while_job_runs()
+    if not isinstance(tyre_id, str) or not isinstance(source, str):
+        raise ApiError(400, "need id (text) and source (text)")
+    with STATE_LOCK:
+        try:
+            tune.set_tyre_source(work, tyre_id, source)
+            return {"tyre": tyre_json(work, tyre_id)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_tyre_set(car, body):
+    work, cat = CONFIG["work"], tune.load_catalogue()
+    tyre_id, setting_id, value = body.get("id"), body.get("setting"), body.get("value")
+    refuse_while_job_runs()
+    if not isinstance(tyre_id, str) or not isinstance(setting_id, str) or type(value) not in (str, int, float, bool):
+        raise ApiError(400, "need id (text), setting (text) and value (text, number or true/false)")
+    with STATE_LOCK:
+        try:
+            res = tune.set_tyre_value(work, tyre_id, setting_id, value, cat)
+            return {"row": tyre_row(work, tyre_id, cat, setting_id), "warnings": res["warnings"]}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_tyre_unset(car, body):
+    work, cat = CONFIG["work"], tune.load_catalogue()
+    tyre_id, setting_id = body.get("id"), body.get("setting")
+    refuse_while_job_runs()
+    if not isinstance(tyre_id, str) or not isinstance(setting_id, str):
+        raise ApiError(400, "need id (text) and setting (text)")
+    with STATE_LOCK:
+        try:
+            tune.unset_tyre_value(work, tyre_id, setting_id, cat)
+            return {"row": tyre_row(work, tyre_id, cat, setting_id)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_tyre_reset(car, body):
+    work, tyre_id = CONFIG["work"], body.get("id")
+    refuse_while_job_runs()
+    if not isinstance(tyre_id, str):
+        raise ApiError(400, "need id (text)")
+    with STATE_LOCK:
+        try:
+            tune.reset_tyre(work, tyre_id)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+    return {"ok": True}
+
+
+def api_tyre_delete(car, body):
+    work, tyre_id = CONFIG["work"], body.get("id")
+    refuse_while_job_runs()
+    if not isinstance(tyre_id, str):
+        raise ApiError(400, "need id (text)")
+    used = False
+    with STATE_LOCK:
+        try:
+            used = tune.tyre_exists(work, tyre_id) and bool(tune.tyre_users(work, tyre_id))
+            tune.delete_tyre(work, tyre_id)
+        except ValueError as e:
+            raise ApiError(409 if used else 400, str(e)) from None
+    return {"ok": True}
+
+
+def garage_json(work, car, tune_id):
+    return dict(tune.garage_choices(work, car, tune_id), car=car, tune=tune_id)
+
+
+def api_garage(car, tune_id):
+    work = CONFIG["work"]
+    require_base(work, car)
+    with STATE_LOCK:
+        try:
+            return garage_json(work, car, tune_id)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_garage_set(car, body):
+    work, tune_id, keys = CONFIG["work"], body.get("tune"), body.get("keys")
+    refuse_while_job_runs()
+    if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+        raise ApiError(400, "need keys (a list of text)")
+    require_base(work, car)
+    with STATE_LOCK:
+        try:
+            result = tune.set_garage(work, car, keys, tune_id)
+            return {"result": result, "garage": garage_json(work, car, tune_id)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_garage_reset(car, body):
+    work, tune_id = CONFIG["work"], body.get("tune")
+    refuse_while_job_runs()
+    require_base(work, car)
+    with STATE_LOCK:
+        try:
+            res = tune.reset_garage(work, car, tune_id)
+            return {"removed": res["removed"], "garage": garage_json(work, car, tune_id)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
 def request_car(value, query):
     if value is None:
         value = (urllib.parse.parse_qs(query).get("car") or [None])[0]
@@ -442,10 +624,14 @@ def request_tune(value, query, car):
     return value
 
 
-GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings}
+GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings, "/api/tyres": api_tyres, "/api/tyre": api_tyre,
+              "/api/garage": api_garage}
 POST_ROUTES = {"/api/set": api_set, "/api/unset": api_unset, "/api/reset_all": api_reset_all,
                "/api/init": api_init, "/api/install_tested": api_install_tested, "/api/duplicate": api_duplicate,
-               "/api/apply": api_apply}
+               "/api/apply": api_apply, "/api/tyre_new": api_tyre_new, "/api/tyre_rename": api_tyre_rename,
+               "/api/tyre_source": api_tyre_source, "/api/tyre_set": api_tyre_set, "/api/tyre_unset": api_tyre_unset,
+               "/api/tyre_reset": api_tyre_reset, "/api/tyre_delete": api_tyre_delete, "/api/garage_set": api_garage_set,
+               "/api/garage_reset": api_garage_reset}
 
 
 # DNS rebinding: a hostile site resolving to 127.0.0.1 sends its own Host header
@@ -526,7 +712,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             payload = route(car, body)
         else:
             car = request_car(None, query)
-            payload = route(car, request_tune(None, query, car))
+            tune_id = request_tune(None, query, car)
+            payload = route(car, tune_id, query) if path in QUERY_ROUTES else route(car, tune_id)
         return (202 if path in ACCEPTED else 200), payload
 
     def handle_request(self, method):
