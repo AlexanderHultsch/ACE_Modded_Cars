@@ -343,7 +343,7 @@ class TestTexts(unittest.TestCase):
         self.assertIn("changed only", MARKUP)
         self.assertIn('el("button", "reset", "reset")', CODE)
         for label in ("Install car (pull game files)", "Install the", "Tyre Creator", "Garage tyres", "Expand all", "changed only",
-                      "reset", "Reset all", "Create modded car", "Duplicate"):
+                      "show advanced settings", "reset", "Reset all", "Create modded car", "Duplicate"):
             self.assertIn(label, README)
 
     def test_the_tables_have_the_four_documented_columns_in_order(self):
