@@ -1,9 +1,14 @@
 """Local web server of the tuner: serves the settings table and runs Apply through tools/tune.py.
 
 usage:
-  python tools/tuner_server.py [--port N] [--work <dir>] [--mods <dir>] [--game <content.kspkg>]
+  python tools/tuner_server.py [--port N] [--bind <address>] [--work <dir>] [--mods <dir>] [--game <content.kspkg>]
 
-Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765, allowed 1024 to 65535) and a small JSON API:
+Serves tuner/web/index.html at http://127.0.0.1:<port>/ACESCT/ (default port 8080, allowed 1024 to 65535) and, from other
+devices of the home network, at http://<address of the PC>:<port>/ACESCT/; --bind <address> (default 0.0.0.0, all IPv4
+addresses of the PC; 127.0.0.1 serves this PC only) is the address the server listens on. Everything is served below the
+fixed base path /ACESCT: GET /ACESCT redirects (301) to /ACESCT/, GET / redirects (302) to /ACESCT/, every other path
+outside /ACESCT/ is a 404. The routes below are written without that prefix; the server answers them at /ACESCT/api/...
+(for example GET /ACESCT/api/state). A small JSON API:
   GET  /api/state       work folder, base car, game running, installed package, background job; every car of the game
                         (id, label, display_name, extracted, tested, new_id, installed) and the number of applicable and
                         hidden settings of the car (null while the base is missing or being extracted); the selected
@@ -57,14 +62,18 @@ Every route also takes an optional tune next to the car (?tune=<x> on GET, the f
 the default tune of the car (the modded car <new_id>), "draft" the draft of the base car (the values of the base car
 that are not saved as a modded car yet), any other value the id of a modded car of that car (400 otherwise).
 
-Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, tyre library or garage edit while a job runs, tyre deleted while a modded car selects it, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
+Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (client address that is not private, wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, tyre library or garage edit while a job runs, tyre deleted while a modded car selects it, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
 
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of the selected modded car; the old single-car layout of the work folder
 is moved into the default car's folder when the server starts.
-Binds to 127.0.0.1 only and accepts only the Host headers 127.0.0.1:<port> and localhost:<port>. Every POST needs
-the header X-Tuner: 1 and Content-Type application/json. One background job at a time; its state is kept until the
+No PIN or login: only private networks may connect. A request is refused with 403 when the address of the client is not
+loopback or private (192.168.x.x, 10.x.x.x, 172.16-31.x.x), and when the Host header is not <name>:<port> with the
+configured port and a name that is localhost, a loopback or private IPv4 address, or the host name of this PC. Every POST
+needs the header X-Tuner: 1 and Content-Type application/json. One background job at a time; its state is kept until the
 next job starts. Apply refuses to run while AssettoCorsaEVO.exe is running.
+At start the server prints http://127.0.0.1:<port>/ACESCT/ and, unless --bind is 127.0.0.1, one line per private IPv4
+address of the PC: the address to open on the phone.
 <work> defaults to %USERPROFILE%\\ace_modded_cars_work, <mods> to %USERPROFILE%\\Saved Games\\ACE\\mods, <game> to the
 Steam default content.kspkg (see tune.py). Wrong arguments print the usage block and exit 2.
 Ctrl+C while a job runs waits for it; a second Ctrl+C aborts it.
@@ -73,6 +82,7 @@ Stdlib only.
 """
 import datetime
 import http.server
+import ipaddress
 import json
 import os
 import pathlib
@@ -89,7 +99,9 @@ import kspkg  # noqa: E402
 import tune  # noqa: E402
 
 INDEX = tune.REPO / "tuner" / "web" / "index.html"
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 8080
+DEFAULT_BIND = "0.0.0.0"
+BASE_PATH = "/ACESCT"
 GAME_CHECK_SECONDS = 4.0
 MAX_BODY = 65536
 # routes that start a background job answer 202 instead of 200
@@ -621,11 +633,44 @@ POST_ROUTES = {"/api/set": api_set, "/api/unset": api_unset, "/api/reset_all": a
                "/api/garage_reset": api_garage_reset}
 
 
-# DNS rebinding: a hostile site resolving to 127.0.0.1 sends its own Host header
+def private_ip(text):
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        return False
+    return ip.version == 4 and (ip.is_loopback or ip.is_private) and not ip.is_global and not ip.is_unspecified
+
+
+# DNS rebinding: a hostile site resolving to a private address sends its own Host header
 def check_host(host):
-    port = CONFIG["port"]
-    if (host or "").lower() not in ("127.0.0.1:%d" % port, "localhost:%d" % port):
+    name, colon, port = (host or "").lower().rpartition(":")
+    if not colon or port != str(CONFIG["port"]) or not (name == "localhost" or private_ip(name) or name == socket.gethostname().lower()):
         raise ApiError(403, "forbidden host")
+
+
+# only private networks may connect, even though the server listens on every address of the PC
+def check_client(address):
+    if not private_ip(address):
+        raise ApiError(403, "forbidden client address")
+
+
+def lan_addresses():
+    found = []
+    try:
+        found += [info[4][0] for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)]
+    except OSError:
+        pass
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("10.255.255.255", 1))
+            found.append(probe.getsockname()[0])
+    except OSError:
+        pass
+    addresses = []
+    for address in found:
+        if private_ip(address) and not ipaddress.ip_address(address).is_loopback and address not in addresses:
+            addresses.append(address)
+    return addresses
 
 
 # a cross-site form or no-cors fetch cannot send X-Tuner or application/json without a preflight, and no CORS is answered
@@ -634,6 +679,13 @@ def check_post_headers(headers):
         raise ApiError(403, "missing header X-Tuner: 1")
     if headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
         raise ApiError(415, "Content-Type must be application/json")
+
+
+class Redirect(Exception):
+    def __init__(self, status, location):
+        Exception.__init__(self, location)
+        self.status = status
+        self.location = location
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -682,13 +734,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.rfile.read(length)
 
     def dispatch(self, method):
+        check_client(self.client_address[0])
         check_host(self.headers.get("Host"))
         path, _, query = self.path.partition("?")
         if method == "POST":
             check_post_headers(self.headers)
         if method == "GET" and path == "/":
+            raise Redirect(302, BASE_PATH + "/")
+        if method == "GET" and path == BASE_PATH:
+            raise Redirect(301, BASE_PATH + "/")
+        if method == "GET" and path == BASE_PATH + "/":
             with open(INDEX, "rb") as f:
                 return 200, f.read()
+        path = path[len(BASE_PATH):] if path.startswith(BASE_PATH + "/") else None
         route = (GET_ROUTES if method == "GET" else POST_ROUTES).get(path)
         if route is None:
             raise ApiError(404, "not found")
@@ -704,8 +762,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return (202 if path in ACCEPTED else 200), payload
 
     def handle_request(self, method):
+        headers = None
         try:
             status, payload = self.dispatch(method)
+        except Redirect as e:
+            status, payload, headers = e.status, b"", {"Location": e.location}
         except ApiError as e:
             if method == "POST" and not self.body_read:
                 self.discard_body()
@@ -715,7 +776,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             traceback.print_exc()
             status, payload = 500, {"error": "internal error: %s" % type(e).__name__}
-        self.send_payload(status, payload)
+        self.send_payload(status, payload, headers)
 
     def end_headers(self):
         self.send_header("X-Frame-Options", "DENY")
@@ -739,7 +800,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # the page polls /api/state every few seconds; keep that out of the console
     def log_request(self, code="-", size="-"):
-        if getattr(self, "path", "").partition("?")[0] == "/api/state" and str(code) == "200":
+        if getattr(self, "path", "").partition("?")[0] == BASE_PATH + "/api/state" and str(code) == "200":
             return
         http.server.BaseHTTPRequestHandler.log_request(self, code, size)
 
@@ -778,7 +839,7 @@ def wait_for_job():
 
 def main():
     try:
-        pos, opts = kspkg.parse_args(sys.argv[1:], ("port", "work", "mods", "game"))
+        pos, opts = kspkg.parse_args(sys.argv[1:], ("port", "bind", "work", "mods", "game"))
     except ValueError:
         usage()
     if pos:
@@ -793,11 +854,15 @@ def main():
         if moved:
             print("moved the old single-car layout of %s into %s: %s" % (
                 CONFIG["work"], tune.car_work(CONFIG["work"], default_car), ", ".join(moved)))
-        server = Server(("127.0.0.1", port), Handler)
+        bind = opts.get("bind", DEFAULT_BIND)
+        server = Server((bind, port), Handler)
         tune.load_cars_index(CONFIG["work"], CONFIG["game"])
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)
-    print("tuner running on http://127.0.0.1:%d/" % port, flush=True)
+    print("tuner running on http://127.0.0.1:%d%s/" % (port, BASE_PATH), flush=True)
+    if bind != "127.0.0.1":
+        for address in lan_addresses():
+            print("reachable in the home network: http://%s:%d%s/" % (address, port, BASE_PATH), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

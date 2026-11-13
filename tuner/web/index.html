@@ -532,7 +532,7 @@ async function api(path, body, target) {
   };
   let res;
   try {
-    res = await fetch(path, opts);
+    res = await fetch(path.replace(/^\//, ""), opts);
   } catch (e) {
     throw new Error("server not reachable");
   }

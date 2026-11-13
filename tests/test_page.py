@@ -191,6 +191,11 @@ class TestApiContract(unittest.TestCase):
                 self.assertRegex(CODE, r'(?:api|startJob)\("%s", \{' % route)
                 self.assertNotRegex(CODE, r'api\("%s", undefined' % route)
 
+    def test_api_requests_are_relative_to_the_page_below_the_base_path(self):
+        self.assertIn('res = await fetch(path.replace(/^\//, ""), opts);', function_body("api"))
+        self.assertEqual(re.findall(r"\bfetch\((\w+)", CODE), ["path"])
+        self.assertEqual(re.findall(r"\b(?:href|src|action)\s*=|EventSource|location\.|window\.open|<(?:a|link|img|form|iframe)\b", HTML), [])
+
     def test_the_page_sends_the_headers_the_server_demands(self):
         body = function_body("api")
         self.assertIn('"Content-Type": "application/json"', body)
@@ -1621,7 +1626,7 @@ class TestStartBat(unittest.TestCase):
 
     def test_the_port_is_the_default_port_of_the_server_and_the_readme(self):
         self.assertEqual(set(re.findall(r"(?:--port |127\.0\.0\.1:|PORT=)(\d+)", BAT)), {str(ts.DEFAULT_PORT)})
-        self.assertIn("http://127.0.0.1:%d/" % ts.DEFAULT_PORT, README)
+        self.assertEqual(ts.DEFAULT_PORT, 8080)
 
     def test_it_looks_for_the_python_the_readme_documents(self):
         path = re.search(r'set "PY=(.*?python\.exe)"', BAT).group(1)
@@ -1635,7 +1640,8 @@ class TestStartBat(unittest.TestCase):
 
     # R4-006: the browser is opened after a fixed delay (ping -n 3 is about 2 s), not when the server listens
     def test_the_browser_is_opened_after_a_fixed_two_second_delay(self):
-        self.assertRegex(BAT, r'start "" /min cmd /c "ping -n 3 127\.0\.0\.1 >nul & start http://127\.0\.0\.1:(?:\d+|%PORT%)/"')
+        self.assertRegex(BAT, r'start "" /min cmd /c "ping -n 3 127\.0\.0\.1 >nul & start http://127\.0\.0\.1:(?:\d+|%PORT%)/ACESCT/"')
+        self.assertIn("http://127.0.0.1:%PORT%" + ts.BASE_PATH + "/", BAT)
 
     # R4-007: the game package is passed on only when the user set GAME in the file
     def test_the_game_package_is_optional_and_passed_on_only_when_set(self):
@@ -1649,6 +1655,17 @@ class TestStartBat(unittest.TestCase):
         raw = (ROOT / "start_tuner.bat").read_bytes()
         raw.decode("ascii")
         self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
+
+    def test_every_line_ends_with_crlf(self):
+        raw = (ROOT / "start_tuner.bat").read_bytes()
+        self.assertEqual(raw.count(b"\n"), raw.count(b"\r\n"))
+        self.assertTrue(raw.endswith(b"\r\n"))
+
+    def test_it_tells_the_user_about_the_windows_firewall_question_before_the_server_starts(self):
+        line = next(l for l in BAT.splitlines() if l.startswith("echo After the first start Windows asks"))
+        self.assertIn("private network", line)
+        self.assertIn("choose Allow", line)
+        self.assertLess(BAT.index(line), BAT.index('"%PY%" -I tools'))
 
 
 if __name__ == "__main__":

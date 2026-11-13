@@ -150,6 +150,7 @@ class Env(unittest.TestCase):
 
 class ServerCase(Env):
     """Env plus a running server and request helpers; make_car() builds the stubbed extracted car ks_x."""
+    handler = ts.Handler
 
     def setUp(self):
         super().setUp()
@@ -157,7 +158,7 @@ class ServerCase(Env):
         index = [{"id": "ks_x", "display_name": "Car X", "brand": "B", "year": 1999},
                  {"id": "ks_y", "display_name": "Car Y", "brand": "B", "year": 2000}]
         self.write(os.path.join(self.work, "cars_index.json"), index)
-        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ts.Handler)
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), self.handler)
         self.port = self.server.server_address[1]
         ts.CONFIG["port"] = self.port
         self.host = "127.0.0.1:%d" % self.port
@@ -193,10 +194,13 @@ class ServerCase(Env):
         with open(self.state_file(), encoding="utf-8") as f:
             return json.load(f)
 
-    def request(self, method, path, body=None, host=None, headers=None, post_headers=True):
-        """One request on a new connection; host=False sends no Host header, a headers value of None drops that header."""
+    def request(self, method, path, body=None, host=None, headers=None, post_headers=True, prefix=True):
+        """One request on a new connection; the path gets the base path /ACESCT unless it starts with it or prefix=False;
+        host=False sends no Host header, a headers value of None drops that header."""
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         try:
+            if prefix and not path.startswith(ts.BASE_PATH):
+                path = ts.BASE_PATH + path
             conn.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
             send = {}
             if host is not False:
@@ -348,6 +352,112 @@ class TestRoutes(ServerCase):
                 self.assertEqual((r.status, r.json), (500, {"error": str(exc)}))
 
 
+class TestBasePath(ServerCase):
+    def setUp(self):
+        super().setUp()
+        self.make_car()
+
+    def raw(self, path, **kw):
+        return self.get(path, prefix=False, **kw)
+
+    def test_the_base_path_is_fixed(self):
+        self.assertEqual(ts.BASE_PATH, "/ACESCT")
+
+    def test_the_page_is_served_at_the_base_path_with_a_slash(self):
+        r = self.raw("/ACESCT/")
+        with open(ts.INDEX, "rb") as f:
+            self.assertEqual((r.status, r.data), (200, f.read()))
+        self.assertEqual(r.headers.get("Content-Type"), "text/html; charset=utf-8")
+        self.assertEqual(self.raw("/ACESCT/?car=ks_x").status, 200)
+
+    def test_the_base_path_without_a_slash_is_a_301_to_the_page(self):
+        for path in ("/ACESCT", "/ACESCT?car=ks_x"):
+            with self.subTest(path):
+                r = self.raw(path)
+                self.assertEqual((r.status, r.headers.get("Location"), r.data), (301, "/ACESCT/", b""))
+
+    def test_the_root_is_a_302_to_the_page(self):
+        for path in ("/", "/?car=ks_x"):
+            with self.subTest(path):
+                r = self.raw(path)
+                self.assertEqual((r.status, r.headers.get("Location"), r.data), (302, "/ACESCT/", b""))
+
+    def test_the_redirects_carry_the_framing_headers_and_no_cors_headers(self):
+        for path in ("/", "/ACESCT"):
+            with self.subTest(path):
+                r = self.raw(path)
+                self.assertEqual(r.headers.get("X-Frame-Options"), "DENY")
+                self.assertIn("frame-ancestors 'none'", r.headers.get("Content-Security-Policy", ""))
+                self.assertEqual(r.headers.get("Cache-Control"), "no-store")
+                self.assertEqual([h for h in r.headers if h.lower().startswith("access-control")], [])
+
+    def test_the_redirects_check_the_host_first(self):
+        for path in ("/", "/ACESCT"):
+            with self.subTest(path):
+                r = self.raw(path, host="evil.example")
+                self.assertEqual((r.status, r.json, r.headers.get("Location")), (403, {"error": "forbidden host"}, None))
+
+    def test_the_api_lives_below_the_base_path_only(self):
+        r = self.raw("/ACESCT/api/state")
+        self.assertEqual((r.status, set(r.json)), (200, STATE_KEYS))
+        r = self.raw("/api/state")
+        self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
+        r = self.request("POST", "/api/set", {"id": "limiter", "value": "8000"}, prefix=False)
+        self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_every_other_path_is_404_json(self):
+        for path in ("/ACESCT2", "/ACESCT2/", "/ACESCTx/api/state", "/ACESCT/x/api/state", "/acesct/", "/acesct/api/state", "/ACESCT//api/state",
+                     "/ACESCT/api", "/ACESCT/api/state/", "/ACESCT/index.html", "/ACESCT/ACESCT/", "/index.html", "/api/groups"):
+            with self.subTest(path):
+                r = self.raw(path)
+                self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
+
+    def test_a_post_to_the_page_or_a_redirect_is_404(self):
+        for path in ("/", "/ACESCT", "/ACESCT/"):
+            with self.subTest(path):
+                self.assertEqual(self.request("POST", path, {}, prefix=False).status, 404)
+
+    def test_the_quiet_poll_filter_matches_the_prefixed_state_path(self):
+        self.assertEqual(self.raw("/ACESCT/api/state").status, 200)
+        self.assertEqual(self.raw("/ACESCT/api/state?car=ks_x").status, 200)
+        self.assertNotIn("/api/state", self.err.getvalue())
+        self.assertEqual(self.raw("/api/state").status, 404)
+        self.assertIn('"GET /api/state HTTP/1.1" 404 -', self.err.getvalue())
+
+
+class ForeignHandler(ts.Handler):
+    """A Handler whose client always comes from a public address."""
+    @property
+    def client_address(self):
+        return ("8.8.8.8", 4711)
+
+    @client_address.setter
+    def client_address(self, value):
+        pass
+
+
+class TestForeignClient(ServerCase):
+    handler = ForeignHandler
+
+    def setUp(self):
+        super().setUp()
+        self.make_car()
+
+    def test_a_public_client_is_403_for_every_route_and_changes_nothing(self):
+        for r in (self.get("/"), self.get("/api/state"), self.get("/nothing"), self.get("/", prefix=False), self.get("/ACESCT", prefix=False),
+                  self.post("/api/set", {"id": "limiter", "value": "8000"}), self.post("/api/init")):
+            self.assertEqual((r.status, r.json), (403, {"error": "forbidden client address"}))
+            self.assertEqual([h for h in r.headers if h.lower().startswith("access-control")], [])
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertEqual(ts.job_snapshot()["state"], "idle")
+
+    def test_the_client_address_is_checked_before_the_host(self):
+        r = self.get("/api/state", host="evil.example")
+        self.assertEqual((r.status, r.json), (403, {"error": "forbidden client address"}))
+        self.assertEqual(self.get("/api/state", host=False).json, {"error": "forbidden client address"})
+
+
 # -------------------------------------------------------------------------------------------------- request checks
 class TestHostAndHeaders(ServerCase):
     def setUp(self):
@@ -366,6 +476,23 @@ class TestHostAndHeaders(ServerCase):
             with self.subTest(host):
                 r = self.get("/api/state", host=host)
                 self.assertEqual((r.status, r.json), (403, {"error": "forbidden host"}))
+
+    def test_private_hosts_with_the_port_and_the_machine_name_are_accepted(self):
+        with mock.patch.object(ts.socket, "gethostname", return_value="Alex-PC"):
+            for host in ("localhost:%d", "127.0.0.1:%d", "127.1.2.3:%d", "192.168.1.20:%d", "10.0.0.5:%d", "172.16.0.1:%d", "172.31.255.1:%d",
+                         "Alex-PC:%d", "ALEX-PC:%d", "alex-pc:%d"):
+                with self.subTest(host):
+                    self.assertEqual(self.get("/api/state", host=host % self.port).status, 200)
+
+    def test_other_hosts_are_403_with_the_machine_name_set(self):
+        with mock.patch.object(ts.socket, "gethostname", return_value="Alex-PC"):
+            for host in ("localhost:%d" % (self.port + 1), "192.168.1.20:%d" % (self.port + 1), "192.168.1.20", "Alex-PC", "Alex-PC:%d" % (self.port + 1),
+                         "evil.example:%d" % self.port, "8.8.8.8:%d" % self.port, "172.32.0.1:%d" % self.port, "100.64.0.1:%d" % self.port,
+                         "[::1]:%d" % self.port, "192.168.1.20.evil.example:%d" % self.port, "Alex-PC.evil.example:%d" % self.port,
+                         "Alex-PC.local:%d" % self.port, "other-pc:%d" % self.port, "0.0.0.0:%d" % self.port, ":%d" % self.port):
+                with self.subTest(host):
+                    r = self.get("/api/state", host=host)
+                    self.assertEqual((r.status, r.json), (403, {"error": "forbidden host"}))
 
     def test_a_missing_host_header_is_403(self):
         self.assertEqual(self.get("/api/state", host=False).status, 403)
@@ -2491,8 +2618,8 @@ class TestLogging(ServerCase):
         self.get("/api/settings")
         self.get("/nothing")
         log = self.err.getvalue()
-        self.assertIn('"GET /api/settings HTTP/1.1" 200 -', log)
-        self.assertIn('"GET /nothing HTTP/1.1" 404 -', log)
+        self.assertIn('"GET /ACESCT/api/settings HTTP/1.1" 200 -', log)
+        self.assertIn('"GET /ACESCT/nothing HTTP/1.1" 404 -', log)
 
     def test_a_failing_state_request_is_logged(self):
         self.assertEqual(self.get("/api/state?car=nope").status, 400)
@@ -2613,6 +2740,100 @@ class TestHelpers(Env):
         ts.check_host("127.0.0.1:9000")
         with self.assertRaises(ts.ApiError):
             ts.check_host("127.0.0.1:8765")
+
+    def test_check_host_accepts_localhost_private_addresses_and_the_machine_name(self):
+        ts.CONFIG["port"] = 8080
+        with mock.patch.object(ts.socket, "gethostname", return_value="Alex-PC"):
+            for host in ("localhost:8080", "127.0.0.1:8080", "192.168.1.20:8080", "10.0.0.5:8080", "172.16.0.1:8080", "Alex-PC:8080", "alex-pc:8080"):
+                with self.subTest(host):
+                    ts.check_host(host)
+
+    def test_check_host_refuses_everything_else(self):
+        ts.CONFIG["port"] = 8080
+        with mock.patch.object(ts.socket, "gethostname", return_value="Alex-PC"):
+            for host in (None, "", "192.168.1.20", "Alex-PC", "192.168.1.20:8081", "192.168.1.20:80800", "192.168.1.20:", "evil.example:8080",
+                         "8.8.8.8:8080", "[::1]:8080", "192.168.1.20.evil.example:8080", "Alex-PC.local:8080", "172.32.0.1:8080",
+                         "100.64.0.1:8080", "0.0.0.0:8080", ":8080", "1:8080"):
+                with self.subTest(host), self.assertRaises(ts.ApiError) as cm:
+                    ts.check_host(host)
+                self.assertEqual((cm.exception.status, cm.exception.message), (403, "forbidden host"))
+
+    def test_check_host_needs_no_dns_lookup(self):
+        ts.CONFIG["port"] = 8080
+        with mock.patch.object(ts.socket, "getaddrinfo", side_effect=AssertionError("a DNS lookup")), \
+                mock.patch.object(ts.socket, "gethostbyname", side_effect=AssertionError("a DNS lookup")):
+            ts.check_host("192.168.1.20:8080")
+            with self.assertRaises(ts.ApiError):
+                ts.check_host("evil.example:8080")
+
+    def test_private_ip(self):
+        for address in ("127.0.0.1", "127.1.2.3", "192.168.1.5", "10.1.2.3", "172.16.0.1", "172.31.255.255"):
+            with self.subTest(address):
+                self.assertTrue(ts.private_ip(address))
+        for address in ("8.8.8.8", "100.64.0.1", "172.32.0.1", "0.0.0.0", "::1", "fe80::1", "", "garbage", "192.168.1", "192.168.1.5.6", "192.168.1.5:80",
+                        "[::1]", None, "1"):
+            with self.subTest(address):
+                self.assertFalse(ts.private_ip(address))
+
+    def test_check_client_accepts_loopback_and_private_addresses(self):
+        for address in ("192.168.1.5", "10.1.2.3", "127.0.0.1"):
+            with self.subTest(address):
+                ts.check_client(address)
+
+    def test_check_client_refuses_public_shared_and_unparsable_addresses(self):
+        for address in ("8.8.8.8", "100.64.0.1", "172.32.0.1", "garbage", "", None):
+            with self.subTest(address), self.assertRaises(ts.ApiError) as cm:
+                ts.check_client(address)
+            self.assertEqual((cm.exception.status, cm.exception.message), (403, "forbidden client address"))
+
+    def probe_socket(self, address=("192.168.1.20", 5555), error=None):
+        probe = mock.MagicMock()
+        probe.__enter__.return_value = probe
+        probe.getsockname.return_value = address
+        if error:
+            probe.connect.side_effect = error
+        return probe
+
+    def lan(self, infos, probe):
+        with mock.patch.object(ts.socket, "gethostname", return_value="Alex-PC"), \
+                mock.patch.object(ts.socket, "getaddrinfo", **infos) as lookup, \
+                mock.patch.object(ts.socket, "socket", return_value=probe) as make:
+            found = ts.lan_addresses()
+        return found, lookup, make
+
+    def infos(self, *addresses):
+        return {"return_value": [(ts.socket.AF_INET, ts.socket.SOCK_STREAM, 6, "", (a, 0)) for a in addresses]}
+
+    def test_lan_addresses_keeps_private_non_loopback_addresses_without_duplicates(self):
+        probe = self.probe_socket(("10.0.0.7", 5555))
+        found, lookup, make = self.lan(self.infos("192.168.1.20", "127.0.0.1", "8.8.8.8", "192.168.1.20", "169.254.3.4", "100.64.0.1", "10.0.0.7",
+                                                  "0.0.0.0"), probe)
+        self.assertEqual(found, ["192.168.1.20", "169.254.3.4", "10.0.0.7"])
+        lookup.assert_called_once_with("Alex-PC", None, ts.socket.AF_INET)
+
+    def test_lan_addresses_asks_the_routing_table_with_a_udp_connect_and_sends_nothing(self):
+        probe = self.probe_socket(("192.168.1.20", 5555))
+        found, _, make = self.lan(self.infos(), probe)
+        self.assertEqual(found, ["192.168.1.20"])
+        make.assert_called_once_with(ts.socket.AF_INET, ts.socket.SOCK_DGRAM)
+        probe.connect.assert_called_once_with(("10.255.255.255", 1))
+        for name in ("send", "sendto", "sendall"):
+            getattr(probe, name).assert_not_called()
+
+    def test_lan_addresses_drops_a_loopback_or_public_probe_result(self):
+        for address in ("127.0.0.1", "8.8.8.8", "0.0.0.0"):
+            with self.subTest(address):
+                self.assertEqual(self.lan(self.infos(), self.probe_socket((address, 1)))[0], [])
+
+    def test_lan_addresses_ignores_failing_lookups(self):
+        probe = self.probe_socket(("192.168.1.20", 5555))
+        found, _, _ = self.lan({"side_effect": ts.socket.gaierror(11001, "getaddrinfo failed")}, probe)
+        self.assertEqual(found, ["192.168.1.20"])
+        failing = self.probe_socket(error=OSError(101, "Network is unreachable"))
+        found, _, _ = self.lan(self.infos("10.0.0.7"), failing)
+        self.assertEqual(found, ["10.0.0.7"])
+        found, _, _ = self.lan({"side_effect": OSError("no network")}, failing)
+        self.assertEqual(found, [])
 
     def headers(self, **kw):
         msg = email.message.Message()
@@ -2828,12 +3049,33 @@ class TestServerClass(unittest.TestCase):
         self.bind("posix").assert_not_called()
 
 
+class TestRealServer(Env):
+    def test_the_server_class_answers_below_the_base_path_on_a_real_socket(self):
+        server = ts.Server(("127.0.0.1", 0), ts.Handler)
+        port = ts.CONFIG["port"] = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 5)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        for path, status in (("/ACESCT/", 200), ("/ACESCT", 301), ("/", 302), ("/api/state", 404)):
+            with self.subTest(path):
+                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                try:
+                    conn.request("GET", path)
+                    self.assertEqual(conn.getresponse().status, status)
+                finally:
+                    conn.close()
+
+
 class TestMain(Env):
     def setUp(self):
         super().setUp()
         StubServer.log, StubServer.serve_error, StubServer.bind_error = [], KeyboardInterrupt, None
         self.patch(ts, "Server", StubServer)
         self.patch(tune, "load_cars_index", lambda work, *a, **k: StubServer.log.append("index"))
+        self.lan = ["192.168.1.20"]
+        self.patch(ts, "lan_addresses", lambda: self.lan)
         self.argv = ["--port", "8765", "--work", self.work, "--mods", self.mods]
 
     def run_main(self, *argv):
@@ -2845,18 +3087,46 @@ class TestMain(Env):
                 return e.code
         return None
 
-    def test_start_binds_localhost_only_with_the_handler_and_prints_the_url(self):
+    def test_start_binds_every_address_with_the_handler_and_prints_the_urls(self):
+        self.lan = ["192.168.1.20", "10.0.0.7"]
         self.assertIsNone(self.run_main(*self.argv))
-        self.assertEqual((StubServer.last.address, StubServer.last.handler), (("127.0.0.1", 8765), ts.Handler))
-        self.assertEqual(self.out.getvalue(), "tuner running on http://127.0.0.1:8765/\nstopped\n")
+        self.assertEqual((StubServer.last.address, StubServer.last.handler), (("0.0.0.0", 8765), ts.Handler))
+        self.assertEqual(self.out.getvalue(), "tuner running on http://127.0.0.1:8765/ACESCT/\n"
+                         "reachable in the home network: http://192.168.1.20:8765/ACESCT/\n"
+                         "reachable in the home network: http://10.0.0.7:8765/ACESCT/\nstopped\n")
+
+    def test_start_prints_only_the_local_url_when_the_pc_has_no_private_address(self):
+        self.lan = []
+        self.run_main(*self.argv)
+        self.assertEqual(self.out.getvalue(), "tuner running on http://127.0.0.1:8765/ACESCT/\nstopped\n")
+
+    def test_bind_127_0_0_1_serves_this_pc_only_and_prints_one_url(self):
+        self.assertIsNone(self.run_main(*self.argv, "--bind", "127.0.0.1"))
+        self.assertEqual(StubServer.last.address, ("127.0.0.1", 8765))
+        self.assertEqual(self.out.getvalue(), "tuner running on http://127.0.0.1:8765/ACESCT/\nstopped\n")
+
+    def test_bind_takes_any_address_of_the_option(self):
+        self.run_main(*self.argv, "--bind", "192.168.1.20")
+        self.assertEqual(StubServer.last.address, ("192.168.1.20", 8765))
+
+    def test_the_default_bind_is_every_ipv4_address(self):
+        self.assertEqual(ts.DEFAULT_BIND, "0.0.0.0")
+        self.run_main("--work", self.work)
+        self.assertEqual(StubServer.last.address[0], "0.0.0.0")
+
+    def test_a_bind_address_that_cannot_be_used_is_an_error_line(self):
+        StubServer.bind_error = OSError(10049, "address not valid in its context")
+        self.assertEqual(self.run_main(*self.argv, "--bind", "203.0.113.9"), "error: [Errno 10049] address not valid in its context")
+        self.assertEqual(self.out.getvalue(), "")
 
     def test_start_sets_config_from_the_options(self):
         self.run_main(*self.argv)
         self.assertEqual((ts.CONFIG["port"], ts.CONFIG["work"], ts.CONFIG["mods"]), (8765, os.path.abspath(self.work), self.mods))
 
-    def test_the_default_port_is_8765(self):
+    def test_the_default_port_is_8080(self):
         self.run_main("--work", self.work)
-        self.assertEqual((ts.DEFAULT_PORT, StubServer.last.address), (8765, ("127.0.0.1", 8765)))
+        self.assertEqual((ts.DEFAULT_PORT, StubServer.last.address), (8080, ("0.0.0.0", 8080)))
+        self.assertIn("http://127.0.0.1:8080/ACESCT/\n", self.out.getvalue())
 
     def test_ctrl_c_closes_the_server_and_returns(self):
         self.assertIsNone(self.run_main(*self.argv))
@@ -2896,9 +3166,9 @@ class TestMain(Env):
         self.assertIn("base, tune_state.json", self.out.getvalue())
 
     def test_every_option_of_the_usage_block_is_accepted(self):
-        values = {"port": "8765", "work": self.work, "mods": self.mods, "game": "game.kspkg"}
+        values = {"port": "8765", "bind": "127.0.0.1", "work": self.work, "mods": self.mods, "game": "game.kspkg"}
         flags = re.findall(r"\[--(\w+) ", USAGE)
-        self.assertTrue({"port", "work", "mods"} <= set(flags), flags)
+        self.assertTrue({"port", "bind", "work", "mods"} <= set(flags), flags)
         self.assertIsNone(self.run_main(*[w for flag in flags for w in ("--" + flag, values[flag])]))
 
     def test_the_game_option_is_accepted_and_kept_in_the_config(self):
@@ -2975,7 +3245,7 @@ class TestCli(unittest.TestCase):
 
 for _name, _argv in (("positional", ["foo"]), ("positional_after_options", ["--port", "8765", "foo"]),
                      ("unknown_option", ["--bogus", "1"]), ("help", ["--help"]), ("port_without_value", ["--port"]),
-                     ("work_without_value", ["--work"]), ("mods_without_value", ["--mods"])):
+                     ("work_without_value", ["--work"]), ("mods_without_value", ["--mods"]), ("bind_without_value", ["--bind"])):
     setattr(TestCli, "test_usage_" + _name, usage_case(_name, _argv))
 
 
@@ -3005,10 +3275,20 @@ class TestUsageText(unittest.TestCase):
     def test_usage_block_is_the_first_paragraph_after_the_title(self):
         self.assertEqual(len(ts.__doc__.split("\n\n")[0].splitlines()), 1)
         self.assertTrue(USAGE.startswith("usage:\n  python tools/tuner_server.py [--port N]"), USAGE)
+        self.assertIn("[--bind <address>]", USAGE)
 
     def test_the_documented_defaults_match_the_code(self):
-        self.assertIn("default port 8765", ts.__doc__)
-        self.assertEqual(ts.DEFAULT_PORT, 8765)
+        self.assertIn("default port 8080", ts.__doc__)
+        self.assertEqual(ts.DEFAULT_PORT, 8080)
+        self.assertIn("--bind <address> (default 0.0.0.0", ts.__doc__)
+        self.assertIn("http://127.0.0.1:<port>/ACESCT/", ts.__doc__)
+        self.assertIn("http://<address of the PC>:<port>/ACESCT/", ts.__doc__)
+        self.assertIn("fixed base path " + ts.BASE_PATH, ts.__doc__)
+
+    def test_the_documented_checks_are_the_ones_of_the_code(self):
+        doc = " ".join(ts.__doc__.split())
+        for text in ("client is not loopback or private", "or the host name of this PC", "(301)", "(302)"):
+            self.assertIn(text, doc)
 
     def test_every_documented_route_exists(self):
         for route in re.findall(r"^  (?:GET|POST) +(/api/\w+)", ts.__doc__, re.M):

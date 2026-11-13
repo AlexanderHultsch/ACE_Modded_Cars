@@ -50,11 +50,11 @@ Updated 2026-11-13. The tuner works for five cars and is pushed to GitHub. What 
 
 ## 4b. Server
 
-`python tools\tuner_server.py [--port N] [--work <dir>] [--mods <dir>] [--game <content.kspkg>]` serves `tuner/web/index.html` on 127.0.0.1 only (default port 8765, `--port` 1024 to 65535; `--game` is the game's `content.kspkg`). It accepts only the Host headers `127.0.0.1:<port>` and `localhost:<port>`; every POST needs the header `X-Tuner: 1` and Content-Type `application/json`. Every answer carries `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'`.
+`python tools\tuner_server.py [--port N] [--bind <address>] [--work <dir>] [--mods <dir>] [--game <content.kspkg>]` serves `tuner/web/index.html` at `/ACESCT/` (fixed base path; `/ACESCT` redirects with 301, `/` with 302, every other path is 404) on all network interfaces by default (`--bind 127.0.0.1` for local only). Alex's decision (2026-11-13): the page is reachable from phones in the home network, no PIN; the server accepts a request only from a loopback or private IPv4 peer (403 "forbidden client address" otherwise) and only with a Host of the form `<localhost | private or loopback IPv4 | this PC's host name>:<port>` (403 "forbidden host"); POST still needs `X-Tuner: 1` and JSON. At start it prints the local address and one line per private address of the PC. Windows asks once to allow Python on the private network (default port 8080, `--port` 1024 to 65535; `--game` is the game's `content.kspkg`). It accepts only the Host headers `127.0.0.1:<port>` and `localhost:<port>`; every POST needs the header `X-Tuner: 1` and Content-Type `application/json`. Every answer carries `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'`.
 
 | Route | Purpose |
 |---|---|
-| `GET /` | the page |
+| `GET /ACESCT/` | the page (every route below is served under the prefix `/ACESCT`, for example `/ACESCT/api/state`; the tables show the route without it) |
 | `GET /api/state` | work folder, car, game running, installed package, background job, all cars, number of applicable and hidden settings |
 | `GET /api/settings` | applicable settings with default, value, changed flag, and `base_range` `{low, high}` when `<work>\ranges.json` has the setting (section 4e) |
 | `GET /api/groups` | the setting groups of the catalogue in display order (`groups`: name, description); static, the same for every car and tune, needs no base car |
