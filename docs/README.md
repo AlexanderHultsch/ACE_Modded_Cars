@@ -16,7 +16,7 @@ Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Rome
    ```
    python tools\extract_protos.py "C:\Program Files (x86)\Steam\steamapps\common\Assetto Corsa EVO SDK\AssettoCorsaEVOEditor.exe" schemas
    ```
-2. Double-click **`tuner\start_tuner.bat`**. A console window opens and your browser shows the tuner (dark theme) at http://127.0.0.1:8765/ . Keep the console window open while you use it. (After updating the repository, close that window and start it again.)
+2. Double-click **`start_tuner.bat`** in the repository root (the top folder, next to `docs`, `tools` and `tuner`). A console window opens and your browser shows the tuner (dark theme) at http://127.0.0.1:8765/ . Keep the console window open while you use it. (After updating the repository, close that window and start it again.)
 3. Pick a car in the selector at the top. Its groups are **Installed Cars** (the car's game files were pulled), **Other Cars** (not pulled yet) and **Modded Cars** (entries like `BMW M3 E46 CSL_MY - installed`). The first time you pick a car from Other Cars, press **Install car (pull game files)** (about 20 seconds). This copies that car's data and its shared tyre files out of the game into `%USERPROFILE%\ace_modded_cars_work\<car id>`. Every car of the game is installed the same way: select it in the list and press **Install car (pull game files)**.
 
 ## Every time you tune
@@ -33,7 +33,7 @@ Own tyres (optional, not verified in the game yet):
 - The page has two tabs, **Car Tuner** (everything above) and **Tyre Creator**, which builds own tyres. A tyre has a name, a source (a front/rear pair of game tyre files taken from the tyre presets of an installed car) and the tyre settings you changed against that source (12 front, 12 rear; the default column shows the source tyre's value). Kunos advises against changing the tyre model values (the tab shows a warning): change little and test in the game. Use **New tyre…**, **Rename…**, **Delete**, the **Source** selector and **Reset all values**. Tyres are saved in `%USERPROFILE%\ace_modded_cars_work\tyres` and shared by all cars; a tyre edit reaches a car at its next Apply or Create. Delete is refused while a modded car or draft has the tyre ticked.
 - The **Garage tyres** panel (Car Tuner tab, at the bottom below the settings table, closed at the start) lists your own tyres first, then the car's stock compounds. Ticked tyres are what the modded car offers in the game's garage; the first ticked one in the list is the starting tyre, at least one stays ticked. Nothing stored means all stock compounds and the car is not touched; **Reset to stock tyres** goes back to that. The selection is saved per modded car and draft and used by Apply and Create. If you also change tyre settings in the table, the car's stock default compound must stay ticked, otherwise Apply refuses.
 
-"unverified" next to a description means the meaning is guessed from the setting's name and not yet confirmed in the game. A "copies differ in stock" badge means the game's own files disagree about that value; applying writes your value to every copy. Every setting of every car is explained in `docs/settings/<car id>.md`, for example [docs/settings/ks_bmw_m3_e46_csl.md](docs/settings/ks_bmw_m3_e46_csl.md). Where a setting has an entry in the official physics documentation of the game (https://docs.assetto.cn/en/evo/car/physics/), its description starts with the official statement and continues with our notes; the rules learned from it are in [docs/TUNER_SPEC.md](docs/TUNER_SPEC.md) section 6c.
+"unverified" next to a description means the meaning is guessed from the setting's name and not yet confirmed in the game. A "copies differ in stock" badge means the game's own files disagree about that value; applying writes your value to every copy. Every setting of every car is explained in `docs/settings/<car id>.md`, for example [docs/settings/ks_bmw_m3_e46_csl.md](settings/ks_bmw_m3_e46_csl.md). Where a setting has an entry in the official physics documentation of the game (https://docs.assetto.cn/en/evo/car/physics/), its description starts with the official statement and continues with our notes; the rules learned from it are in [docs/TUNER_SPEC.md](TUNER_SPEC.md) section 6c.
 
 ## Good to know
 
@@ -44,7 +44,7 @@ Own tyres (optional, not verified in the game yet):
 - **Remove a modded car:** the page has no delete button. Delete its folder `%USERPROFILE%\ace_modded_cars_work\<stock car id>\tunes\<id>` and its `<id>.kspkg` in the mods folder by hand. The first modded car `ax_<stock>` keeps its files in `<stock car id>\tune_state.json` and `<stock car id>\build\<id>` instead.
 - **Your values** are remembered in `%USERPROFILE%\ace_modded_cars_work\<stock car id>`: the draft of an installed car in `draft_state.json`, each modded car in `tunes\<id>\tune_state.json` (the first one, `ax_<stock>`, in `tune_state.json` next to the draft). **Reset all** clears the values of the selected car or draft, including its garage tyre selection.
 - **Car not in the list in the game?** Check that its `ax_....kspkg` is directly inside `%USERPROFILE%\Saved Games\ACE\mods\`, and look at the newest game log for errors.
-- **Python not found?** Install Python 3.12 for the current user, or edit the path in `tuner\start_tuner.bat`.
+- **Python not found?** Install Python 3.12 for the current user, or edit the path in `start_tuner.bat` (repository root).
 - Command-line use: `python tools\tune.py cars [--modded] | init --car <id> | defaults --car <id> | show | set <id> <value> | unset <id> | apply | duplicate | doc --all` (every command except `cars` takes `--car <id>`; `doc` takes `--car <id>` or `--all`). Tyres: `tyres | tyre-sources | tyre-new --name <text> --source <key> | tyre-show <id> | tyre-set <id> <setting> <value> | tyre-unset <id> <setting> | tyre-delete <id>` (library commands, no `--car`; `<key>` is the key `tyre-sources` prints); garage: `garage | garage-set <key> [<key> ...] | garage-reset`, each with `[--tune <id> | --draft] [--car <id>]`. `cars --modded` lists the modded cars; `show`, `set`, `unset`, `defaults` and `apply` take `--tune <id>` to work on one modded car; `duplicate [--tune <id> | --draft] [--new-id <id>] [--suffix <text>]` copies a modded car or the draft to a new modded car.
   `apply` refuses to install while the game is running (`--no-install` only builds and is not refused). An install first writes `<name>.kspkg.part` into the mods folder and replaces the package atomically when the copy is complete, so a failed copy leaves the old package intact.
 - **Do not close the console window while a job runs** (install a car or apply): Ctrl+C waits for the running job, a second Ctrl+C aborts it. Edits are refused while a job runs.
@@ -54,8 +54,8 @@ Own tyres (optional, not verified in the game yet):
 
 ## More
 
-- [docs/TUNER_SPEC.md](docs/TUNER_SPEC.md): state of the project (what works, what is verified, what is open).
-- [docs/HANDOVER.md](docs/HANDOVER.md): notes for continuing the work in a new session, local or cloud.
+- [docs/TUNER_SPEC.md](TUNER_SPEC.md): state of the project (what works, what is verified, what is open).
+- [docs/HANDOVER.md](HANDOVER.md): notes for continuing the work in a new session, local or cloud.
 
 ## Credits and rights
 

@@ -719,7 +719,7 @@ class TestStatedCounts(unittest.TestCase):
         self.assertEqual(int(m.group(1)), len(SETTINGS))
 
     def test_no_doc_states_another_catalogue_size(self):
-        for rel in ("README.md", "docs/HANDOVER.md", "docs/TUNER_SPEC.md"):
+        for rel in ("docs/README.md", "docs/HANDOVER.md", "docs/TUNER_SPEC.md"):
             for m in re.finditer(r"(\d+) settings in the catalogue|catalogue (?:of|with) (\d+) settings", self.read(rel)):
                 self.assertEqual(int(m.group(1) or m.group(2)), len(SETTINGS), rel)
 
@@ -732,7 +732,7 @@ class TestStatedCounts(unittest.TestCase):
         self.assertTrue(all(0 < n <= len(SETTINGS) for n in self.counts.values()))
 
     def test_readme_range_covers_the_tested_cars(self):
-        m = re.search(r"About (\d+)\D+(\d+) settings per car", self.read("README.md"))
+        m = re.search(r"About (\d+)\D+(\d+) settings per car", self.read("docs/README.md"))
         self.assertIsNotNone(m)
         self.assertLessEqual(int(m.group(1)), min(self.counts.values()))
         self.assertGreaterEqual(int(m.group(2)), max(self.counts.values()))

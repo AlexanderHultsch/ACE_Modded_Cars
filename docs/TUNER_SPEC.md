@@ -1,6 +1,6 @@
 # Drift tuner: state of the project
 
-Updated 2026-11-13. The tuner works for five cars and is pushed to GitHub. What it does and how to use it: [../README.md](../README.md). Every setting per car: [settings/](settings/). Notes for continuing in a new session: [HANDOVER.md](HANDOVER.md).
+Updated 2026-11-13. The tuner works for five cars and is pushed to GitHub. What it does and how to use it: [README.md](README.md). Every setting per car: [settings/](settings/). Notes for continuing in a new session: [HANDOVER.md](HANDOVER.md).
 
 ## 1. Summary
 
@@ -26,7 +26,7 @@ Updated 2026-11-13. The tuner works for five cars and is pushed to GitHub. What 
 | Raw dump | `tools/pb_raw.py`, `tools/dump_car.py` | schema-less protobuf text dump (used before the schemas existed) |
 | Reference check | `tools/refgraph.py` | lists which file of an extracted car references which `content\` path (ok / MISSING / external) |
 | Settings engine | `tools/tune.py`, `tuner/catalogue.json`, `tuner/cars.json` | car list, setting groups and settings list, defaults from the game files, state, apply, reference generator, tyre library and garage selection |
-| Web page | `tools/tuner_server.py`, `tuner/web/index.html`, `tuner/start_tuner.bat` | Car Tuner tab: table with variable name, value, description, default, car selector, install buttons, garage tyres; Tyre Creator tab |
+| Web page | `tools/tuner_server.py`, `tuner/web/index.html`, `start_tuner.bat` (repository root) | Car Tuner tab: table with variable name, value, description, default, car selector, install buttons, garage tyres; Tyre Creator tab |
 | Tests | `tests/` | unit and integration tests on synthetic data, no game files needed; review reports and fix list in `docs/review/` |
 | Reference | `docs/settings/<car id>.md` (generated) | all settings per car |
 

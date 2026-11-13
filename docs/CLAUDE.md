@@ -2,7 +2,9 @@
 
 Project: local tuner for Assetto Corsa EVO cars (drift focus): read a car's data with real field names, change values, build and install an own copy.
 
-- Read `docs/HANDOVER.md` first (state, rules, open questions), then `docs/TUNER_SPEC.md`. User guide: `README.md`.
+This file lives in `docs/` (Alex's decision, 2026-11-13), so Claude Code does not load it by itself: the first thing every session does is read `docs/CLAUDE.md`. Paths below are from the repository root. The start file for the tuner is `start_tuner.bat` in the root.
+
+- Read `docs/HANDOVER.md` first (state, rules, open questions), then `docs/TUNER_SPEC.md`. User guide: `docs/README.md`.
 - Follow `docs/working-contract.md` for every coding session: a planner who writes no code delegates verified steps to executors; ask Alex when a decision is his.
 - Code review of 2026-11-12: findings in `docs/review/R1.md` .. `R5.md` (IDs like R1-005); fixes are applied step by step and referenced by ID.
 - Tools are stdlib-only Python 3.9+ in `tools/`: kspkg, extract_protos, car_json, clone_car, tune, tuner_server, pb_raw, dump_car, refgraph. Tests: `python -m unittest discover -s tests` (runs in the cloud, needs no game data).

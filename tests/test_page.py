@@ -1,4 +1,4 @@
-"""Static checks of tuner/web/index.html and tuner/start_tuner.bat with regular expressions only (no browser, no node).
+"""Static checks of tuner/web/index.html and start_tuner.bat with regular expressions only (no browser, no node).
 
 The page is cut once into markup, <style> and <script>; the tests compare the three with each other (DOM ids, CSS classes, functions) and with tools/tuner_server.py (routes, header names, answer fields). The JS helpers are plain regexes: strings, comments and braces are only handled as far as this one file needs.
 """
@@ -11,8 +11,8 @@ from support import ROOT
 import tuner_server as ts
 
 HTML = (ROOT / "tuner" / "web" / "index.html").read_text(encoding="utf-8")
-BAT = (ROOT / "tuner" / "start_tuner.bat").read_text(encoding="ascii")
-README = (ROOT / "README.md").read_text(encoding="utf-8")
+BAT = (ROOT / "start_tuner.bat").read_text(encoding="ascii")
+README = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
 STYLE = re.search(r"<style>(.*?)</style>", HTML, re.S).group(1)
 SCRIPT = re.search(r"<script>(.*?)</script>", HTML, re.S).group(1)
 MARKUP = re.sub(r"<style>.*?</style>|<script>.*?</script>", "", HTML, flags=re.S)
@@ -1551,8 +1551,8 @@ class TestStartBat(unittest.TestCase):
     def test_it_starts_the_server_script_of_the_repo_from_the_repo_root(self):
         self.assertIn(r'tools\tuner_server.py', BAT)
         self.assertTrue((ROOT / "tools" / "tuner_server.py").is_file())
-        self.assertIn(r'cd /d "%~dp0.."', BAT)
-        self.assertEqual((ROOT / "tuner" / "start_tuner.bat").parent.parent, ROOT)
+        self.assertIn(r'cd /d "%~dp0"', BAT)
+        self.assertEqual((ROOT / "start_tuner.bat").parent, ROOT)
 
     def test_paths_are_relative_to_the_batch_file(self):
         self.assertIn("%~dp0", BAT)
@@ -1589,7 +1589,7 @@ class TestStartBat(unittest.TestCase):
         self.assertIn("--game", ts.__doc__)
 
     def test_the_file_is_plain_ascii_without_a_byte_order_mark(self):
-        raw = (ROOT / "tuner" / "start_tuner.bat").read_bytes()
+        raw = (ROOT / "start_tuner.bat").read_bytes()
         raw.decode("ascii")
         self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
 
