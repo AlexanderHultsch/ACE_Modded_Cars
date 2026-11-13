@@ -2961,7 +2961,8 @@ class TestUsageText(unittest.TestCase):
             src = f.read()
         main_src = src[src.index("def main():"):]
         commands = [line.split()[2] for line in self.usage_lines()]
-        self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "duplicate", "doc"])
+        self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "duplicate", "doc", "tyres", "tyre-sources",
+                                    "tyre-new", "tyre-show", "tyre-set", "tyre-unset", "tyre-delete"])
         for cmd in commands:
             self.assertIn('cmd == "%s"' % cmd, main_src)
 
@@ -2972,12 +2973,14 @@ class TestUsageText(unittest.TestCase):
         def reached(opts):
             raise Reached
 
-        with mock.patch.object(tune, "start", reached), mock.patch.object(tune, "game_running", lambda: False):
+        with mock.patch.object(tune, "start", reached), mock.patch.object(tune, "work_arg", reached), mock.patch.object(tune, "game_running", lambda: False):
             for line in self.usage_lines():
                 words = line.split()
                 cmd = words[2]
-                positional = [w for w in line.replace("[", " [").split("[")[0].split()[3:]]
-                values = ["value%d" % i for i in range(len(positional))]
+                required = line.replace("[", " [").split("[")[0].split()[3:]
+                positional = [w for i, w in enumerate(required) if not w.startswith("--") and not (i and required[i - 1].startswith("--"))]
+                options = [w for w in required if w.startswith("--")]
+                values = ["value%d" % i for i in range(len(positional))] + [x for o in options for x in (o, "x")]
                 groups = [g for g in line.replace("]", "[").split("[")[1::2]]
                 alternatives = [alt.split() for g in groups for alt in g.split(" | ")]
                 for opt in alternatives or [[]]:

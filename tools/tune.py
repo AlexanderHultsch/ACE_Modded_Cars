@@ -10,6 +10,13 @@ usage:
   python tools/tune.py apply    [--car ID] [--tune ID | --new-id ID] [--no-install] [--mods <dir>] [--work <dir>]
   python tools/tune.py duplicate [--car ID] [--tune ID | --draft] [--new-id ID] [--suffix TEXT] [--mods <dir>] [--work <dir>]
   python tools/tune.py doc      [--car ID | --all] [--out <file>] [--work <dir>]
+  python tools/tune.py tyres        [--work <dir>]
+  python tools/tune.py tyre-sources [--work <dir>]
+  python tools/tune.py tyre-new     --name <text> --source <key> [--work <dir>]
+  python tools/tune.py tyre-show    <id> [--work <dir>]
+  python tools/tune.py tyre-set     <id> <setting> <value> [--work <dir>]
+  python tools/tune.py tyre-unset   <id> <setting> [--work <dir>]
+  python tools/tune.py tyre-delete  <id> [--work <dir>]
 
 --car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
 rejected with the closest matches. The game's cars come from system/cars.table, read once and cached in
@@ -82,6 +89,21 @@ doc:      writes a Markdown reference of the settings applicable to the car with
           <work>/<car>/base to <file> (default docs/settings/<car>.md in the repository); the car must be extracted.
           --all writes that file for every tested car of tuner/cars.json, extracting the cars that are not extracted
           yet first (--car and --out cannot be combined with --all).
+Tyre library (library functions list_source_tyres, list_tyres, load_tyre, create_tyre, rename_tyre, set_tyre_source, set_tyre_value,
+unset_tyre_value, reset_tyre, tyre_rows, tyre_users, delete_tyre; no car needed, so these commands take no --car): a library tyre is
+a name, a source (a front and a rear game tyre file, shared files below content\\cars\\common_phsx) and the changed values of the
+tyre settings of the catalogue (the ones whose targets are @tyre_front or @tyre_rear) relative to that source. It is kept in
+<work>/tyres/<id>.json = {"version": 1, "name", "source": {"front", "rear"}, "values": {setting id: value}}; the id is 1 to 24
+characters a-z, 0-9, _ made from the name, the name is 1 to 40 characters and unique ignoring case. A tune state file may list the
+library tyres a modded car uses in "_tyres" (entries "own:<id>"); tyre-delete refuses while one does (the draft counts).
+tyres:        lists the library: id, name, source, number of changed values; a damaged file is listed with its error.
+tyre-sources: lists the tyre pairs the extracted cars offer (physic_compounds of their presets/*.compatibletyres whose front and rear
+          files are shared game files present in the car's base): key (front|rear), label, cars. It extracts nothing.
+tyre-new:     creates a library tyre from a source key of tyre-sources and prints its id.
+tyre-show:    prints the tyre settings with their value, the default read from the source files and the unit; changed ones are
+          marked *; a setting whose default cannot be read from the source file is listed with the reason.
+tyre-set/tyre-unset: change or remove one value of a library tyre; set refuses a setting that is not a tyre setting.
+tyre-delete:  removes a library tyre that no modded car uses.
 <work> defaults to %USERPROFILE%\\ace_modded_cars_work. --game is accepted by cars and init only; the other commands use the default Steam path of the game package for what they extract on first need. Writes nothing outside <work>, the mods folder and, for doc, the Markdown file (default docs/settings/ in the repository, or --out). File
 operations on car trees use extended-length paths (kspkg.long_path), so deep Windows paths work.
 
@@ -185,6 +207,13 @@ SHARED_DIR = "common_phsx"
 SHARED = "../%s/" % SHARED_DIR
 GAME_SHARED = "content\\cars\\%s\\" % SHARED_DIR
 TYRE_UNAVAILABLE = "shared tyre files not extracted"
+TYRES_DIR = "tyres"
+TYRE_KEY = "_tyres"
+TYRE_ID = re.compile(r"[a-z0-9_]{1,24}")
+TYRE_ID_MAX = 24
+TYRE_NAME_MAX = 40
+TYRE_VERSION = 1
+TYRE_FILES = tuple("@" + r for r in TYRE_ROLES)
 
 _index_error = []
 _tyre_lock = threading.Lock()
@@ -1588,6 +1617,320 @@ def list_modded(work, mods_dir=None):
     return sorted(rows, key=lambda r: (r["label"].lower(), r["id"]))
 
 
+def tyres_dir(work):
+    return os.path.join(work, TYRES_DIR)
+
+
+def check_tyre_id(tyre_id):
+    if not isinstance(tyre_id, str) or not TYRE_ID.fullmatch(tyre_id):
+        raise ValueError("bad tyre id %r: use 1 to %d characters a-z, 0-9 and _" % (tyre_id, TYRE_ID_MAX))
+
+
+def tyre_path(work, tyre_id):
+    check_tyre_id(tyre_id)
+    return os.path.join(tyres_dir(work), tyre_id + ".json")
+
+
+def tyre_exists(work, tyre_id):
+    return os.path.isfile(kspkg.long_path(tyre_path(work, tyre_id)))
+
+
+def free_tyre_id(work, name):
+    """An unused library id made from a name: lower case, every run of other characters one _, at most 24 characters,
+    "tyre" for an empty result; a taken id gets 2, 3, ... appended (the base cut to keep the id within 24 characters)."""
+    base = re.sub(r"[^a-z0-9]+", "_", str(name).lower()).strip("_")[:TYRE_ID_MAX] or "tyre"
+    candidate, n = base, 1
+    while tyre_exists(work, candidate):
+        n += 1
+        candidate = base[:TYRE_ID_MAX - len(str(n))] + str(n)
+    return candidate
+
+
+def check_tyre_name(work, name, own_id=None):
+    """The stripped name when it is 1 to 40 characters without control characters and no other library tyre has it
+    (ignoring case)."""
+    if not isinstance(name, str):
+        raise ValueError("a tyre name must be text, got %r" % (name,))
+    name = name.strip()
+    if not 1 <= len(name) <= TYRE_NAME_MAX or re.search(r"[\x00-\x1f\x7f]", name):
+        raise ValueError("a tyre name needs 1 to %d characters without control characters" % TYRE_NAME_MAX)
+    for t in list_tyres(work):
+        if t["id"] != own_id and t.get("name", "").lower() == name.lower():
+            raise ValueError("a tyre named %r exists already (%s)" % (t["name"], t["id"]))
+    return name
+
+
+def tyre_label(path):
+    text = path[len(GAME_SHARED):] if path.startswith(GAME_SHARED) else path
+    return text[:-len(".tyre")] if text.endswith(".tyre") else text
+
+
+def source_label(front, rear):
+    return tyre_label(front) if rear == front else "%s + %s" % (tyre_label(front), tyre_label(rear))
+
+
+def tyre_settings(catalogue=None):
+    """The catalogue settings that write a tyre file (a target with the role @tyre_front or @tyre_rear)."""
+    return [s for s in (catalogue or load_catalogue())["settings"] if any(t["file"] in TYRE_FILES for t in s.get("targets", []))]
+
+
+def tyre_axle(s):
+    return next(t["file"] for t in s["targets"] if t["file"] in TYRE_FILES)[len("@tyre_"):]
+
+
+def tyre_setting(cat, setting_id):
+    for s in tyre_settings(cat):
+        if s["id"] == setting_id:
+            return s
+    find_setting(cat, setting_id)
+    raise ValueError("%s is not a tyre setting" % setting_id)
+
+
+def preset_tyre_pairs(root, car_id):
+    """The (front, rear) game paths (game_path_key) of the physic compounds in presets/*.compatibletyres of a car in
+    root: the rear is the first of rear_tyre_data_paths; both must be shared game files present below root."""
+    folder = find_ci(car_root_of(root, car_id), "presets")
+    pairs = []
+    for n in sorted(os.listdir(kspkg.long_path(folder))):
+        if not n.lower().endswith(".compatibletyres"):
+            continue
+        try:
+            compounds = load_msg(os.path.join(folder, n))[0].get("physic_compounds", [])
+        except (ValueError, OSError):
+            continue
+        for pc in compounds if isinstance(compounds, list) else []:
+            front = pc.get("front_tyre_data_path") if isinstance(pc, dict) else None
+            rear = pc.get("rear_tyre_data_paths") if isinstance(pc, dict) else None
+            if isinstance(rear, list):
+                rear = rear[0] if rear else None
+            if not (isinstance(front, str) and isinstance(rear, str)):
+                continue
+            front, rear = game_path_key(front), game_path_key(rear)
+            if (front.startswith(GAME_SHARED) and rear.startswith(GAME_SHARED) and tyre_present(root, front)
+                    and tyre_present(root, rear) and (front, rear) not in pairs):
+                pairs.append((front, rear))
+    return pairs
+
+
+def list_source_tyres(work):
+    """The tyre pairs an extracted car offers as a source for a library tyre: {key (front|rear), front, rear, label, cars},
+    sorted by label, then key. Reads the presets of the extracted cars only: nothing is extracted, the game package is not
+    needed; a car or preset that cannot be read is skipped."""
+    found = {}
+    for car_id in car_folders(work):
+        try:
+            pairs = preset_tyre_pairs(base_dir(work, car_id), car_id)
+        except (ValueError, OSError):
+            continue
+        for front, rear in pairs:
+            key = front + "|" + rear
+            entry = found.setdefault(key, {"key": key, "front": front, "rear": rear, "label": source_label(front, rear), "cars": []})
+            if car_id not in entry["cars"]:
+                entry["cars"].append(car_id)
+    for entry in found.values():
+        entry["cars"].sort()
+    return sorted(found.values(), key=lambda e: (e["label"], e["key"]))
+
+
+def source_tyre(work, source_key):
+    for e in list_source_tyres(work):
+        if e["key"] == source_key:
+            return e
+    raise ValueError("unknown tyre source %r, tyre-sources lists the tyre pairs of the extracted cars" % (source_key,))
+
+
+def load_tyre(work, tyre_id):
+    """The library tyre {version, name, source: {front, rear}, values} of <work>/tyres/<id>.json, checked for its shape."""
+    path = tyre_path(work, tyre_id)
+    if not os.path.isfile(kspkg.long_path(path)):
+        raise ValueError("no tyre %r in the library" % tyre_id)
+    data = read_json(path)
+    if not isinstance(data, dict):
+        raise ValueError("%s: expected an object" % path)
+    if type(data.get("version")) is not int or data["version"] != TYRE_VERSION:
+        raise ValueError("%s: version %r is not supported (expected %d)" % (path, data.get("version"), TYRE_VERSION))
+    if not isinstance(data.get("name"), str) or not data["name"]:
+        raise ValueError("%s: name must be text" % path)
+    source = data.get("source")
+    if not (isinstance(source, dict) and all(isinstance(source.get(k), str) and source[k] for k in ("front", "rear"))):
+        raise ValueError("%s: source needs a front and a rear tyre path" % path)
+    if not isinstance(data.get("values"), dict):
+        raise ValueError("%s: values must be an object" % path)
+    return data
+
+
+def save_tyre(work, tyre_id, name, source, values):
+    save_json(tyre_path(work, tyre_id), {"version": TYRE_VERSION, "name": name,
+                                         "source": {"front": source["front"], "rear": source["rear"]}, "values": values})
+
+
+def list_tyres(work):
+    """The library, sorted by name (ignoring case), then id: {id, name, source, changed}; a file that cannot be read or has
+    a wrong shape is {id, error} and comes last."""
+    folder = tyres_dir(work)
+    good, bad = [], []
+    for n in sorted(os.listdir(kspkg.long_path(folder))) if os.path.isdir(kspkg.long_path(folder)) else []:
+        tyre_id = n[:-len(".json")]
+        if not n.endswith(".json") or not TYRE_ID.fullmatch(tyre_id):
+            continue
+        try:
+            t = load_tyre(work, tyre_id)
+        except (ValueError, OSError) as e:
+            bad.append({"id": tyre_id, "error": str(e)})
+        else:
+            good.append({"id": tyre_id, "name": t["name"], "source": t["source"], "changed": len(t["values"])})
+    return sorted(good, key=lambda t: (t["name"].lower(), t["id"])) + bad
+
+
+def create_tyre(work, name, source_key):
+    """A new library tyre named name from a source key of list_source_tyres, without changed values; returns {id, name, source}."""
+    name = check_tyre_name(work, name)
+    source = source_tyre(work, source_key)
+    tyre_id = free_tyre_id(work, name)
+    save_tyre(work, tyre_id, name, source, {})
+    return {"id": tyre_id, "name": name, "source": {"front": source["front"], "rear": source["rear"]}}
+
+
+def rename_tyre(work, tyre_id, name):
+    tyre = load_tyre(work, tyre_id)
+    tyre["name"] = check_tyre_name(work, name, tyre_id)
+    save_tyre(work, tyre_id, tyre["name"], tyre["source"], tyre["values"])
+    return {"id": tyre_id, "name": tyre["name"]}
+
+
+def set_tyre_source(work, tyre_id, source_key):
+    """Point a library tyre at another source; the values are kept."""
+    tyre = load_tyre(work, tyre_id)
+    source = source_tyre(work, source_key)
+    save_tyre(work, tyre_id, tyre["name"], source, tyre["values"])
+    return {"id": tyre_id, "source": {"front": source["front"], "rear": source["rear"]}}
+
+
+def set_tyre_value(work, tyre_id, setting_id, text, catalogue=None):
+    """Like set_value for a library tyre: id and value of the setting, and the range warnings."""
+    tyre = load_tyre(work, tyre_id)
+    cat = catalogue or load_catalogue()
+    s = tyre_setting(cat, setting_id)
+    v = coerce(s, text)
+    tyre["values"][setting_id] = v
+    save_tyre(work, tyre_id, tyre["name"], tyre["source"], tyre["values"])
+    warning = range_warning(s, v)
+    return {"id": setting_id, "value": v, "warnings": [warning] if warning else []}
+
+
+def unset_tyre_value(work, tyre_id, setting_id, catalogue=None):
+    tyre = load_tyre(work, tyre_id)
+    if setting_id not in tyre["values"]:
+        tyre_setting(catalogue or load_catalogue(), setting_id)
+    removed = tyre["values"].pop(setting_id, None) is not None
+    if removed:
+        save_tyre(work, tyre_id, tyre["name"], tyre["source"], tyre["values"])
+    return {"id": setting_id, "removed": removed}
+
+
+def reset_tyre(work, tyre_id):
+    """Drop every changed value of a library tyre; returns {id, cleared} (the number of values dropped)."""
+    tyre = load_tyre(work, tyre_id)
+    cleared = len(tyre["values"])
+    if cleared:
+        save_tyre(work, tyre_id, tyre["name"], tyre["source"], {})
+    return {"id": tyre_id, "cleared": cleared}
+
+
+def shared_rel(root, game_path):
+    """Path relative to a car folder (SHARED + the path below common_phsx) of a shared game tyre file present in root."""
+    found = tyre_found(root, game_path)
+    rel = os.path.relpath(found, os.path.join(root, "content", "cars", SHARED_DIR)).replace(os.sep, "/")
+    if rel.split("/")[0] == "..":
+        raise ValueError("%s is not in the shared folder" % found)
+    return SHARED + rel
+
+
+def tyre_rows(work, tyre_id, catalogue=None):
+    """One row per tyre setting for the tyre editor: the setting's fields, axle, default (read from the source file of that
+    axle in the base of an extracted car that offers the source), value (the override or the default) and changed. A setting
+    whose default cannot be read from the file gets applicable False and a reason (default None); the others applicable
+    True and reason None."""
+    tyre = load_tyre(work, tyre_id)
+    cat = catalogue or load_catalogue()
+    source = tyre["source"]
+    offer = next((e for e in list_source_tyres(work) if e["key"] == source["front"] + "|" + source["rear"]), None)
+    if offer is None:
+        raise ValueError("tyre %s: no extracted car offers its source %s any more, extract one with init or pick another "
+                         "source" % (tyre_id, source_label(source["front"], source["rear"])))
+    car_id = offer["cars"][0]
+    root, cache, rels = base_dir(work, car_id), {}, {}
+    for axle in ("front", "rear"):
+        try:
+            rels[axle] = shared_rel(root, source[axle])
+        except ValueError as e:
+            rels[axle] = e
+    rows = []
+    for s in tyre_settings(cat):
+        axle = tyre_axle(s)
+        row = {k: s[k] for k in ("id", "label", "group", "unit", "type", "kind", "description", "verified")}
+        row.update({k: s[k] for k in ("min", "max") if k in s})
+        if s["type"] == "enum":
+            row["choices"] = list(s["choices"])
+        row["axle"] = axle
+        if isinstance(rels[axle], ValueError):
+            targets, reason = [], str(rels[axle])
+        else:
+            targets = [c for t in s["targets"] if t["file"] == "@tyre_" + axle
+                       for c in resolve_target(s, dict(t, file=rels[axle]), root, car_id, cache)]
+            missing = [t for t in targets if not t["resolved"] and not t.get("optional")]
+            reason = ("%s: %s" % (missing[0]["path"], missing[0].get("error", "unresolved").removeprefix(missing[0]["path"] + ": "))
+                      if missing else None)
+        values = [t["value"] for t in targets if t["resolved"]]
+        if reason is None and not values:
+            reason = "no value in the source file"
+        default = values[0] if reason is None else None
+        try:
+            value = coerce(s, tyre["values"][s["id"]]) if s["id"] in tyre["values"] else default
+        except ValueError as e:
+            raise ValueError("tyre %s: %s" % (tyre_id, e)) from None
+        row.update(default=default, value=value, changed=s["id"] in tyre["values"] and not same(s, value, default),
+                   applicable=reason is None, reason=reason)
+        rows.append(row)
+    return rows
+
+
+def tyre_in_state(work, car_id, tune, tyre_id):
+    try:
+        used = load_state(work, car_id, tune).get(TYRE_KEY)
+    except (ValueError, OSError):
+        return False
+    return isinstance(used, list) and "own:" + tyre_id in used
+
+
+def tyre_users(work, tyre_id):
+    """The saved states that list the library tyre in their "_tyres": {car (stock car id), tune (tune id, or DRAFT)}, per
+    stock car the default tune, the other tunes by id, then the draft. Unreadable state files are ignored."""
+    check_tyre_id(tyre_id)
+    users = []
+    for car_id in car_folders(work):
+        default = new_id_for(car_id)
+        folder = os.path.join(car_work(work, car_id), TUNES)
+        names = sorted(os.listdir(kspkg.long_path(folder))) if os.path.isdir(kspkg.long_path(folder)) else []
+        others = [n for n in names if n != default and is_tune_id(work, car_id, n)]
+        for label, tune in [(default, None)] + [(n, n) for n in others] + [(DRAFT, DRAFT)]:
+            if tyre_in_state(work, car_id, tune, tyre_id):
+                users.append({"car": car_id, "tune": label})
+    return users
+
+
+def delete_tyre(work, tyre_id):
+    """Remove a library tyre; refused while a saved state (the draft included) of a modded car lists it."""
+    if not tyre_exists(work, tyre_id):
+        raise ValueError("no tyre %r in the library" % tyre_id)
+    users = tyre_users(work, tyre_id)
+    if users:
+        raise ValueError("tyre %s is used by %s" % (tyre_id, ", ".join(
+            "%s (draft)" % u["car"] if u["tune"] == DRAFT else "%s / %s" % (u["car"], u["tune"]) for u in users)))
+    os.remove(kspkg.long_path(tyre_path(work, tyre_id)))
+    return {"id": tyre_id, "deleted": True}
+
+
 def table(headers, rows):
     rows = [[str(c) for c in r] for r in rows]
     widths = [max(len(r[i]) for r in [headers] + rows) for i in range(len(headers))]
@@ -1694,6 +2037,10 @@ def cli_args(flags, switches=()):
         return parse_args(sys.argv[2:], flags, switches)
     except ValueError:
         usage()
+
+
+def work_arg(opts):
+    return work_dir(opts.get("work"))
 
 
 def mods_arg(opts):
@@ -1834,6 +2181,64 @@ def main():
             else:
                 note_untested(car_id)
                 print("wrote %s" % write_doc(work, car_id, os.path.abspath(opts.get("out", DOC_DIR / (car_id + ".md")))))
+        elif cmd == "tyres":
+            pos, opts = cli_args(("work",))
+            if pos:
+                usage()
+            work = work_arg(opts)
+            tyres = list_tyres(work)
+            if not tyres:
+                print("no tyres in the library")
+            else:
+                print(table(["id", "name", "source", "changed"],
+                            [[t["id"], t["name"], source_label(t["source"]["front"], t["source"]["rear"]), t["changed"]]
+                             if "error" not in t else [t["id"], "-", "error: " + t["error"], "-"] for t in tyres]))
+        elif cmd == "tyre-sources":
+            pos, opts = cli_args(("work",))
+            if pos:
+                usage()
+            sources = list_source_tyres(work_arg(opts))
+            if not sources:
+                print("note: no extracted car offers a tyre pair (init extracts a car and its shared tyre files)")
+            else:
+                print(table(["label", "cars", "key"], [[e["label"], ", ".join(e["cars"]), e["key"]] for e in sources]))
+        elif cmd == "tyre-new":
+            pos, opts = cli_args(("name", "source", "work"))
+            if pos or "name" not in opts or "source" not in opts:
+                usage()
+            res = create_tyre(work_arg(opts), opts["name"], opts["source"])
+            print("created tyre %s: %s (%s)" % (res["id"], res["name"], source_label(res["source"]["front"], res["source"]["rear"])))
+        elif cmd == "tyre-show":
+            pos, opts = cli_args(("work",))
+            if len(pos) != 1:
+                usage()
+            work = work_arg(opts)
+            tyre = load_tyre(work, pos[0])
+            rows = tyre_rows(work, pos[0])
+            print("tyre %s: %s, source %s" % (pos[0], tyre["name"], source_label(tyre["source"]["front"], tyre["source"]["rear"])))
+            print(table(["", "id", "value", "default", "unit", "note"],
+                        [["*" if r["changed"] else "", r["id"], fmt(r["value"]), fmt(r["default"]), r["unit"], r["reason"] or ""]
+                         for r in rows]))
+        elif cmd == "tyre-set":
+            pos, opts = cli_args(("work",))
+            if len(pos) != 3:
+                usage()
+            res = set_tyre_value(work_arg(opts), pos[0], pos[1], pos[2])
+            for w in res["warnings"]:
+                print("warning: " + w, file=sys.stderr)
+            print("%s = %s" % (res["id"], fmt(res["value"])))
+        elif cmd == "tyre-unset":
+            pos, opts = cli_args(("work",))
+            if len(pos) != 2:
+                usage()
+            res = unset_tyre_value(work_arg(opts), pos[0], pos[1])
+            print("%s %s" % (res["id"], "removed from the tyre" if res["removed"] else "was not set"))
+        elif cmd == "tyre-delete":
+            pos, opts = cli_args(("work",))
+            if len(pos) != 1:
+                usage()
+            res = delete_tyre(work_arg(opts), pos[0])
+            print("deleted tyre %s" % res["id"])
         else:
             usage()
     except (ValueError, OSError) as e:
