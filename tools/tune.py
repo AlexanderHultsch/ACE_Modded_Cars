@@ -20,6 +20,7 @@ usage:
   python tools/tune.py garage       [--tune ID | --draft] [--car ID] [--work <dir>]
   python tools/tune.py garage-set   <key> [<key> ...] [--tune ID | --draft] [--car ID] [--work <dir>]
   python tools/tune.py garage-reset [--tune ID | --draft] [--car ID] [--work <dir>]
+  python tools/tune.py ranges       [--work <dir>]
 
 --car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
 rejected with the closest matches. The game's cars come from system/cars.table, read once and cached in
@@ -123,6 +124,13 @@ garage:       shows the choices of the car with their key: ticked (x), start (th
 garage-set:   ticks exactly the given keys (own:<id>, stock:<front>|<rear>), at least one; all stock tyres and no own tyre is
           the default and removes the entry.
 garage-reset: removes the selection (the car is not touched any more).
+ranges:       the soft borders for the settings page (library functions compute_ranges, write_ranges, load_ranges): reads the
+          defaults of every car with an extracted base in the work folder (every <work>/<car>/base) and writes the lowest and
+          highest default of every numeric setting (kind value, type int or float; a field a car does not store does not
+          count) to <work>/ranges.json = {setting id: {"low", "high"}}, never reading the game package. A value outside the
+          range is allowed. Prints how many cars were read, how many were skipped and how many settings got a range; each
+          skipped car (its defaults cannot be resolved) is listed on stderr and does not change the exit code. Without any
+          readable car it fails and writes nothing. load_ranges gives {} for a missing or damaged file.
 <work> defaults to %USERPROFILE%\\ace_modded_cars_work. --game is accepted by cars and init only; the other commands use the default Steam path of the game package for what they extract on first need. Writes nothing outside <work>, the mods folder and, for doc, the Markdown file (default docs/settings/ in the repository, or --out). File
 operations on car trees use extended-length paths (kspkg.long_path), so deep Windows paths work.
 
@@ -237,11 +245,14 @@ TYRE_VERSION = 1
 TYRE_FILES = tuple("@" + r for r in TYRE_ROLES)
 OWN_KEY = "own:"
 STOCK_KEY = "stock:"
+RANGES_FILE = "ranges.json"
 
 _index_error = []
 _tyre_lock = threading.Lock()
 _resolve_lock = threading.Lock()
 _resolved = {}
+_ranges_lock = threading.Lock()
+_ranges_loaded = {}
 _stdout_lock = threading.Lock()
 
 
@@ -2394,6 +2405,82 @@ def write_garage(root, car_id, new_id, car_root, plan, cache):
             + ["note: garage: %d tyre(s), starting on %s" % (len(plan["entries"]), first["label"])])
 
 
+def ranges_path(work):
+    return os.path.join(work, RANGES_FILE)
+
+
+def finite_number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def installed_cars(work):
+    """Ids of the cars whose base car folder in the work folder is extracted (not empty), sorted."""
+    found = []
+    for car_id in car_folders(work):
+        car_root = car_root_of(base_dir(work, car_id), car_id)
+        if os.path.isdir(kspkg.long_path(car_root)) and os.listdir(kspkg.long_path(car_root)):
+            found.append(car_id)
+    return found
+
+
+def compute_ranges(work, catalogue=None, game=DEFAULT_GAME):
+    """The lowest and highest default of every numeric value setting (kind value, type int or float) over the cars with
+    an extracted base in the work folder: {"ranges": {setting id: {"low", "high"}}, "cars": [ids read], "skipped":
+    [{"car", "reason"}]}. A car whose defaults cannot be resolved is skipped; a field the car does not store does not count."""
+    cat = catalogue or load_catalogue()
+    ranges, cars, skipped = {}, [], []
+    for car_id in installed_cars(work):
+        try:
+            rows = resolve_defaults(work, car_id, cat, game, hidden=True)
+        except (ValueError, OSError, SystemExit) as e:
+            skipped.append({"car": car_id, "reason": str(e)})
+            continue
+        cars.append(car_id)
+        for r in rows:
+            if (r["applicable"] and r["kind"] == "value" and r["type"] in ("float", "int") and not r["absent"]
+                    and finite_number(r["default"])):
+                low, high = ranges.get(r["id"], (r["default"], r["default"]))
+                ranges[r["id"]] = (min(low, r["default"]), max(high, r["default"]))
+    return {"ranges": {i: {"low": low, "high": high} for i, (low, high) in ranges.items()}, "cars": cars, "skipped": skipped}
+
+
+def write_ranges(work, ranges):
+    path = ranges_path(work)
+    save_json(path, ranges)
+    return path
+
+
+def valid_ranges(data):
+    return (isinstance(data, dict)
+            and all(isinstance(r, dict) and finite_number(r.get("low")) and finite_number(r.get("high")) and r["low"] <= r["high"]
+                    for r in data.values()))
+
+
+def load_ranges(work):
+    """{setting id: {"low", "high"}} from <work>/ranges.json; {} when the file is missing, unreadable or invalid. Read again
+    only when its (mtime_ns, size) changed."""
+    path = ranges_path(work)
+    try:
+        st = stat_or_none(path)
+    except OSError:
+        return {}
+    if st is None:
+        return {}
+    stamp = (st.st_mtime_ns, st.st_size)
+    with _ranges_lock:
+        hit = _ranges_loaded.get(path)
+    if hit and hit[0] == stamp:
+        return copy.deepcopy(hit[1])
+    try:
+        data = read_json(path)
+    except (ValueError, OSError):
+        data = None
+    found = {i: {"low": r["low"], "high": r["high"]} for i, r in data.items()} if valid_ranges(data) else {}
+    with _ranges_lock:
+        _ranges_loaded[path] = (stamp, copy.deepcopy(found))
+    return found
+
+
 def table(headers, rows):
     rows = [[str(c) for c in r] for r in rows]
     widths = [max(len(r[i]) for r in [headers] + rows) for i in range(len(headers))]
@@ -2770,6 +2857,20 @@ def cmd_garage_reset():
     print("garage selection %s" % ("removed from the state" if res["removed"] else "was not set"))
 
 
+def cmd_ranges():
+    pos, opts = cli_args(("work",))
+    if pos:
+        usage()
+    work = work_arg(opts)
+    res = compute_ranges(work, game="")
+    for s in res["skipped"]:
+        print("skipped %s: %s" % (s["car"], s["reason"]), file=sys.stderr)
+    if not res["cars"]:
+        raise ValueError("no car could be read in %s" % work if res["skipped"] else "no installed car in %s, run init first" % work)
+    write_ranges(work, res["ranges"])
+    print("read %d cars, skipped %d, %d settings with a range" % (len(res["cars"]), len(res["skipped"]), len(res["ranges"])))
+
+
 COMMANDS = {
     "cars": cmd_cars,
     "init": cmd_init,
@@ -2790,6 +2891,7 @@ COMMANDS = {
     "garage": cmd_garage,
     "garage-set": cmd_garage_set,
     "garage-reset": cmd_garage_reset,
+    "ranges": cmd_ranges,
 }
 
 
