@@ -151,6 +151,10 @@ tr.group th.plain { padding: 8px 12px; }
 button.grouptoggle:hover .gname { color: var(--color-accent); }
 .gname { color: var(--color-text); }
 .gcount { text-transform: none; letter-spacing: 0; }
+.gdesc {
+  max-width: 80ch; margin: 0; padding: 0 12px 9px 35px; font-weight: normal; letter-spacing: normal;
+  text-transform: none; color: var(--color-text-muted);
+}
 .chev {
   flex: none; width: 7px; height: 7px; margin: 0 3px;
   border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
@@ -199,6 +203,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 @media (max-width: 1000px) {
   .page { padding: 0 12px 30px; }
   td, thead th, button.grouptoggle, tr.group th.plain { padding-left: 8px; padding-right: 8px; }
+  .gdesc { padding-left: 31px; padding-right: 8px; }
   .valuewrap input { width: 7em; }
   .toolbar input[type="search"] { min-width: 180px; }
 }
@@ -394,6 +399,9 @@ let serverError = "";
 let localError = "";
 let rows = [];
 let groups = [];
+// the groups of the catalogue as the server lists them, in display order ({name, description}); null until read, then the
+// table falls back to the order of the settings and shows no descriptions
+let groupInfo = null;
 // names of the groups the user opened; every group starts collapsed, the set is cleared when another car is selected
 const expanded = new Set();
 let headerRow = null;
@@ -979,7 +987,6 @@ function buildTable(list, target) {
       current = groups.find((g) => g.name === data.group);
       if (!current) {
         current = buildGroup(data.group);
-        body.appendChild(current.tr);
         groups.push(current);
       }
     }
@@ -988,15 +995,21 @@ function buildTable(list, target) {
     r.tr.id = "row-" + rows.length;
     current.rows.push(r);
     rows.push(r);
-    const after = current.rows.length > 1 ? current.rows[current.rows.length - 2].tr : current.tr;
-    body.insertBefore(r.tr, after.nextSibling);
   }
-  for (const g of groups) g.btn.setAttribute("aria-controls", g.rows.map((r) => r.tr.id).join(" "));
+  // the groups follow the list of the server (the settings of one group may be spread over the list), groups it does not
+  // know come last in the order they appeared; each header is followed by the rows of its group
+  const listed = (groupInfo || []).map((x) => x.name);
+  const rank = (g) => (listed.includes(g.name) ? listed.indexOf(g.name) : listed.length);
+  groups.sort((a, b) => rank(a) - rank(b));
+  for (const g of groups) {
+    g.btn.setAttribute("aria-controls", g.rows.map((r) => r.tr.id).join(" "));
+    body.append(g.tr, ...g.rows.map((r) => r.tr));
+  }
   applyFilter();
 }
 
 function buildGroup(name) {
-  const g = { name: name, tr: el("tr", "group"), rows: [] };
+  const g = { name: name, tr: el("tr", "group"), rows: [], desc: null };
   const th = el("th");
   th.colSpan = 4;
   th.scope = "rowgroup";
@@ -1009,6 +1022,15 @@ function buildGroup(name) {
   g.btn.append(chev, el("span", "gname", name), g.count);
   g.btn.addEventListener("click", () => toggleGroup(g));
   th.appendChild(g.btn);
+  const known = (groupInfo || []).find((x) => x.name === name);
+  if (known && known.description) {
+    // shown only while the group is open (applyFilter); groups.length is the index this group gets in buildTable
+    g.desc = el("div", "gdesc", known.description);
+    g.desc.id = "gdesc-" + groups.length;
+    g.desc.hidden = true;
+    g.btn.setAttribute("aria-describedby", g.desc.id);
+    th.appendChild(g.desc);
+  }
   g.tr.appendChild(th);
   return g;
 }
@@ -1052,6 +1074,7 @@ function applyFilter() {
     for (const r of g.rows) r.tr.hidden = !(open && r.match);
     g.tr.hidden = !any;
     g.btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (g.desc) g.desc.hidden = !open;
     const text = "(" + g.rows.length + (g.rows.length === 1 ? " setting, " : " settings, ") + changed + " changed)";
     if (g.count.textContent !== text) g.count.textContent = text;
     if (any) visible += 1;
@@ -1059,9 +1082,22 @@ function applyFilter() {
   $("empty").hidden = visible > 0 || rows.length === 0;
 }
 
+// the group list is the same for every car: read once, again with the next table load only when that read failed; a failure
+// is no error of the table, which then shows the groups in the order of the settings without descriptions
+async function loadGroupInfo(target) {
+  if (groupInfo) return;
+  try {
+    const res = await api("/api/groups", undefined, target);
+    groupInfo = res.groups;
+  } catch (e) {
+    groupInfo = null;
+  }
+}
+
 async function loadSettings() {
   const target = selection;
   try {
+    await loadGroupInfo(target);
     const list = await api("/api/settings", undefined, target);
     if (target !== selection) return;
     buildTable(list, target);

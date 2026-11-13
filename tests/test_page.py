@@ -205,7 +205,7 @@ class TestApiContract(unittest.TestCase):
 
     def test_every_api_call_of_the_page_passes_the_selection_which_carries_the_tune(self):
         calls = re.findall(r"await api\((.*)\);$", CODE, re.M)
-        self.assertEqual(len(calls), 20, calls)
+        self.assertEqual(len(calls), 21, calls)
         for call in calls:
             with self.subTest(call):
                 self.assertRegex(call, r", (?:want|target|r\.target|selection)$")
@@ -491,6 +491,103 @@ class TestCollapsibleGroups(unittest.TestCase):
 
     def test_the_group_toggle_has_a_visible_focus_ring_inside_its_cell(self):
         self.assertIn("button.grouptoggle:focus-visible { outline-offset: -2px; }", STYLE)
+
+
+def luminance(hex_colour):
+    channels = [int(hex_colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    r, g, b = (c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(foreground, background):
+    light, dark = sorted((luminance(foreground), luminance(background)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
+
+
+class TestGroupList(unittest.TestCase):
+    def test_the_group_list_is_read_once_with_the_selection_and_without_a_body(self):
+        body = function_body("loadGroupInfo")
+        self.assertIn('const res = await api("/api/groups", undefined, target);', body)
+        self.assertIn("groupInfo = res.groups;", body)
+        self.assertIn("if (groupInfo) return;", body)
+        self.assertRegex(CODE, r"(?m)^let groupInfo = null;")
+        self.assertEqual(len(re.findall(r'"/api/groups"', CODE)), 1)
+
+    def test_it_is_read_before_the_table_is_built_and_read_again_only_after_a_failed_read(self):
+        body = function_body("loadSettings")
+        self.assertIn("await loadGroupInfo(target);", body)
+        self.assertLess(body.index("await loadGroupInfo(target);"), body.index('api("/api/settings"'))
+        self.assertLess(body.index("await loadGroupInfo(target);"), body.index("buildTable(list, target);"))
+        self.assertEqual(CODE.count("loadGroupInfo("), 2)
+        self.assertEqual(len(re.findall(r"groupInfo = ", CODE)), 3)
+        self.assertIn("groupInfo = null;", function_body("loadGroupInfo")[function_body("loadGroupInfo").index("catch"):])
+        self.assertNotIn("groupInfo", function_body("switchCar"))
+        self.assertNotIn("groupInfo", function_body("clearTable"))
+
+    def test_a_failed_read_is_no_error_of_the_table(self):
+        body = function_body("loadGroupInfo")
+        self.assertIn("} catch (e) {", body)
+        self.assertNotIn("localError", body)
+        self.assertNotIn("throw", body)
+        self.assertEqual(function_body("loadSettings").count("localError = e.message;"), 1)
+        self.assertLess(function_body("loadSettings").index("await loadGroupInfo(target);"),
+                        function_body("loadSettings").index("} catch (e) {"))
+
+    def test_the_groups_follow_the_list_of_the_server_and_unknown_groups_come_last_in_the_order_they_appeared(self):
+        body = function_body("buildTable")
+        self.assertIn("const listed = (groupInfo || []).map((x) => x.name);", body)
+        self.assertIn("const rank = (g) => (listed.includes(g.name) ? listed.indexOf(g.name) : listed.length);", body)
+        self.assertIn("groups.sort((a, b) => rank(a) - rank(b));", body)
+
+    def test_each_header_is_followed_by_the_rows_of_its_group_even_when_the_settings_of_a_group_are_spread(self):
+        body = function_body("buildTable")
+        self.assertIn("body.append(g.tr, ...g.rows.map((r) => r.tr));", body)
+        self.assertNotIn("insertBefore", body)
+        self.assertNotIn("body.appendChild", body)
+        self.assertIn("groups.find((g) => g.name === data.group)", body)
+        self.assertLess(body.index("groups.sort("), body.index("body.append("))
+        self.assertLess(body.index("body.append("), body.index("applyFilter();"))
+        self.assertIn('r.tr.id = "row-" + rows.length;', body)
+        self.assertIn('g.btn.setAttribute("aria-controls", g.rows.map((r) => r.tr.id).join(" "));', body)
+        self.assertIn('if (data.ui === "header") {', body)
+
+    def test_the_description_is_a_text_element_in_the_header_cell_below_the_toggle(self):
+        body = function_body("buildGroup")
+        self.assertIn("const known = (groupInfo || []).find((x) => x.name === name);", body)
+        self.assertIn("if (known && known.description) {", body)
+        self.assertIn('g.desc = el("div", "gdesc", known.description);', body)
+        self.assertIn('g.desc.id = "gdesc-" + groups.length;', body)
+        self.assertIn("g.desc.hidden = true;", body)
+        self.assertIn('g.btn.setAttribute("aria-describedby", g.desc.id);', body)
+        self.assertLess(body.index("th.appendChild(g.btn);"), body.index("th.appendChild(g.desc);"))
+        self.assertLess(body.index("th.appendChild(g.desc);"), body.index("g.tr.appendChild(th);"))
+        self.assertIn("desc: null", body)
+        self.assertNotIn("innerHTML", body)
+        self.assertIn('"aria-controls"', function_body("buildTable"))
+        self.assertNotIn("aria-controls", body)
+
+    def test_the_description_is_hidden_with_the_rows_by_the_open_state_of_the_group(self):
+        body = function_body("applyFilter")
+        self.assertIn("if (g.desc) g.desc.hidden = !open;", body)
+        self.assertLess(body.index("const open = filtering ? any : expanded.has(g.name);"), body.index("g.desc.hidden = !open;"))
+        for name in ("toggleGroup", "setAllGroups", "revealGroup"):
+            with self.subTest(name):
+                self.assertNotIn("desc", function_body(name))
+
+    def test_the_description_style_is_muted_normal_weight_and_not_uppercase_with_a_readable_width(self):
+        rule = re.search(r"\n\.gdesc \{([^}]*)\}", STYLE).group(1)
+        self.assertIn("color: var(--color-text-muted);", rule)
+        self.assertIn("font-weight: normal;", rule)
+        self.assertIn("text-transform: none;", rule)
+        self.assertIn("letter-spacing: normal;", rule)
+        self.assertRegex(rule, r"max-width: \d+ch;")
+        self.assertIn("gdesc", used_classes())
+        self.assertIn("gdesc", css_classes())
+
+    def test_the_muted_text_reads_on_the_group_header_background(self):
+        tokens = dict(re.findall(r"(--[\w-]+): (#[0-9a-fA-F]{6});", TestDarkTheme.ROOT_RULE))
+        self.assertIn("background: var(--color-bg-elevated);", re.search(r"tr\.group th \{([^}]*)\}", STYLE).group(1))
+        self.assertGreaterEqual(contrast(tokens["--color-text-muted"], tokens["--color-bg-elevated"]), 4.5)
 
 
 class TestPolling(unittest.TestCase):

@@ -240,7 +240,7 @@ class TestRoutes(ServerCase):
         self.make_car()
 
     def test_route_tables(self):
-        self.assertEqual(sorted(ts.GET_ROUTES), ["/api/garage", "/api/settings", "/api/state", "/api/tyre", "/api/tyres"])
+        self.assertEqual(sorted(ts.GET_ROUTES), ["/api/garage", "/api/groups", "/api/settings", "/api/state", "/api/tyre", "/api/tyres"])
         self.assertEqual(sorted(ts.POST_ROUTES), ["/api/apply", "/api/duplicate", "/api/garage_reset", "/api/garage_set", "/api/init",
                                                   "/api/install_tested", "/api/reset_all", "/api/set", "/api/tyre_delete",
                                                   "/api/tyre_new", "/api/tyre_rename", "/api/tyre_reset", "/api/tyre_set",
@@ -1749,6 +1749,81 @@ class TestDuplicateRoute(TuneCase):
         r = self.post("/api/duplicate", {})
         self.assertEqual((r.status, r.json), (200, {"id": "ax01", "stock": "ks_x", "name_suffix": "_MY"}))
         self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_MY"})
+
+
+# -------------------------------------------------------------------------------------------------- setting groups
+class TestGroupsRoute(TuneCase):
+    """GET /api/groups: the group list of the catalogue, static, independent of the car, the tune and the base car."""
+
+    def setUp(self):
+        super().setUp()
+        self.cat = mini_catalogue(limiter(), suffix(), tyre_dy("front"))
+        self.cat["groups"] = [{"name": "Tyres", "description": "Grip and türkis"}, {"name": "G", "description": "General"}]
+
+    def expected(self):
+        return {"groups": [{"name": "Tyres", "description": "Grip and türkis"}, {"name": "G", "description": "General"}]}
+
+    def test_it_answers_the_groups_with_name_and_description_in_catalogue_order(self):
+        r = self.get("/api/groups")
+        self.assertEqual((r.status, r.headers.get("Content-Type"), r.headers.get("Cache-Control")),
+                         (200, "application/json; charset=utf-8", "no-store"))
+        self.assertEqual(r.json, self.expected())
+        self.assertEqual(r.json, {"groups": tune.group_list()})
+        self.assertEqual([g["name"] for g in r.json["groups"]], ["Tyres", "G"])
+        self.assertEqual([set(g) for g in r.json["groups"]], [{"name", "description"}] * 2)
+
+    def test_the_groups_of_the_real_catalogue_are_answered_in_the_order_of_the_file(self):
+        real = tune.read_json(tune.CATALOGUE)
+        self.patch(tune, "load_catalogue", lambda path=None: real)
+        r = self.get("/api/groups")
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.json, {"groups": [{"name": g["name"], "description": g["description"]} for g in real["groups"]]})
+        self.assertGreater(len(r.json["groups"]), 1)
+
+    def test_it_needs_no_base_car(self):
+        self.assertFalse(ts.base_present(self.work, "ks_y"))
+        self.assertEqual(self.get("/api/settings?car=ks_y").status, 409)
+        r = self.get("/api/groups?car=ks_y")
+        self.assertEqual((r.status, r.json), (200, self.expected()))
+
+    def test_it_is_the_same_for_the_draft_the_default_tune_and_a_modded_car(self):
+        self.make_tune("ax01", {"limiter": 9000})
+        self.make_tune(None, {"limiter": 8000})
+        for query in ("", "?tune=draft", "?tune=ax01", "?tune=ax_x", "?car=ks_x&tune=ax01"):
+            with self.subTest(query):
+                r = self.get("/api/groups" + query)
+                self.assertEqual((r.status, r.json), (200, self.expected()))
+
+    def test_the_dispatcher_still_resolves_the_car_and_the_tune(self):
+        r = self.get("/api/groups?car=nope")
+        self.assertEqual(r.status, 400)
+        self.assertTrue(r.json["error"].startswith("unknown car"), r.json)
+        r = self.get("/api/groups?tune=nope")
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car nope of ks_x"}))
+
+    def test_it_needs_neither_the_state_lock_nor_an_idle_job_and_writes_nothing(self):
+        with ts.STATE_LOCK:
+            self.assertEqual(self.get("/api/groups").status, 200)
+        ts.JOB["state"] = "running"
+        self.assertEqual(self.get("/api/groups").status, 200)
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertEqual(self.tune_ids(), [])
+
+    def test_it_checks_the_host_and_is_405_for_other_methods_and_404_for_a_post(self):
+        r = self.get("/api/groups", host="evil.example")
+        self.assertEqual((r.status, r.json), (403, {"error": "forbidden host"}))
+        for method in ("PUT", "DELETE", "PATCH"):
+            with self.subTest(method):
+                r = self.request(method, "/api/groups")
+                self.assertEqual((r.status, r.json, r.headers.get("Allow")), (405, {"error": "method not allowed"}, "GET, POST"))
+        self.assertEqual(self.post("/api/groups").status, 404)
+
+    def test_the_handler_gets_the_resolved_car_and_tune_and_no_query(self):
+        seen = []
+        with mock.patch.dict(ts.GET_ROUTES, {"/api/groups": lambda car, tune_id: seen.append((car, tune_id)) or {"groups": []}}):
+            r = self.get("/api/groups?id=soft&tune=draft")
+        self.assertEqual((r.status, r.json, seen), (200, {"groups": []}, [("ks_x", "draft")]))
+        self.assertNotIn("/api/groups", ts.QUERY_ROUTES)
 
 
 # -------------------------------------------------------------------------------------------------- tyre library and garage

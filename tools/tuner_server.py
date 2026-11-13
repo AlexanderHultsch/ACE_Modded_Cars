@@ -15,7 +15,9 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765, allo
   GET  /api/settings    every setting applicable to the car, with default, current value and changed flag
                         (copies_differ, plus copy_values when the copies of the value differ in the stock data;
                         "ui": "header" on name_suffix: the page shows it under its title, not in the table)
-  POST /api/set         {"id": ..., "value": ...}          POST /api/unset  {"id": ...}
+  GET  /api/groups      the setting groups of the catalogue in display order ("groups": name, description); static data,
+                        the same for every car and tune, needs no base car
+  POST /api/set        {"id": ..., "value": ...}          POST /api/unset  {"id": ...}
                         (value: text, number, or true/false for the settings of type bool, which are on/off switches
                         and appear in the rows with type "bool" and true/false as default and value)
   POST /api/reset_all   clears every changed value         POST /api/init   extracts the stock car (background job)
@@ -45,7 +47,7 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ (default port 8765, allo
   POST /api/garage_set  {"keys": [text, ...]}             ticks exactly these tyres (own:<tyre id>, stock:<front>|<rear>);
                         answers {"result": {keys, start, maybe default}, "garage": the answer of GET /api/garage}
   POST /api/garage_reset  {}                              removes the selection; answers {"removed", "garage"}
-The tyre library is shared by all cars: its routes ignore the car and the tune and need no base car.
+The tyre library is shared by all cars: its routes ignore the car and the tune and need no base car; so does /api/groups.
 Every route takes an optional car id of the game (the list is cached in <work>/cars_index.json, see tune.py; without it
 and without the game package only the tested cars of tuner/cars.json): the query parameter ?car=<id> on GET, the field
 "car" in the JSON body on POST (any other id is a 400 error). Without it the default car of tuner/cars.json is used.
@@ -327,6 +329,10 @@ def api_state(car, tune_id):
 def api_settings(car, tune_id):
     with STATE_LOCK:
         return rows_json(CONFIG["work"], car, tune.load_catalogue(), tune_id)
+
+
+def api_groups(car, tune_id):
+    return {"groups": tune.group_list()}
 
 
 def api_set(car, body):
@@ -624,8 +630,8 @@ def request_tune(value, query, car):
     return value
 
 
-GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings, "/api/tyres": api_tyres, "/api/tyre": api_tyre,
-              "/api/garage": api_garage}
+GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings, "/api/groups": api_groups, "/api/tyres": api_tyres,
+              "/api/tyre": api_tyre, "/api/garage": api_garage}
 POST_ROUTES = {"/api/set": api_set, "/api/unset": api_unset, "/api/reset_all": api_reset_all,
                "/api/init": api_init, "/api/install_tested": api_install_tested, "/api/duplicate": api_duplicate,
                "/api/apply": api_apply, "/api/tyre_new": api_tyre_new, "/api/tyre_rename": api_tyre_rename,
