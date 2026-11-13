@@ -321,6 +321,14 @@ class TestCatalogueData(unittest.TestCase):
     def test_flag_targets_are_all_optional(self):
         self.assertTrue(all(t.get("optional") for s in SETTINGS if s["kind"] == "flag" for t in s["targets"]))
 
+    def test_the_kunos_documentation_facts_are_in_the_descriptions(self):
+        text = BY_ID["max_turbo_boost"]["description"]
+        self.assertIn("no physical effect", text)
+        self.assertNotIn("seems to be the real cap", text)
+        for sid in ("limiter_cycles", "gear_up_time", "steer_lock_deg", "tc_level"):
+            with self.subTest(sid):
+                self.assertIn("Kunos documentation:", BY_ID[sid]["description"])
+
 
 class TestLoaderValidation(unittest.TestCase):
     def load(self, *settings, **top):

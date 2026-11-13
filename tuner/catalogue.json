@@ -33,7 +33,7 @@
     },
     {
       "id": "display_power_ps", "group": "Display", "label": "Displayed power", "kind": "value", "type": "float", "unit": "PS",
-      "description": "Power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. The file stores the unit as HORSEPOWER_US.",
+      "description": "Power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. Kunos documentation: numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. The file stores the unit as HORSEPOWER_US.",
       "verified": false, "min": 0, "max": 2000,
       "targets": [
         {"file": "@mech_preset", "path": "car_specs.items[key=CarSpecs_KeyEnum_POWER].value"}
@@ -41,7 +41,7 @@
     },
     {
       "id": "display_torque_nm", "group": "Display", "label": "Displayed torque", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine.",
+      "description": "Torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine. Kunos documentation: numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values.",
       "verified": false, "min": 0, "max": 2000,
       "targets": [
         {"file": "@mech_preset", "path": "car_specs.items[key=CarSpecs_KeyEnum_TORQUE].value"}
@@ -49,7 +49,7 @@
     },
     {
       "id": "limiter", "group": "Engine", "label": "Rev limiter", "kind": "value", "type": "int", "unit": "rpm",
-      "description": "Engine rev limiter (EngineData.limiter). The engine cuts power when it reaches this speed. nominal_rpm and engine_damage_rpm are separate settings and should normally be raised together with the limiter.",
+      "description": "Engine rev limiter (EngineData.limiter). The engine cuts power when it reaches this speed. Kunos documentation: Limiter is the maximum rpm of the engine. nominal_rpm and engine_damage_rpm are separate settings and should normally be raised together with the limiter.",
       "verified": true, "min": 3000, "max": 12000,
       "targets": [
         {"file": "@engine", "path": "limiter"},
@@ -58,7 +58,7 @@
     },
     {
       "id": "idle_rpm", "group": "Engine", "label": "Idle rpm", "kind": "value", "type": "int", "unit": "rpm",
-      "description": "Lowest engine speed (EngineData.minimum). Assumed to be the idle/stall speed, not confirmed in the game.",
+      "description": "Lowest engine speed (EngineData.minimum). Kunos documentation: Minimum is the stall rpm of the engine. Whether it also sets the idle speed is not confirmed in the game.",
       "verified": false, "min": 300, "max": 3000,
       "targets": [
         {"file": "@engine", "path": "minimum"},
@@ -67,7 +67,7 @@
     },
     {
       "id": "power_scale", "group": "Engine", "label": "Power scale", "kind": "curve_scale", "type": "float", "unit": "x",
-      "description": "Multiplies the torque value of every point of the engine power curve. 1.0 is stock, 1.056 is about +20 hp.",
+      "description": "Multiplies the torque value of every point of the engine power curve. 1.0 is stock, 1.056 is about +20 hp. Kunos documentation: power and torque values in the engine file are values at the wheel; the power curve is torque in Nm over rpm, and turbos multiply on top.",
       "verified": true, "default": 1.0, "min": 0.5, "max": 2.0,
       "curve_from": {"file": "@engine", "path": "powerCurve"},
       "targets": []
@@ -92,7 +92,7 @@
     },
     {
       "id": "limiter_cycles", "group": "Engine", "label": "Limiter cut frequency", "kind": "value", "type": "int", "unit": "",
-      "description": "Frequency of the rev limiter cut (EngineData.limiterCycles). Assumed to set how quickly the limiter cuts and restores power at the limit, not confirmed.",
+      "description": "Frequency of the rev limiter cut (EngineData.limiterCycles). Kunos documentation: Limiter Cycles is the limiter frequency and works together with the engine inertia, the coast torque and the power torque. The effect in the game is not confirmed.",
       "verified": false, "min": 1, "max": 100,
       "targets": [
         {"file": "@engine", "path": "limiterCycles"},
@@ -110,7 +110,7 @@
     },
     {
       "id": "throttle_lag_up", "group": "Engine", "label": "Throttle lag up", "kind": "value", "type": "float", "unit": "",
-      "description": "Throttle response lag when the throttle is opened (EngineData.throttle_lag_up). Scale and effect are not confirmed. The engine map also stores its own value, which this setting does not change.",
+      "description": "Throttle response lag when the throttle is opened (EngineData.throttle_lag_up). Kunos documentation: the throttle lag delays the effect of the pedal input. The scale is not confirmed. The engine map also stores its own value, which this setting does not change.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@engine", "path": "throttle_lag_up"},
@@ -119,7 +119,7 @@
     },
     {
       "id": "throttle_lag_dn", "group": "Engine", "label": "Throttle lag down", "kind": "value", "type": "float", "unit": "",
-      "description": "Throttle response lag when the throttle is closed (EngineData.throttle_lag_dn). Scale and effect are not confirmed. The engine map also stores its own value, which this setting does not change.",
+      "description": "Throttle response lag when the throttle is closed (EngineData.throttle_lag_dn). Kunos documentation: the throttle lag delays the effect of the pedal input. The scale is not confirmed. The engine map also stores its own value, which this setting does not change.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@engine", "path": "throttle_lag_dn"},
@@ -128,14 +128,14 @@
     },
     {
       "id": "coast_scale", "group": "Engine", "label": "Coast scale", "kind": "curve_scale", "type": "float", "unit": "x",
-      "description": "Multiplies the value of every point of the engine coast (off-throttle) curve. From about 1000 rpm upwards the stock points are negative, so a higher factor means stronger engine braking there; the positive points at low rpm are scaled too. 1.0 is stock. Reading of the curve is assumed, not confirmed in the game.",
+      "description": "Multiplies the value of every point of the engine coast (off-throttle) curve. From about 1000 rpm upwards the stock points are negative, so a higher factor means stronger engine braking there; the positive points at low rpm are scaled too. 1.0 is stock. Kunos documentation: the coast curve has the same axes as the power curve (torque in Nm over rpm) but negative torque; it is 0 at idle rpm, and about 20 is the starter torque and the engine stall resistance. The effect of the factor in the game is not confirmed.",
       "verified": false, "default": 1.0, "min": 0, "max": 3,
       "curve_from": {"file": "@engine", "path": "coastCurve"},
       "targets": []
     },
     {
       "id": "turbo_boost_1", "group": "Turbo", "label": "Turbo 1 max boost", "kind": "value", "type": "float", "unit": "bar",
-      "description": "Maximum boost pressure of the first turbo (TurboData.max_boost, in bar), written to the engine file, the turbo's own file and the car's inline copy. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with a turbo.",
+      "description": "Maximum boost pressure of the first turbo (TurboData.max_boost, in bar), written to the engine file, the turbo's own file and the car's inline copy. Kunos documentation: Max boost is the peak boost of a turbo; with two turbos each needs its own controller, or one runs unregulated at full boost. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with a turbo.",
       "verified": false, "min": 0, "max": 3, "hide_if_absent": true,
       "targets": [
         {"file": "@engine", "path": "turbos[0].max_boost"},
@@ -145,7 +145,7 @@
     },
     {
       "id": "turbo_boost_2", "group": "Turbo", "label": "Turbo 2 max boost", "kind": "value", "type": "float", "unit": "bar",
-      "description": "Maximum boost pressure of the second turbo (TurboData.max_boost, in bar), written to the engine file, the turbo's own file and the car's inline copy. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with two turbos.",
+      "description": "Maximum boost pressure of the second turbo (TurboData.max_boost, in bar), written to the engine file, the turbo's own file and the car's inline copy. Kunos documentation: Max boost is the peak boost of a turbo; with two turbos each needs its own controller, or one runs unregulated at full boost. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with two turbos.",
       "verified": false, "min": 0, "max": 3, "hide_if_absent": true,
       "targets": [
         {"file": "@engine", "path": "turbos[1].max_boost"},
@@ -155,7 +155,7 @@
     },
     {
       "id": "max_turbo_boost", "group": "Turbo", "label": "Engine max boost", "kind": "value", "type": "float", "unit": "bar",
-      "description": "Engine-level cap of the turbo boost pressure in bar (EngineData.max_turbo_boost), written to the engine file and the car's inline copy. On a car whose individual turbo objects carry no max_boost this seems to be the real cap. The effect in the game is not confirmed. Only shown for cars whose engine lists a turbo file.",
+      "description": "Engine-level reference value of the turbo boost pressure in bar (EngineData.max_turbo_boost), written to the engine file and the car's inline copy. Kunos documentation: Max Turbo Boost has no physical effect, it is only a reference for gameplay and audio; the boost of each turbo (turbo_boost_1, turbo_boost_2) is the real cap. Only shown for cars whose engine lists a turbo file.",
       "verified": false, "min": 0, "max": 3, "hide_if_absent": true,
       "needs": [
         {"file": "@turbo[0]", "path": "max_boost"}
@@ -248,7 +248,7 @@
     },
     {
       "id": "autoshift_up_rpm", "group": "Gearbox & clutch", "label": "Auto-shift up rpm", "kind": "value", "type": "int", "unit": "rpm",
-      "description": "Engine speed at which the automatic gearbox shifts up (GearBoxData.autoshifter.up). Raising it makes the automatic hold each gear longer; keep it below the rev limiter.",
+      "description": "Engine speed at which the automatic gearbox shifts up (GearBoxData.autoshifter.up). Kunos documentation: Auto Shifter Up is the target rpm for the upshift. Raising it makes the automatic hold each gear longer; keep it below the rev limiter.",
       "verified": true, "min": 3000, "max": 12000,
       "targets": [
         {"file": "@gearbox", "path": "autoshifter.up"},
@@ -257,7 +257,7 @@
     },
     {
       "id": "gear_up_time", "group": "Gearbox & clutch", "label": "Upshift time", "kind": "value", "type": "float", "unit": "ms",
-      "description": "Duration of an upshift (GearBoxData.gear_up_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts.",
+      "description": "Duration of an upshift (GearBoxData.gear_up_time). Kunos documentation: Gear Up Time is the shift duration in ms. A lower value gives faster shifts.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
         {"file": "@gearbox", "path": "gear_up_time"},
@@ -266,7 +266,7 @@
     },
     {
       "id": "gear_dn_time", "group": "Gearbox & clutch", "label": "Downshift time", "kind": "value", "type": "float", "unit": "ms",
-      "description": "Duration of a downshift (GearBoxData.gear_dn_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts.",
+      "description": "Duration of a downshift (GearBoxData.gear_dn_time). Kunos documentation: Gear Dn Time is the shift duration in ms. A lower value gives faster shifts.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
         {"file": "@gearbox", "path": "gear_dn_time"},
@@ -275,7 +275,7 @@
     },
     {
       "id": "auto_cut_off_time", "group": "Gearbox & clutch", "label": "Auto cut-off time", "kind": "value", "type": "float", "unit": "ms",
-      "description": "Time the engine power is cut during an automatic shift (GearBoxData.auto_cut_off_time). Assumed to be milliseconds, not confirmed. A lower value shortens the power cut.",
+      "description": "Time the engine power is cut during an automatic shift (GearBoxData.auto_cut_off_time). Kunos documentation: Auto Cut Off Time is the length of the throttle cut. The unit (assumed milliseconds) is not confirmed. A lower value shortens the power cut.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
         {"file": "@gearbox", "path": "auto_cut_off_time"},
@@ -308,7 +308,7 @@
     },
     {
       "id": "diff_power_max", "group": "Differential", "label": "Diff power max", "kind": "value", "type": "float", "unit": "",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential power lock.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential power lock. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.differential.power.max"}
@@ -316,7 +316,7 @@
     },
     {
       "id": "diff_coast_max", "group": "Differential", "label": "Diff coast max", "kind": "value", "type": "float", "unit": "",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential coast lock.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential coast lock. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.differential.coast.max"}
@@ -324,7 +324,7 @@
     },
     {
       "id": "diff_preload_max", "group": "Differential", "label": "Diff preload max", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential preload.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential preload. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 300,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.differential.preload.max"}
@@ -332,7 +332,7 @@
     },
     {
       "id": "diff_type", "group": "Differential (hardware)", "label": "Differential type", "kind": "value", "type": "enum", "unit": "",
-      "description": "Differential hardware model (DifferentialData.type). Spool is a fully locked rear axle, the drift classic. The stock file does not store this field, so it reads as the first choice, LSD. Not confirmed that the game applies it for this car.",
+      "description": "Differential hardware model (DifferentialData.type). Spool is a fully locked rear axle, the drift classic. The stock file does not store this field, so it reads as the first choice, LSD. Kunos documentation: the differential type can be changed on the fly (for example from LSD to Torsen) to get the desired effect; wear and temperature of the differential are ignored (not active). Not confirmed that the game applies it for this car.",
       "verified": false, "choices": ["LSD", "Spool", "Torsen", "EpicyclicTorsen", "EpicyclicLSD", "TorqueVectoring"],
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.type"},
@@ -341,7 +341,7 @@
     },
     {
       "id": "diff_hw_preload", "group": "Differential (hardware)", "label": "Diff preload (hardware)", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Preload torque of the differential model (DifferentialData.preload), written to the drivetrain file and the car's inline copy. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Preload torque of the differential model (DifferentialData.preload), written to the drivetrain file and the car's inline copy. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Kunos documentation: the preload is in Nm. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 300,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.preload"},
@@ -350,7 +350,7 @@
     },
     {
       "id": "diff_hw_bias_power", "group": "Differential (hardware)", "label": "Diff torque bias power", "kind": "value", "type": "float", "unit": "",
-      "description": "Torque bias ratio under power of the differential model (DifferentialData.torque_bias_ratio_power); assumed: a higher ratio locks the axle harder under power. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Torque bias ratio under power of the differential model (DifferentialData.torque_bias_ratio_power). Kunos documentation: Torsen differentials use the TBR (torque bias ratio), where 5.0 means 5:1. Assumed: a higher ratio locks the axle harder under power. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 1, "max": 10,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_power"},
@@ -359,7 +359,7 @@
     },
     {
       "id": "diff_hw_bias_coast", "group": "Differential (hardware)", "label": "Diff torque bias coast", "kind": "value", "type": "float", "unit": "",
-      "description": "Torque bias ratio on coast of the differential model (DifferentialData.torque_bias_ratio_coast); assumed: a higher ratio locks the axle harder off throttle. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Torque bias ratio on coast of the differential model (DifferentialData.torque_bias_ratio_coast). Kunos documentation: Torsen differentials use the TBR (torque bias ratio), where 5.0 means 5:1. Assumed: a higher ratio locks the axle harder off throttle. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 10,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_coast"},
@@ -368,7 +368,7 @@
     },
     {
       "id": "diff_hw_power", "group": "Differential (hardware)", "label": "Diff lock power (hardware)", "kind": "value", "type": "float", "unit": "",
-      "description": "Lock factor under power of the differential model (DifferentialData.power), assumed 0 (open) to 1 (locked). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Lock factor under power of the differential model (DifferentialData.power). Kunos documentation: the power and coast locking is a decimal multiplier of the input torque (1.0 = 100%); the range 0 (open) to 1 (locked) is assumed. Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 1, "create_missing": true,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.power"},
@@ -377,7 +377,7 @@
     },
     {
       "id": "diff_hw_coast", "group": "Differential (hardware)", "label": "Diff lock coast (hardware)", "kind": "value", "type": "float", "unit": "",
-      "description": "Lock factor on coast of the differential model (DifferentialData.coast), assumed 0 (open) to 1 (locked). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Lock factor on coast of the differential model (DifferentialData.coast). Kunos documentation: the power and coast locking is a decimal multiplier of the input torque (1.0 = 100%); the range 0 (open) to 1 (locked) is assumed. Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 1, "create_missing": true,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.coast"},
@@ -386,7 +386,7 @@
     },
     {
       "id": "steer_ratio", "group": "Steering", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
-      "description": "Default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle.",
+      "description": "Default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle. Kunos documentation: the steer ratio should match the real car, and must be negative if the steering arm is behind the wheel centre.",
       "verified": true, "min": -30, "max": 30,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.steer_ratio"}
@@ -394,7 +394,7 @@
     },
     {
       "id": "steer_ratio_min", "group": "Steering", "label": "Steering ratio min", "kind": "value", "type": "float", "unit": ":1",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest steering ratio allowed (quickest steering).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest steering ratio allowed (quickest steering). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 5, "max": 30,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.steer_ratio.min"}
@@ -402,7 +402,7 @@
     },
     {
       "id": "steer_ratio_max", "group": "Steering", "label": "Steering ratio max", "kind": "value", "type": "float", "unit": ":1",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest steering ratio allowed (slowest steering).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest steering ratio allowed (slowest steering). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 5, "max": 30,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.steer_ratio.max"}
@@ -410,7 +410,7 @@
     },
     {
       "id": "steer_rod_ratio", "group": "Steering", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
-      "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022). Effect in the game not confirmed.",
+      "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022). Kunos documentation: the linear steer rod ratio matches the steering wheel lock to the tyre lock. Effect in the game not confirmed.",
       "verified": false, "min": 0.0005, "max": 0.005,
       "targets": [
         {"file": "@car", "path": "controls.linearSteerRodRatio"}
@@ -427,7 +427,7 @@
     },
     {
       "id": "brake_bias", "group": "Brakes", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
-      "description": "Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner.",
+      "description": "Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner. Kunos documentation: the Front Bias of the brake file is overwritten by the setup (and by the cockpit adjustment when the car has one).",
       "verified": true, "min": 0, "max": 100,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.brakes.front_bias"}
@@ -435,7 +435,7 @@
     },
     {
       "id": "brake_bias_min", "group": "Brakes", "label": "Brake bias min", "kind": "value", "type": "float", "unit": "%",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front brake bias allowed. The stock file does not store this field, so it reads as 0.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front brake bias allowed. The stock file does not store this field, so it reads as 0. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.brakes.front_bias.min"}
@@ -443,7 +443,7 @@
     },
     {
       "id": "brake_bias_max", "group": "Brakes", "label": "Brake bias max", "kind": "value", "type": "float", "unit": "%",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front brake bias allowed.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front brake bias allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.brakes.front_bias.max"}
@@ -451,7 +451,7 @@
     },
     {
       "id": "brake_bias_hw", "group": "Brakes", "label": "Brake bias front (brake file)", "kind": "value", "type": "float", "unit": "%",
-      "description": "Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Most cars store a percentage (for example 68), some store a fraction (for example 0.75); which of the two the game reads is not confirmed.",
+      "description": "Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Kunos documentation: this Front Bias is overwritten by the setup (and by the cockpit adjustment when the car has one). Most cars store a percentage (for example 68), some store a fraction (for example 0.75); which of the two the game reads is not confirmed.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@brakes", "path": "frontBias"},
@@ -478,7 +478,7 @@
     },
     {
       "id": "brake_torque", "group": "Brakes", "label": "Total brake torque", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Total braking torque of the brake system (BrakesData.totalTorque). Raising it makes the brakes stronger.",
+      "description": "Total braking torque of the brake system (BrakesData.totalTorque). Raising it makes the brakes stronger. Kunos documentation: Total Torque is the total brake capacity, split front and rear by the current bias.",
       "verified": true, "min": 500, "max": 10000,
       "targets": [
         {"file": "@brakes", "path": "totalTorque"},
@@ -487,7 +487,7 @@
     },
     {
       "id": "steer_lock_deg", "group": "Steering", "label": "Steering lock", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed whether per side or lock to lock. Raising it allows more wheel rotation, and with it more front wheel angle.",
+      "description": "Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed. Kunos documentation: Steer lock is the angle from the centre to the maximum lock, so the total range is twice this value. Raising it allows more wheel rotation, and with it more front wheel angle.",
       "verified": false, "min": 90, "max": 1440,
       "targets": [
         {"file": "@car", "path": "controls.steer_lock"}
@@ -503,7 +503,7 @@
     },
     {
       "id": "arb_front", "group": "Springs & anti-roll", "label": "Front anti-roll bar", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: stiffness of the front anti-roll bar. Stiffer means less body roll at the front and more understeer.",
+      "description": "Default setup: stiffness of the front anti-roll bar. Stiffer means less body roll at the front and more understeer. Kunos documentation: the setup overwrites the anti-roll bars of the car file, unless ARB controllers are defined.",
       "verified": true, "min": 0, "max": 200000,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.arbs[0]"}
@@ -511,7 +511,7 @@
     },
     {
       "id": "arb_rear", "group": "Springs & anti-roll", "label": "Rear anti-roll bar", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: stiffness of the rear anti-roll bar. Stiffer means less body roll at the rear and more oversteer.",
+      "description": "Default setup: stiffness of the rear anti-roll bar. Stiffer means less body roll at the rear and more oversteer. Kunos documentation: the setup overwrites the anti-roll bars of the car file, unless ARB controllers are defined.",
       "verified": true, "min": 0, "max": 200000,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.arbs[1]"}
@@ -519,7 +519,7 @@
     },
     {
       "id": "arb_min_front", "group": "Springs & anti-roll", "label": "Front anti-roll bar min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front anti-roll bar stiffness allowed.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[0].min"}
@@ -527,7 +527,7 @@
     },
     {
       "id": "arb_max_front", "group": "Springs & anti-roll", "label": "Front anti-roll bar max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front anti-roll bar stiffness allowed.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[0].max"}
@@ -535,7 +535,7 @@
     },
     {
       "id": "arb_min_rear", "group": "Springs & anti-roll", "label": "Rear anti-roll bar min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear anti-roll bar stiffness allowed.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[1].min"}
@@ -543,7 +543,7 @@
     },
     {
       "id": "arb_max_rear", "group": "Springs & anti-roll", "label": "Rear anti-roll bar max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear anti-roll bar stiffness allowed.",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[1].max"}
@@ -551,7 +551,7 @@
     },
     {
       "id": "spring_front", "group": "Springs & anti-roll", "label": "Front spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: wheel rate of the front springs (both wheels). Stiffer means less body roll and dive at the front and more understeer.",
+      "description": "Default setup: wheel rate of the front springs (both wheels). Stiffer means less body roll and dive at the front and more understeer. Kunos documentation: the setup overrides the spring rate of the coilover file.",
       "verified": true, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].wheel_rate"},
@@ -560,7 +560,7 @@
     },
     {
       "id": "spring_rear", "group": "Springs & anti-roll", "label": "Rear spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: wheel rate of the rear springs (both wheels). Stiffer means less body roll and squat at the rear and more oversteer.",
+      "description": "Default setup: wheel rate of the rear springs (both wheels). Stiffer means less body roll and squat at the rear and more oversteer. Kunos documentation: the setup overrides the spring rate of the coilover file.",
       "verified": true, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].wheel_rate"},
@@ -569,7 +569,7 @@
     },
     {
       "id": "spring_min_front", "group": "Springs & anti-roll", "label": "Front spring rate min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front wheel rate allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[0].wheel_rate.min"},
@@ -578,7 +578,7 @@
     },
     {
       "id": "spring_max_front", "group": "Springs & anti-roll", "label": "Front spring rate max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front wheel rate allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[0].wheel_rate.max"},
@@ -587,7 +587,7 @@
     },
     {
       "id": "spring_min_rear", "group": "Springs & anti-roll", "label": "Rear spring rate min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear wheel rate allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[2].wheel_rate.min"},
@@ -596,7 +596,7 @@
     },
     {
       "id": "spring_max_rear", "group": "Springs & anti-roll", "label": "Rear spring rate max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear wheel rate allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[2].wheel_rate.max"},
@@ -605,7 +605,7 @@
     },
     {
       "id": "ride_height_front", "group": "Ride height & bump stops", "label": "Front ride height", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: target ride height of the front axle (setup aero.front_target_height). The spring collar positions (collar_front) realise the target height, so change them together; the effect on the handling is not confirmed.",
+      "description": "Default setup: target ride height of the front axle (setup aero.front_target_height). The spring collar positions (collar_front) realise the target height, so change them together; the effect on the handling is not confirmed. Kunos documentation: the collar positions of the setup are computed by the editor's Auto Setup from the ride height, and the ride height will become a result of other settings.",
       "verified": false, "min": 30, "max": 300,
       "targets": [
         {"file": "@setup", "path": "aero.front_target_height"}
@@ -613,7 +613,7 @@
     },
     {
       "id": "ride_height_rear", "group": "Ride height & bump stops", "label": "Rear ride height", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: target ride height of the rear axle (setup aero.rear_target_height). The spring collar positions (collar_rear) realise the target height, so change them together; the effect on the handling is not confirmed.",
+      "description": "Default setup: target ride height of the rear axle (setup aero.rear_target_height). The spring collar positions (collar_rear) realise the target height, so change them together; the effect on the handling is not confirmed. Kunos documentation: the collar positions of the setup are computed by the editor's Auto Setup from the ride height, and the ride height will become a result of other settings.",
       "verified": false, "min": 30, "max": 300,
       "targets": [
         {"file": "@setup", "path": "aero.rear_target_height"}
@@ -621,7 +621,7 @@
     },
     {
       "id": "collar_front", "group": "Ride height & bump stops", "label": "Front spring collar position", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: position of the front spring collars (setup aero.collar_positions_mm, both front wheels), the values that realise the target ride height. Change it together with ride_height_front; the relation between the two is not verified.",
+      "description": "Default setup: position of the front spring collars (setup aero.collar_positions_mm, both front wheels), the values that realise the target ride height. Kunos documentation: the collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. If you change them, change them together with ride_height_front.",
       "verified": false, "min": 0, "max": 300,
       "targets": [
         {"file": "@setup", "path": "aero.collar_positions_mm[0]"},
@@ -630,7 +630,7 @@
     },
     {
       "id": "collar_rear", "group": "Ride height & bump stops", "label": "Rear spring collar position", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: position of the rear spring collars (setup aero.collar_positions_mm, both rear wheels), the values that realise the target ride height. Change it together with ride_height_rear; the relation between the two is not verified.",
+      "description": "Default setup: position of the rear spring collars (setup aero.collar_positions_mm, both rear wheels), the values that realise the target ride height. Kunos documentation: the collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. If you change them, change them together with ride_height_rear.",
       "verified": false, "min": 0, "max": 300,
       "targets": [
         {"file": "@setup", "path": "aero.collar_positions_mm[2]"},
@@ -639,7 +639,7 @@
     },
     {
       "id": "bump_stop_up_rate_front", "group": "Ride height & bump stops", "label": "Front bump stop up rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the front axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the front axle (both wheels). Kunos documentation: bump stop up is the compression direction and its force is the bump stop spring rate; the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_up.rate"},
@@ -648,7 +648,7 @@
     },
     {
       "id": "bump_stop_up_rate_rear", "group": "Ride height & bump stops", "label": "Rear bump stop up rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the rear axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the rear axle (both wheels). Kunos documentation: bump stop up is the compression direction and its force is the bump stop spring rate; the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_up.rate"},
@@ -657,7 +657,7 @@
     },
     {
       "id": "bump_stop_down_rate_front", "group": "Ride height & bump stops", "label": "Front bump stop down rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the front axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the front axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Kunos documentation: the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_down.rate"},
@@ -666,7 +666,7 @@
     },
     {
       "id": "bump_stop_down_rate_rear", "group": "Ride height & bump stops", "label": "Rear bump stop down rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the rear axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the rear axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Kunos documentation: the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_down.rate"},
@@ -675,7 +675,7 @@
     },
     {
       "id": "bump_stop_up_range_front", "group": "Ride height & bump stops", "label": "Front bump stop up range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"up\" bump stop of the front axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "Default setup: travel at which the \"up\" bump stop of the front axle (both wheels) engages. Kunos documentation: bump stop up is the compression direction and its range is the distance from the rest position to the bump stop; the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_up.range"},
@@ -684,7 +684,7 @@
     },
     {
       "id": "bump_stop_up_range_rear", "group": "Ride height & bump stops", "label": "Rear bump stop up range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"up\" bump stop of the rear axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "Default setup: travel at which the \"up\" bump stop of the rear axle (both wheels) engages. Kunos documentation: bump stop up is the compression direction and its range is the distance from the rest position to the bump stop; the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_up.range"},
@@ -693,7 +693,7 @@
     },
     {
       "id": "bump_stop_down_range_front", "group": "Ride height & bump stops", "label": "Front bump stop down range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"down\" bump stop of the front axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "Default setup: travel at which the \"down\" bump stop of the front axle (both wheels) engages. Kunos documentation: the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_down.range"},
@@ -702,7 +702,7 @@
     },
     {
       "id": "bump_stop_down_range_rear", "group": "Ride height & bump stops", "label": "Rear bump stop down range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"down\" bump stop of the rear axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "Default setup: travel at which the \"down\" bump stop of the rear axle (both wheels) engages. Kunos documentation: the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_down.range"},
@@ -711,7 +711,7 @@
     },
     {
       "id": "damper_front_slow_bump", "group": "Dampers", "label": "Front damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].slow_bump"},
@@ -720,7 +720,7 @@
     },
     {
       "id": "damper_front_fast_bump", "group": "Dampers", "label": "Front damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the front axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].fast_bump"},
@@ -729,7 +729,7 @@
     },
     {
       "id": "damper_front_slow_rebound", "group": "Dampers", "label": "Front damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].slow_rebound"},
@@ -738,7 +738,7 @@
     },
     {
       "id": "damper_front_fast_rebound", "group": "Dampers", "label": "Front damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the front axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].fast_rebound"},
@@ -747,7 +747,7 @@
     },
     {
       "id": "damper_rear_slow_bump", "group": "Dampers", "label": "Rear damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].slow_bump"},
@@ -756,7 +756,7 @@
     },
     {
       "id": "damper_rear_fast_bump", "group": "Dampers", "label": "Rear damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the rear axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].fast_bump"},
@@ -765,7 +765,7 @@
     },
     {
       "id": "damper_rear_slow_rebound", "group": "Dampers", "label": "Rear damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].slow_rebound"},
@@ -774,7 +774,7 @@
     },
     {
       "id": "damper_rear_fast_rebound", "group": "Dampers", "label": "Rear damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the rear axle (both wheels). Higher is firmer.",
+      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].fast_rebound"},
@@ -783,7 +783,7 @@
     },
     {
       "id": "coilover_spring_front", "group": "Suspension (physical)", "label": "Front coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Spring rate of the front coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Spring rate of the front coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup (.carsetup) overrides the spring rate of the coilover file, but the value still matters for the simulation inside that file.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@coilover_front", "path": "springRate"},
@@ -792,7 +792,7 @@
     },
     {
       "id": "coilover_spring_rear", "group": "Suspension (physical)", "label": "Rear coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Spring rate of the rear coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Spring rate of the rear coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup (.carsetup) overrides the spring rate of the coilover file, but the value still matters for the simulation inside that file.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@coilover_rear", "path": "springRate"},
@@ -801,7 +801,7 @@
     },
     {
       "id": "coilover_damper_front_slow_bump", "group": "Suspension (physical)", "label": "Front coilover damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements upwards of the front coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for slow wheel movements upwards of the front coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.slow.bump"},
@@ -810,7 +810,7 @@
     },
     {
       "id": "coilover_damper_front_fast_bump", "group": "Suspension (physical)", "label": "Front coilover damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements upwards of the front coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for fast wheel movements upwards of the front coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.fast.bump"},
@@ -819,7 +819,7 @@
     },
     {
       "id": "coilover_damper_front_slow_rebound", "group": "Suspension (physical)", "label": "Front coilover damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements downwards of the front coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for slow wheel movements downwards of the front coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.slow.rebound"},
@@ -828,7 +828,7 @@
     },
     {
       "id": "coilover_damper_front_fast_rebound", "group": "Suspension (physical)", "label": "Front coilover damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements downwards of the front coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for fast wheel movements downwards of the front coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.fast.rebound"},
@@ -837,7 +837,7 @@
     },
     {
       "id": "coilover_damper_rear_slow_bump", "group": "Suspension (physical)", "label": "Rear coilover damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements upwards of the rear coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for slow wheel movements upwards of the rear coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.slow.bump"},
@@ -846,7 +846,7 @@
     },
     {
       "id": "coilover_damper_rear_fast_bump", "group": "Suspension (physical)", "label": "Rear coilover damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements upwards of the rear coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for fast wheel movements upwards of the rear coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.fast.bump"},
@@ -855,7 +855,7 @@
     },
     {
       "id": "coilover_damper_rear_slow_rebound", "group": "Suspension (physical)", "label": "Rear coilover damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements downwards of the rear coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for slow wheel movements downwards of the rear coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.slow.rebound"},
@@ -864,7 +864,7 @@
     },
     {
       "id": "coilover_damper_rear_fast_rebound", "group": "Suspension (physical)", "label": "Rear coilover damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements downwards of the rear coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical damper rate for fast wheel movements downwards of the rear coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup overrides all damper values of the coilover file, which still matter for the simulation inside that file; cars with active dampers ignore both the setup damper values and the coilover damper properties.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.fast.rebound"},
@@ -873,7 +873,7 @@
     },
     {
       "id": "arb_stiffness_front", "group": "Suspension (physical)", "label": "Front anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Physical stiffness of the front anti-roll bar (suspensions.arbFront.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical stiffness of the front anti-roll bar (suspensions.arbFront.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: ARBs in the car file are not relevant because the setup overwrites them, unless ARB controllers are defined.",
       "verified": false, "min": 0, "max": 200000, "create_missing": true,
       "targets": [
         {"file": "@car", "path": "suspensions.arbFront.stiffness"}
@@ -881,7 +881,7 @@
     },
     {
       "id": "arb_stiffness_rear", "group": "Suspension (physical)", "label": "Rear anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Physical stiffness of the rear anti-roll bar (suspensions.arbRear.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Physical stiffness of the rear anti-roll bar (suspensions.arbRear.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: ARBs in the car file are not relevant because the setup overwrites them, unless ARB controllers are defined.",
       "verified": false, "min": 0, "max": 200000, "create_missing": true,
       "targets": [
         {"file": "@car", "path": "suspensions.arbRear.stiffness"}
@@ -943,7 +943,7 @@
     },
     {
       "id": "camber_min_front", "group": "Alignment & tyres", "label": "Front camber min", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front wheel tilt allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front wheel tilt allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": -8, "max": 2,
       "targets": [
         {"file": "@limits", "path": "alignments[0].camber.min"},
@@ -952,7 +952,7 @@
     },
     {
       "id": "camber_max_front", "group": "Alignment & tyres", "label": "Front camber max", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front wheel tilt allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front wheel tilt allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": -8, "max": 2,
       "targets": [
         {"file": "@limits", "path": "alignments[0].camber.max"},
@@ -961,7 +961,7 @@
     },
     {
       "id": "camber_min_rear", "group": "Alignment & tyres", "label": "Rear camber min", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear wheel tilt allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear wheel tilt allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": -8, "max": 2,
       "targets": [
         {"file": "@limits", "path": "alignments[2].camber.min"},
@@ -970,7 +970,7 @@
     },
     {
       "id": "camber_max_rear", "group": "Alignment & tyres", "label": "Rear camber max", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear wheel tilt allowed (both wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear wheel tilt allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": -8, "max": 2,
       "targets": [
         {"file": "@limits", "path": "alignments[2].camber.max"},
@@ -979,7 +979,7 @@
     },
     {
       "id": "toe_min", "group": "Alignment & tyres", "label": "Toe min", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest toe angle allowed (all four wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest toe angle allowed (all four wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": -1, "max": 1,
       "targets": [
         {"file": "@limits", "path": "alignments[0].toe.min"},
@@ -990,7 +990,7 @@
     },
     {
       "id": "toe_max", "group": "Alignment & tyres", "label": "Toe max", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest toe angle allowed (all four wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest toe angle allowed (all four wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": -1, "max": 1,
       "targets": [
         {"file": "@limits", "path": "alignments[0].toe.max"},
@@ -1001,7 +1001,7 @@
     },
     {
       "id": "tyre_pressure_min", "group": "Alignment & tyres", "label": "Tyre pressure min", "kind": "value", "type": "float", "unit": "psi",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest tyre pressure allowed (all four wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest tyre pressure allowed (all four wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 15, "max": 50,
       "targets": [
         {"file": "@limits", "path": "alignments[0].pressure.min"},
@@ -1012,7 +1012,7 @@
     },
     {
       "id": "tyre_pressure_max", "group": "Alignment & tyres", "label": "Tyre pressure max", "kind": "value", "type": "float", "unit": "psi",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest tyre pressure allowed (all four wheels).",
+      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest tyre pressure allowed (all four wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
       "verified": false, "min": 15, "max": 50,
       "targets": [
         {"file": "@limits", "path": "alignments[0].pressure.max"},
@@ -1259,7 +1259,7 @@
     },
     {
       "id": "fuel_start", "group": "Fuel", "label": "Starting fuel", "kind": "value", "type": "float", "unit": "L",
-      "description": "Default setup: fuel in the tank at the start. More fuel adds weight.",
+      "description": "Default setup: fuel in the tank at the start. More fuel adds weight. Kunos documentation: the Fuel of the car file is overwritten by this setup value.",
       "verified": true, "min": 1, "max": 100,
       "targets": [
         {"file": "@setup", "path": "fuel_strategy.fuel"}
@@ -1267,7 +1267,7 @@
     },
     {
       "id": "tc_level", "group": "Electronics", "label": "Traction control level", "kind": "value", "type": "int", "unit": "",
-      "description": "Default setup: traction control level (setup electronics.tc1), an index into the car's traction control levels; 0 is assumed to be off, not confirmed. The performance (driving) modes store their own levels: driver_aids_off switches them off too. Only shown for cars whose stock setup stores this field.",
+      "description": "Default setup: traction control level (setup electronics.tc1), an index into the car's traction control levels. Kunos documentation: levels are counted from 0 and level 0 is the Setting 1 of the car; for the aid to be switchable off, the car must define Setting 1 as no intervention. Whether this car does is not confirmed. The performance (driving) modes store their own levels: driver_aids_off switches them off too. Only shown for cars whose stock setup stores this field.",
       "verified": false, "min": 0, "max": 12, "hide_if_absent": true,
       "targets": [
         {"file": "@setup", "path": "electronics.tc1"}
@@ -1275,7 +1275,7 @@
     },
     {
       "id": "tc2_level", "group": "Electronics", "label": "Traction control 2 level", "kind": "value", "type": "int", "unit": "",
-      "description": "Default setup: level of the second traction control channel (setup electronics.tc2); 0 is assumed to be off, not confirmed. Only shown for cars whose stock setup stores this field.",
+      "description": "Default setup: level of the second traction control channel (setup electronics.tc2); 0 is assumed to be off, not confirmed. Kunos documentation: TC2 adjusts only the Engine Cut Level (lower is smoother and earlier) and leaves the other TC1 parameters unaffected. Only shown for cars whose stock setup stores this field.",
       "verified": false, "min": 0, "max": 12, "hide_if_absent": true,
       "targets": [
         {"file": "@setup", "path": "electronics.tc2"}
@@ -1283,7 +1283,7 @@
     },
     {
       "id": "abs_level", "group": "Electronics", "label": "ABS level", "kind": "value", "type": "int", "unit": "",
-      "description": "Default setup: ABS level (setup electronics.abs), an index into the car's ABS levels; 0 is assumed to be off, not confirmed. driver_aids_off does not change it. Only shown for cars whose stock setup stores this field.",
+      "description": "Default setup: ABS level (setup electronics.abs), an index into the car's ABS levels. Kunos documentation: levels are counted from 0; for the aid to be switchable off, the car must define its first level (Setting 1) as no intervention. Whether this car does is not confirmed. driver_aids_off does not change it. Only shown for cars whose stock setup stores this field.",
       "verified": false, "min": 0, "max": 12, "hide_if_absent": true,
       "targets": [
         {"file": "@setup", "path": "electronics.abs"}
@@ -1291,7 +1291,7 @@
     },
     {
       "id": "driver_aids_off", "group": "Electronics", "label": "Driver aids off", "kind": "flag", "type": "bool", "unit": "",
-      "description": "Switch: when on, traction control (tc1, tc2) and stability control (esc) are set to 0 in every performance (driving) mode of the car and in the setup defaults, so no driver aid steps in; ABS is not touched. 0 is assumed to mean off, not confirmed; fields the car does not store are not added.",
+      "description": "Switch: when on, traction control (tc1, tc2) and stability control (esc) are set to 0 in every performance (driving) mode of the car and in the setup defaults, so no driver aid steps in; ABS is not touched. Kunos documentation: levels are counted from 0 and the car must define Setting 1 (level 0) as no intervention for the aid to be switchable off; whether this car does is not confirmed. Fields the car does not store are not added.",
       "verified": false, "value": 0,
       "targets": [
         {"file": "@car", "path": "performance_modes[*].electronics_settings.tc1", "optional": true},
