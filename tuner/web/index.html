@@ -226,7 +226,6 @@ button.reset { padding: 2px 8px; font-size: 12px; }
         <label class="carpick">Car
           <select id="car-select" aria-label="Car" disabled></select>
         </label>
-        <button id="btn-install-tested" type="button" disabled>Install the tested cars</button>
       </div>
       <div class="actions">
         <button id="btn-apply" class="primary" type="button" disabled>Create modded car&hellip;</button>
@@ -648,14 +647,6 @@ function renderButtons() {
   for (const id of ["dialog-id", "dialog-suffix", "dialog-ok"]) $(id).disabled = locked;
   $("dialog-cancel").disabled = dialog !== null && dialog.busy;
   $("btn-init").disabled = !info || running;
-  const tested = info && info.cars ? info.cars.filter((c) => c.tested) : [];
-  let whyInstall = "";
-  if (!info) whyInstall = serverError || "server not reachable";
-  else if (running) whyInstall = "a job is running";
-  else if (tested.every((c) => c.extracted)) whyInstall = "every tested car is installed already";
-  $("btn-install-tested").textContent = tested.length ? "Install the " + tested.length + " tested cars" : "Install the tested cars";
-  $("btn-install-tested").disabled = whyInstall !== "";
-  $("btn-install-tested").title = whyInstall;
   $("btn-reset-all").disabled = running;
   for (const r of headerRow ? rows.concat(headerRow) : rows) {
     r.field.disabled = running;
@@ -702,7 +693,7 @@ function renderProgress() {
   const show = job.state !== "idle" || errors.length > 0;
   box.hidden = !show;
   if (!show) return;
-  const title = job.kind === "init" ? "Install car" : job.kind === "install_tested" ? "Install the tested cars" : "Apply";
+  const title = job.kind === "init" ? "Install car" : "Apply";
   if (errors.length) {
     box.classList.add("err");
     box.appendChild(el("h2", "", "Error"));
@@ -718,7 +709,6 @@ function renderProgress() {
     box.appendChild(el("h2", "", title + ": finished"));
     if (job.kind === "apply" && job.result) summaryApply(box, job.result);
     if (job.kind === "init") addLine(box, "The car is installed, the table is available.");
-    if (job.kind === "install_tested") addLine(box, "The tested cars are installed.");
   } else if (job.state === "error") {
     if (!errors.length) box.classList.add("err");
     box.appendChild(el("h2", "", title + ": failed"));
@@ -752,7 +742,7 @@ async function refresh() {
     carConfirmed = true;
   }
   if (createdCar()) return;
-  const extracting = !!info && ["init", "install_tested"].includes(info.job.kind) && info.job.state === "running";
+  const extracting = !!info && info.job.kind === "init" && info.job.state === "running";
   if (info && info.base_present && !tableLoaded && !extracting) await loadSettings();
   renderCars();
   renderStatus();
@@ -1776,7 +1766,6 @@ $("btn-apply").addEventListener("click", () => {
 });
 $("btn-duplicate").addEventListener("click", () => openDialog("duplicate"));
 $("btn-init").addEventListener("click", () => startJob("/api/init", {}));
-$("btn-install-tested").addEventListener("click", () => startJob("/api/install_tested", {}));
 $("btn-reset-all").addEventListener("click", resetAll);
 $("btn-expand-all").addEventListener("click", () => setAllGroups(true));
 $("btn-collapse-all").addEventListener("click", () => setAllGroups(false));

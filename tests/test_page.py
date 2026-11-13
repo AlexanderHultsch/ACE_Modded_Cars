@@ -342,7 +342,7 @@ class TestTexts(unittest.TestCase):
                 self.assertIn(">%s</button>" % label, MARKUP)
         self.assertIn("changed only", MARKUP)
         self.assertIn('el("button", "reset", "reset")', CODE)
-        for label in ("Install car (pull game files)", "Install the", "Tyre Creator", "Garage tyres", "Expand all", "changed only",
+        for label in ("Install car (pull game files)", "Tyre Creator", "Garage tyres", "Expand all", "changed only",
                       "show advanced settings", "reset", "Reset all", "Create modded car", "Duplicate"):
             self.assertIn(label, README)
 
@@ -699,47 +699,27 @@ class TestInstallCars(unittest.TestCase):
             with self.subTest(old):
                 self.assertNotIn(old, HTML)
 
-    def test_the_install_button_sits_in_the_selector_row_next_to_the_car_selector_and_is_off_until_the_page_knows_better(self):
-        panel = MARKUP[MARKUP.index('id="panel-car"'):MARKUP.index('id="panel-tyres"')]
-        row = re.search(r'<div class="bar">.*?<section id="dialog"', panel, re.S).group(0)
-        button = '<button id="btn-install-tested" type="button" disabled>Install the tested cars</button>'
-        self.assertIn(button, row)
-        self.assertLess(row.index('id="car-select"'), row.index(button))
-        self.assertLess(row.index(button), row.index('<div class="actions">'))
-
-    def test_the_label_counts_the_tested_cars_of_the_state(self):
-        body = function_body("renderButtons")
-        self.assertIn("const tested = info && info.cars ? info.cars.filter((c) => c.tested) : [];", body)
-        self.assertIn('$("btn-install-tested").textContent = tested.length ? "Install the " + tested.length + " tested cars" : "Install the tested cars";', body)
-        self.assertNotRegex(CODE, r"Install the \d")
-
-    def test_the_install_button_is_off_while_a_job_runs_without_info_or_with_every_tested_car_installed(self):
-        body = function_body("renderButtons")
-        self.assertIn('if (!info) whyInstall = serverError || "server not reachable";', body)
-        self.assertIn('else if (running) whyInstall = "a job is running";', body)
-        self.assertIn('else if (tested.every((c) => c.extracted)) whyInstall = "every tested car is installed already";', body)
-        self.assertIn('$("btn-install-tested").disabled = whyInstall !== "";', body)
-        self.assertIn('$("btn-install-tested").title = whyInstall;', body)
-
-    def test_the_install_button_starts_the_job_of_all_tested_cars(self):
-        self.assertIn('$("btn-install-tested").addEventListener("click", () => startJob("/api/install_tested", {}));', CODE)
+    def test_the_install_button_starts_the_init_job(self):
         self.assertIn('$("btn-init").addEventListener("click", () => startJob("/api/init", {}));', CODE)
 
-    def test_the_progress_panel_names_both_install_jobs(self):
+    def test_the_page_has_no_install_all_tested_cars_button_or_job(self):
+        self.assertNotIn("btn-install-tested", HTML)
+        self.assertNotIn("install_tested", HTML)
+
+    def test_the_progress_panel_names_the_install_job(self):
         body = function_body("renderProgress")
-        self.assertIn('job.kind === "init" ? "Install car" : job.kind === "install_tested" ? "Install the tested cars" : "Apply"', body)
+        self.assertIn('job.kind === "init" ? "Install car" : "Apply"', body)
         self.assertIn('if (job.kind === "init") addLine(box, "The car is installed, the table is available.");', body)
-        self.assertIn('if (job.kind === "install_tested") addLine(box, "The tested cars are installed.");', body)
         self.assertNotIn("Extract stock car", body)
 
-    def test_the_table_is_not_loaded_while_either_install_job_runs(self):
+    def test_the_table_is_not_loaded_while_the_install_job_runs(self):
         body = function_body("refresh")
-        self.assertIn('const extracting = !!info && ["init", "install_tested"].includes(info.job.kind) && info.job.state === "running";', body)
+        self.assertIn('const extracting = !!info && info.job.kind === "init" && info.job.state === "running";', body)
         self.assertIn("!tableLoaded && !extracting", body)
 
     def test_every_job_kind_the_progress_panel_knows_is_started_by_the_server(self):
         kinds = set(re.findall(r'job\.kind === "(\w+)"', function_body("renderProgress")))
-        self.assertEqual(kinds, {"apply", "init", "install_tested"})
+        self.assertEqual(kinds, {"apply", "init"})
         self.assertEqual(kinds - set(re.findall(r'run_job\("(\w+)"', inspect.getsource(ts))), set())
 
 
@@ -970,7 +950,7 @@ class TestTabs(unittest.TestCase):
         self.assertRegex(self.tag("panel-tyres"), r"\bhidden>$")
 
     def test_the_car_tuner_elements_are_inside_the_car_panel(self):
-        for ident in ("car-select", "btn-install-tested", "btn-apply", "btn-duplicate", "dialog", "name-host", "untested", "status",
+        for ident in ("car-select", "btn-apply", "btn-duplicate", "dialog", "name-host", "untested", "status",
                       "progress", "init-panel", "tuner", "search", "rows"):
             with self.subTest(ident):
                 self.assertIn('id="%s"' % ident, self.CAR_PANEL)

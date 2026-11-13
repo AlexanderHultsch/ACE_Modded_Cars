@@ -242,10 +242,10 @@ class TestRoutes(ServerCase):
     def test_route_tables(self):
         self.assertEqual(sorted(ts.GET_ROUTES), ["/api/garage", "/api/groups", "/api/settings", "/api/state", "/api/tyre", "/api/tyres"])
         self.assertEqual(sorted(ts.POST_ROUTES), ["/api/apply", "/api/duplicate", "/api/garage_reset", "/api/garage_set", "/api/init",
-                                                  "/api/install_tested", "/api/reset_all", "/api/set", "/api/tyre_delete",
+                                                  "/api/reset_all", "/api/set", "/api/tyre_delete",
                                                   "/api/tyre_new", "/api/tyre_rename", "/api/tyre_reset", "/api/tyre_set",
                                                   "/api/tyre_source", "/api/tyre_unset", "/api/unset"])
-        self.assertEqual(ts.ACCEPTED, ("/api/init", "/api/install_tested", "/api/apply"))
+        self.assertEqual(ts.ACCEPTED, ("/api/init", "/api/apply"))
         self.assertEqual(ts.QUERY_ROUTES, ("/api/tyre",))
         self.assertTrue(set(ts.QUERY_ROUTES) <= set(ts.GET_ROUTES))
 
@@ -298,6 +298,11 @@ class TestRoutes(ServerCase):
         self.assertEqual(self.post("/api/state").status, 404)
         self.assertEqual(self.post("/").status, 404)
         self.assertEqual(self.get("/api/reset_all").status, 404)
+
+    def test_the_route_of_the_removed_install_all_tested_cars_button_is_404(self):
+        r = self.post("/api/install_tested")
+        self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
+        self.assertEqual(ts.job_snapshot()["state"], "idle")
 
     def test_traversal_attempts_are_404_and_never_read_a_file(self):
         for path in ("/../../etc/passwd", "/%2e%2e/%2e%2e/etc/passwd", "/..%2f..%2fetc%2fpasswd", "/api/../../etc/passwd",
@@ -1062,192 +1067,6 @@ class TestInitRoute(ServerCase):
         self.post("/api/init")
         snap = self.wait_job()
         self.assertEqual((snap["state"], snap["error"], snap["log"][-1]), ("error", "game package not found: x", "error: game package not found: x"))
-
-
-class TestInstallTestedRoute(ServerCase):
-    """POST /api/install_tested: tune.init for every tested car of cars.json (here ks_x, ks_a, ks_b), one background job."""
-
-    def setUp(self):
-        super().setUp()
-        self.data["cars"] = [{"id": "ks_x", "label": "Car X"}, {"id": "ks_a", "label": "Car A"}, {"id": "ks_b", "label": "Car B"}]
-        self.failing, self.present = {}, set()
-        self.patch(tune, "init", self.init_stub)
-
-    def init_stub(self, work, car, game=None):
-        self.calls.append(("init", (work, car, game), {}))
-        self.entered.set()
-        if self.gate is not None:
-            self.gate.wait(10)
-        if car in self.failing:
-            raise self.failing[car]
-        return dict(INIT_RESULT, present=car in self.present, dir="/w/%s/base" % car)
-
-    def installed_cars(self):
-        return [c[1][1] for c in self.calls]
-
-    def test_it_runs_tune_init_for_each_tested_car_in_file_order_with_the_configured_game_package(self):
-        ts.CONFIG["game"] = "other.kspkg"
-        r = self.post("/api/install_tested")
-        self.assertEqual((r.status, r.json), (202, {"job": "started"}))
-        snap = self.wait_job()
-        self.assertEqual(self.calls, [("init", (self.work, car, "other.kspkg"), {}) for car in ("ks_x", "ks_a", "ks_b")])
-        self.assertEqual((snap["kind"], snap["state"], snap["error"]), ("install_tested", "done", None))
-        self.assertEqual(snap["result"], {"cars": [dict(INIT_RESULT, id=car, dir="/w/%s/base" % car) for car in ("ks_x", "ks_a", "ks_b")]})
-
-    def test_it_logs_one_group_of_lines_per_car(self):
-        self.present.add("ks_a")
-        self.post("/api/install_tested")
-        self.assertEqual(self.wait_job()["log"], [
-            "1/3: Car X ...", "installed", "/w/ks_x/base: 3 files, 1 folders, 10 bytes",
-            "2/3: Car A ...", "already installed", "/w/ks_a/base: 3 files, 1 folders, 10 bytes",
-            "3/3: Car B ...", "installed", "/w/ks_b/base: 3 files, 1 folders, 10 bytes"])
-
-    def test_the_result_says_per_car_whether_it_was_present(self):
-        self.present.add("ks_a")
-        self.post("/api/install_tested")
-        self.assertEqual([(c["id"], c["present"]) for c in self.wait_job()["result"]["cars"]],
-                         [("ks_x", False), ("ks_a", True), ("ks_b", False)])
-
-    def test_it_takes_the_tested_cars_of_cars_json_not_the_cars_of_the_game(self):
-        self.write(os.path.join(self.work, "cars_index.json"), [{"id": "ks_x", "display_name": "Car X"}, {"id": "ks_zzz", "display_name": "Z"}])
-        self.data["cars"] = [{"id": "ks_x", "label": "Car X"}]
-        self.post("/api/install_tested")
-        self.wait_job()
-        self.assertEqual(self.installed_cars(), ["ks_x"])
-
-    def test_a_failing_car_is_logged_and_the_next_cars_are_still_installed(self):
-        self.failing["ks_a"] = ValueError("game package not found: x")
-        self.post("/api/install_tested")
-        snap = self.wait_job()
-        self.assertEqual(self.installed_cars(), ["ks_x", "ks_a", "ks_b"])
-        self.assertEqual(snap["log"], [
-            "1/3: Car X ...", "installed", "/w/ks_x/base: 3 files, 1 folders, 10 bytes",
-            "2/3: Car A ...", "error: game package not found: x",
-            "3/3: Car B ...", "installed", "/w/ks_b/base: 3 files, 1 folders, 10 bytes",
-            "error: 1 of 3 cars failed: ks_a"])
-
-    def test_the_job_then_ends_in_the_error_state_naming_the_failed_ids_in_file_order(self):
-        self.failing.update({"ks_b": OSError("disk full"), "ks_x": SystemExit("clone self-check failed")})
-        self.post("/api/install_tested")
-        snap = self.wait_job()
-        self.assertEqual((snap["state"], snap["error"], snap["result"]), ("error", "2 of 3 cars failed: ks_x, ks_b", None))
-        self.assertIn("error: clone self-check failed", snap["log"])
-        self.assertIn("error: disk full", snap["log"])
-        self.assertEqual(snap["log"][-1], "error: 2 of 3 cars failed: ks_x, ks_b")
-
-    def test_every_car_failing_is_reported_as_all_of_them(self):
-        for car in ("ks_x", "ks_a", "ks_b"):
-            self.failing[car] = ValueError("no")
-        self.post("/api/install_tested")
-        snap = self.wait_job()
-        self.assertEqual((snap["state"], snap["error"]), ("error", "3 of 3 cars failed: ks_x, ks_a, ks_b"))
-
-    def test_a_failed_job_does_not_block_the_next_one(self):
-        self.failing["ks_a"] = ValueError("no")
-        self.post("/api/install_tested")
-        self.assertEqual(self.wait_job()["state"], "error")
-        self.failing.clear()
-        self.assertEqual(self.post("/api/install_tested").status, 202)
-        self.assertEqual(self.wait_job()["state"], "done")
-
-    def test_the_job_is_visible_in_the_state_while_it_runs(self):
-        self.hold_jobs()
-        self.post("/api/install_tested")
-        self.entered.wait(5)
-        job = self.get("/api/state").json["job"]
-        self.assertEqual(set(job), JOB_KEYS)
-        self.assertEqual((job["kind"], job["state"], job["result"], job["error"]), ("install_tested", "running", None, None))
-        self.assertEqual(job["log"], ["1/3: Car X ..."])
-        self.finish_held_job()
-        done = self.get("/api/state").json["job"]
-        self.assertEqual((done["kind"], done["state"]), ("install_tested", "done"))
-
-    def test_the_counts_are_null_while_the_tested_cars_are_being_installed(self):
-        self.make_car()
-        self.hold_jobs()
-        self.assertEqual(self.post("/api/install_tested").status, 202)
-        self.entered.wait(5)
-        r = self.get("/api/state").json
-        self.assertEqual((r["base_present"], r["settings_applicable"], r["settings_hidden"]), (True, None, None))
-        self.assertEqual(ts.settings_counts(self.work, "ks_x"), (None, None))
-        self.finish_held_job()
-        self.assertEqual(self.get("/api/state").json["settings_applicable"], 3)
-
-    def test_a_second_job_while_it_runs_is_409(self):
-        self.make_car()
-        tune.save_state(self.work, "ks_x", {})
-        self.hold_jobs()
-        self.assertEqual(self.post("/api/install_tested").status, 202)
-        self.entered.wait(5)
-        for path, body, text in (("/api/install_tested", {}, "another job is running, wait until it has finished"),
-                                 ("/api/init", {}, "another job is running, wait until it has finished"),
-                                 ("/api/apply", {}, "another job is running, wait until it has finished"),
-                                 ("/api/apply", {"tune": "draft"}, "a job is running, wait until it has finished")):
-            with self.subTest(path, body=body):
-                r = self.post(path, body)
-                self.assertEqual((r.status, r.json), (409, {"error": text}))
-        self.assertEqual(self.installed_cars(), ["ks_x"])
-        self.finish_held_job()
-        self.assertEqual(self.installed_cars(), ["ks_x", "ks_a", "ks_b"])
-
-    def test_it_is_409_while_another_job_runs(self):
-        self.hold_jobs()
-        self.assertEqual(self.post("/api/init").status, 202)
-        self.entered.wait(5)
-        r = self.post("/api/install_tested")
-        self.assertEqual((r.status, r.json), (409, {"error": "another job is running, wait until it has finished"}))
-        self.assertEqual(self.installed_cars(), ["ks_x"])
-        self.finish_held_job()
-
-    def test_edits_are_refused_while_it_runs(self):
-        self.make_car()
-        self.hold_jobs()
-        self.assertEqual(self.post("/api/install_tested").status, 202)
-        self.entered.wait(5)
-        self.assertEqual(self.post("/api/set", {"id": "limiter", "value": "8000"}).status, 409)
-        self.finish_held_job()
-
-    def test_the_game_check_is_not_used(self):
-        self.game_up = True
-        self.assertEqual(self.post("/api/install_tested").status, 202)
-
-    def test_other_methods_are_405_and_a_get_is_404(self):
-        for method in ("PUT", "DELETE", "PATCH"):
-            with self.subTest(method):
-                r = self.request(method, "/api/install_tested")
-                self.assertEqual((r.status, r.json, r.headers.get("Allow")), (405, {"error": "method not allowed"}, "GET, POST"))
-        self.assertEqual(self.get("/api/install_tested").status, 404)
-        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
-
-    def test_a_wrong_content_type_is_415_a_missing_x_tuner_or_a_wrong_host_is_403_and_no_job_starts(self):
-        r = self.post("/api/install_tested", headers={"Content-Type": "text/plain"})
-        self.assertEqual((r.status, r.json), (415, {"error": "Content-Type must be application/json"}))
-        r = self.post("/api/install_tested", headers={"X-Tuner": None})
-        self.assertEqual((r.status, r.json), (403, {"error": "missing header X-Tuner: 1"}))
-        r = self.post("/api/install_tested", host="evil.example")
-        self.assertEqual((r.status, r.json), (403, {"error": "forbidden host"}))
-        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
-
-    def test_an_unknown_car_or_modded_car_in_the_body_is_400_and_no_job_starts(self):
-        r = self.post("/api/install_tested", {"car": "../x"})
-        self.assertEqual(r.status, 400)
-        self.assertTrue(r.json["error"].startswith("unknown car"), r.json)
-        r = self.post("/api/install_tested", {"tune": "nope"})
-        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car nope of ks_x"}))
-        self.assertEqual((self.calls, ts.job_snapshot()["state"]), ([], "idle"))
-
-    def test_the_body_may_carry_the_selected_car_like_the_page_sends_it(self):
-        self.assertEqual(self.post("/api/install_tested", {"car": "ks_y", "tune": "draft"}).status, 202)
-        self.wait_job()
-        self.assertEqual(self.installed_cars(), ["ks_x", "ks_a", "ks_b"])
-
-    def test_a_cars_json_that_cannot_be_read_ends_the_job_in_the_error_state(self):
-        def broken(path=None):
-            raise ValueError("cars.json: needs default and a list of cars")
-        self.patch(tune, "load_cars", broken)
-        ts.run_job("install_tested", ts.install_tested_task())
-        snap = self.wait_job()
-        self.assertEqual((snap["state"], snap["error"], self.calls), ("error", "cars.json: needs default and a list of cars", []))
 
 
 # -------------------------------------------------------------------------------------------------- tunes: resolution, state, edits, duplicate
