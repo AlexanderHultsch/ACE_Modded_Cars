@@ -520,12 +520,13 @@ class TestInstallCars(unittest.TestCase):
             with self.subTest(old):
                 self.assertNotIn(old, HTML)
 
-    def test_the_install_button_sits_in_the_header_next_to_the_car_selector_and_is_off_until_the_page_knows_better(self):
-        header = re.search(r'<header class="bar">.*?</header>', MARKUP, re.S).group(0)
+    def test_the_install_button_sits_in_the_selector_row_next_to_the_car_selector_and_is_off_until_the_page_knows_better(self):
+        panel = MARKUP[MARKUP.index('id="panel-car"'):MARKUP.index('id="panel-tyres"')]
+        row = re.search(r'<div class="bar">.*?<section id="dialog"', panel, re.S).group(0)
         button = '<button id="btn-install-tested" type="button" disabled>Install the tested cars</button>'
-        self.assertIn(button, header)
-        self.assertLess(header.index('id="car-select"'), header.index(button))
-        self.assertLess(header.index(button), header.index('<div class="actions">'))
+        self.assertIn(button, row)
+        self.assertLess(row.index('id="car-select"'), row.index(button))
+        self.assertLess(row.index(button), row.index('<div class="actions">'))
 
     def test_the_label_counts_the_tested_cars_of_the_state(self):
         body = function_body("renderButtons")
@@ -738,6 +739,131 @@ class TestModdedCars(unittest.TestCase):
         self.assertIn('$("btn-duplicate").disabled = whyDuplicate !== "";', body)
         self.assertIn('if (why === "close the game first")', body)
         self.assertIn("whyDuplicate = why;", body)
+
+
+class TestTabs(unittest.TestCase):
+    CAR_PANEL = MARKUP[MARKUP.index('id="panel-car"'):MARKUP.index('id="panel-tyres"')]
+    TYRES_PANEL = MARKUP[MARKUP.index('id="panel-tyres"'):]
+    TAB_RULE = re.search(r'button\[role="tab"\] \{(.*?)\}', STYLE, re.S).group(1)
+
+    @staticmethod
+    def tag(ident):
+        return re.search(r'<[a-z]+\b[^>]*\bid="%s"[^>]*>' % ident, MARKUP).group(0)
+
+    def test_the_tabs_are_a_tablist_of_two_buttons_with_the_two_labels(self):
+        self.assertEqual(re.findall(r'<div role="tablist" aria-label="Pages">', MARKUP), ['<div role="tablist" aria-label="Pages">'])
+        strip = re.search(r'<div role="tablist".*?</div>', MARKUP, re.S).group(0)
+        tabs = re.findall(r'<button\b[^>]*>.*?</button>', strip, re.S)
+        self.assertEqual(len(tabs), 2)
+        for tab, ident, label in zip(tabs, ("tab-car", "tab-tyres"), ("Car Tuner", "Tyre Creator")):
+            with self.subTest(ident):
+                self.assertIn('id="%s"' % ident, tab)
+                self.assertIn('role="tab"', tab)
+                self.assertIn('type="button"', tab)
+                self.assertTrue(tab.endswith(">%s</button>" % label), tab)
+        self.assertEqual(MARKUP.count('role="tab"'), 2)
+
+    def test_the_two_panels_are_tabpanels_labelled_by_their_tabs(self):
+        self.assertEqual(MARKUP.count('role="tabpanel"'), 2)
+        for tab, panel in (("tab-car", "panel-car"), ("tab-tyres", "panel-tyres")):
+            with self.subTest(tab):
+                self.assertIn('aria-controls="%s"' % panel, self.tag(tab))
+                self.assertIn('role="tabpanel"', self.tag(panel))
+                self.assertIn('aria-labelledby="%s"' % tab, self.tag(panel))
+
+    def test_every_aria_controls_and_labelledby_of_the_tabs_names_an_existing_id(self):
+        ids = set(dom_ids())
+        for ident in ("tab-car", "tab-tyres", "panel-car", "panel-tyres"):
+            with self.subTest(ident):
+                tag = self.tag(ident)
+                for target in re.findall(r'aria-(?:controls|labelledby)="([^"]+)"', tag):
+                    self.assertIn(target, ids)
+
+    def test_the_car_tuner_is_selected_on_load_with_a_roving_tabindex(self):
+        self.assertIn('aria-selected="true"', self.tag("tab-car"))
+        self.assertIn('tabindex="0"', self.tag("tab-car"))
+        self.assertIn('aria-selected="false"', self.tag("tab-tyres"))
+        self.assertIn('tabindex="-1"', self.tag("tab-tyres"))
+        self.assertEqual(MARKUP.count('aria-selected="true"'), 1)
+
+    def test_the_inactive_panel_is_hidden_and_the_active_one_is_not(self):
+        self.assertNotRegex(self.tag("panel-car"), r"\bhidden\b")
+        self.assertRegex(self.tag("panel-tyres"), r"\bhidden>$")
+
+    def test_the_car_tuner_elements_are_inside_the_car_panel(self):
+        for ident in ("car-select", "btn-install-tested", "btn-apply", "btn-duplicate", "dialog", "name-host", "untested", "status",
+                      "progress", "init-panel", "tuner", "search", "rows"):
+            with self.subTest(ident):
+                self.assertIn('id="%s"' % ident, self.CAR_PANEL)
+                self.assertNotIn('id="%s"' % ident, self.TYRES_PANEL)
+
+    def test_the_tyre_panel_is_a_placeholder_with_a_heading_and_one_paragraph(self):
+        self.assertIn("<h2>Tyre Creator</h2>", self.TYRES_PANEL)
+        self.assertEqual(re.findall(r"<p\b[^>]*>(.*?)</p>", self.TYRES_PANEL),
+                         ["Tyres you create here are saved once and can be ticked in the garage list of any modded car in the Car Tuner tab."])
+        self.assertEqual(re.findall(r'\bid="([^"]+)"', self.TYRES_PANEL), ["panel-tyres"])
+
+    def test_the_header_holds_the_title_only_and_the_tab_strip_follows_it(self):
+        header = re.search(r'<header class="bar">.*?</header>', MARKUP, re.S).group(0)
+        self.assertEqual(re.findall(r"<[a-z0-9]+", header), ["<header", "<h1"])
+        self.assertLess(MARKUP.index("</header>"), MARKUP.index('role="tablist"'))
+        self.assertLess(MARKUP.index('role="tablist"'), MARKUP.index('id="panel-car"'))
+        self.assertLess(MARKUP.index('id="panel-car"'), MARKUP.index('id="panel-tyres"'))
+
+    def test_the_script_selects_a_tab_by_flipping_aria_selected_tabindex_and_hidden_without_removing_anything(self):
+        body = function_body("selectTab")
+        self.assertIn('tab.setAttribute("aria-selected", k === i ? "true" : "false");', body)
+        self.assertIn("tab.tabIndex = k === i ? 0 : -1;", body)
+        self.assertIn("panels[k].hidden = k !== i;", body)
+        self.assertIn("activeTab = i;", body)
+        for sink in ("remove", "replaceChildren", "localStorage", "aria-live", "role"):
+            self.assertNotIn(sink, body)
+        self.assertRegex(CODE, r'(?m)^const tabs = \[\$\("tab-car"\), \$\("tab-tyres"\)\];')
+        self.assertRegex(CODE, r'(?m)^const panels = \[\$\("panel-car"\), \$\("panel-tyres"\)\];')
+        self.assertRegex(CODE, r"(?m)^let activeTab = 0;")
+
+    def test_the_script_handles_click_and_the_four_keys_with_wrap_around_and_moves_the_focus(self):
+        self.assertIn('tab.addEventListener("click", () => selectTab(i));', CODE)
+        self.assertIn('tab.addEventListener("keydown", tabKey);', CODE)
+        body = function_body("tabKey")
+        self.assertIn('ev.key === "ArrowRight") next = (activeTab + 1) % tabs.length;', body)
+        self.assertIn('ev.key === "ArrowLeft") next = (activeTab + tabs.length - 1) % tabs.length;', body)
+        self.assertIn('ev.key === "Home") next = 0;', body)
+        self.assertIn('ev.key === "End") next = tabs.length - 1;', body)
+        self.assertIn("selectTab(next);", body)
+        self.assertIn("tabs[next].focus();", body)
+        self.assertIn("ev.preventDefault();", body)
+        self.assertIn("if (ev.altKey || ev.ctrlKey || ev.metaKey) return;", body)
+
+    def test_the_active_tab_lives_in_a_variable_only_and_changes_nothing_of_the_car_tuner(self):
+        self.assertEqual(CODE.count("localStorage"), 2)
+        self.assertNotIn("activeTab", function_body("storeSelection") + function_body("storedSelection"))
+        for name in ("refresh", "switchCar", "applyFilter", "renderButtons", "toggleGroup", "closeDialog", "openDialog"):
+            with self.subTest(name):
+                self.assertNotIn("activeTab", function_body(name))
+        self.assertNotRegex(function_body("tabKey") + function_body("selectTab"), r"aria-live|setAttribute\(\"role\"")
+
+    def test_the_selected_tab_is_styled_by_aria_selected_not_by_a_class(self):
+        self.assertIn('button[role="tab"][aria-selected="true"] { border-bottom-color: var(--color-accent); color: var(--color-text); }', STYLE)
+        self.assertNotRegex(STYLE, r"\.(?:selected|active|current)\b")
+        self.assertNotRegex(CODE, r'classList\.[a-z]+\("(?:selected|active|current)"')
+        self.assertNotIn("className", function_body("selectTab"))
+
+    def test_the_tab_style_is_muted_on_the_page_background_with_a_hover_text_and_a_comfortable_height(self):
+        self.assertIn("background: transparent; color: var(--color-text-muted);", self.TAB_RULE)
+        self.assertRegex(self.TAB_RULE, r"min-height: (?:4\d|[5-9]\d)px;")
+        self.assertIn('button[role="tab"]:hover { border-bottom-color: transparent; color: var(--color-text); }', STYLE)
+        self.assertIn("border-bottom: 1px solid var(--color-border);", re.search(r'\[role="tablist"\] \{(.*?)\}', STYLE).group(0))
+        self.assertIn("border-bottom-width: 2px;", self.TAB_RULE)
+
+    def test_the_tabs_keep_the_focus_ring_and_add_no_animation(self):
+        self.assertNotRegex(STYLE, r"outline:\s*(?:none|0)")
+        self.assertNotIn("transition", self.TAB_RULE)
+        self.assertNotIn("animation", STYLE)
+
+    def test_the_tab_rules_come_after_the_general_button_rules_so_that_they_win_the_hover_tie(self):
+        self.assertLess(STYLE.index("button:hover:not(:disabled)"), STYLE.index('button[role="tab"]:hover'))
+        self.assertLess(STYLE.index('button[role="tab"]:hover'), STYLE.index('button[role="tab"][aria-selected="true"]'))
 
 
 class TestStartBat(unittest.TestCase):

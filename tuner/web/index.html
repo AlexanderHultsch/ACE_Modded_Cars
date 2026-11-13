@@ -70,6 +70,15 @@ button:hover:not(:disabled) { border-color: var(--color-accent); }
 button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-contrast); }
 button.primary:hover:not(:disabled) { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+[role="tablist"] { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--color-border); }
+button[role="tab"] {
+  min-height: 40px; padding: 8px 16px; margin-bottom: -1px; border: 0; border-radius: 6px 6px 0 0;
+  border-bottom-width: 2px; border-bottom-style: solid; border-bottom-color: transparent;
+  background: transparent; color: var(--color-text-muted);
+}
+button[role="tab"]:hover { border-bottom-color: transparent; color: var(--color-text); }
+button[role="tab"][aria-selected="true"] { border-bottom-color: var(--color-accent); color: var(--color-text); }
+[role="tabpanel"] > .panel:first-child { margin-top: 16px; }
 button:focus-visible, input:focus-visible, select:focus-visible {
   outline: 2px solid var(--color-accent); outline-offset: 1px;
 }
@@ -187,77 +196,94 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 <body>
 <div class="page">
   <header class="bar">
-    <div class="title">
-      <h1>ACE - Simple Car Tuner</h1>
-      <label class="carpick">Car
-        <select id="car-select" aria-label="Car" disabled></select>
-      </label>
-      <button id="btn-install-tested" type="button" disabled>Install the tested cars</button>
-    </div>
-    <div class="actions">
-      <button id="btn-apply" class="primary" type="button" disabled>Create modded car&hellip;</button>
-      <button id="btn-duplicate" type="button" disabled>Duplicate&hellip;</button>
-    </div>
+    <h1>ACE - Simple Car Tuner</h1>
   </header>
 
-  <section id="dialog" class="panel dialog" role="group" aria-labelledby="dialog-title" hidden>
-    <h2 id="dialog-title"></h2>
-    <div class="field">
-      <label for="dialog-id">Tuned car id</label>
-      <input id="dialog-id" class="mono" type="text" autocomplete="off" spellcheck="false" aria-describedby="dialog-hint">
+  <div role="tablist" aria-label="Pages">
+    <button id="tab-car" role="tab" type="button" aria-selected="true" aria-controls="panel-car" tabindex="0">Car Tuner</button>
+    <button id="tab-tyres" role="tab" type="button" aria-selected="false" aria-controls="panel-tyres" tabindex="-1">Tyre Creator</button>
+  </div>
+
+  <div id="panel-car" role="tabpanel" aria-labelledby="tab-car">
+    <div class="bar">
+      <div class="title">
+        <label class="carpick">Car
+          <select id="car-select" aria-label="Car" disabled></select>
+        </label>
+        <button id="btn-install-tested" type="button" disabled>Install the tested cars</button>
+      </div>
+      <div class="actions">
+        <button id="btn-apply" class="primary" type="button" disabled>Create modded car&hellip;</button>
+        <button id="btn-duplicate" type="button" disabled>Duplicate&hellip;</button>
+      </div>
     </div>
-    <div class="field">
-      <label for="dialog-suffix">Name suffix</label>
-      <input id="dialog-suffix" type="text" autocomplete="off" spellcheck="false">
-    </div>
-    <p id="dialog-hint" class="hint"></p>
-    <p id="dialog-error" class="msg err" role="alert" hidden></p>
-    <div class="actions">
-      <button id="dialog-ok" class="primary" type="button">OK</button>
-      <button id="dialog-cancel" type="button">Cancel</button>
-    </div>
-  </section>
 
-  <div id="name-host" hidden></div>
+    <section id="dialog" class="panel dialog" role="group" aria-labelledby="dialog-title" hidden>
+      <h2 id="dialog-title"></h2>
+      <div class="field">
+        <label for="dialog-id">Tuned car id</label>
+        <input id="dialog-id" class="mono" type="text" autocomplete="off" spellcheck="false" aria-describedby="dialog-hint">
+      </div>
+      <div class="field">
+        <label for="dialog-suffix">Name suffix</label>
+        <input id="dialog-suffix" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <p id="dialog-hint" class="hint"></p>
+      <p id="dialog-error" class="msg err" role="alert" hidden></p>
+      <div class="actions">
+        <button id="dialog-ok" class="primary" type="button">OK</button>
+        <button id="dialog-cancel" type="button">Cancel</button>
+      </div>
+    </section>
 
-  <p id="untested" class="untested" hidden></p>
+    <div id="name-host" hidden></div>
 
-  <div id="status" class="strip" role="status" aria-live="polite"></div>
+    <p id="untested" class="untested" hidden></p>
 
-  <section id="progress" class="panel" hidden aria-live="polite"></section>
+    <div id="status" class="strip" role="status" aria-live="polite"></div>
 
-  <section id="init-panel" class="panel" hidden>
-    <h2>Car not installed yet</h2>
-    <p id="init-text">The tuner needs the car's files from the game as its starting point. Installing pulls them once (about 20 seconds).</p>
-    <button id="btn-init" class="primary" type="button">Install car (pull game files)</button>
-  </section>
+    <section id="progress" class="panel" hidden aria-live="polite"></section>
 
-  <section id="tuner" hidden>
-    <div class="toolbar">
-      <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
-      <label><input id="changed-only" type="checkbox"> changed only</label>
-      <button id="btn-expand-all" type="button">Expand all</button>
-      <button id="btn-collapse-all" type="button">Collapse all</button>
-      <span class="spacer"></span>
-      <button id="btn-reset-all" type="button">Reset all</button>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <caption id="caption" class="sr-only">Settings of the selected car</caption>
-        <colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-desc"></colgroup>
-        <thead>
-          <tr>
-            <th scope="col">Variable name</th>
-            <th scope="col">Value</th>
-            <th scope="col">Default (for the selected car)</th>
-            <th scope="col">Description</th>
-          </tr>
-        </thead>
-        <tbody id="rows"></tbody>
-      </table>
-      <div id="empty" class="empty" hidden>No settings match.</div>
-    </div>
-  </section>
+    <section id="init-panel" class="panel" hidden>
+      <h2>Car not installed yet</h2>
+      <p id="init-text">The tuner needs the car's files from the game as its starting point. Installing pulls them once (about 20 seconds).</p>
+      <button id="btn-init" class="primary" type="button">Install car (pull game files)</button>
+    </section>
+
+    <section id="tuner" hidden>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
+        <label><input id="changed-only" type="checkbox"> changed only</label>
+        <button id="btn-expand-all" type="button">Expand all</button>
+        <button id="btn-collapse-all" type="button">Collapse all</button>
+        <span class="spacer"></span>
+        <button id="btn-reset-all" type="button">Reset all</button>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <caption id="caption" class="sr-only">Settings of the selected car</caption>
+          <colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-desc"></colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Variable name</th>
+              <th scope="col">Value</th>
+              <th scope="col">Default (for the selected car)</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div id="empty" class="empty" hidden>No settings match.</div>
+      </div>
+    </section>
+  </div>
+
+  <div id="panel-tyres" role="tabpanel" aria-labelledby="tab-tyres" hidden>
+    <section class="panel">
+      <h2>Tyre Creator</h2>
+      <p>Tyres you create here are saved once and can be ticked in the garage list of any modded car in the Car Tuner tab.</p>
+    </section>
+  </div>
 </div>
 
 <script>
@@ -302,6 +328,11 @@ let carConfirmed = false;
 let dialog = null;
 // set after Create started its job: {car, known: ids of the modded cars before}; the new car is selected when the job ends
 let awaitCreated = null;
+// the tabs and their panels in the same order; the shown tab is the index activeTab. Panels are hidden, never removed,
+// so the Car Tuner keeps its state and its polling while the other tab is shown
+const tabs = [$("tab-car"), $("tab-tyres")];
+const panels = [$("panel-car"), $("panel-tyres")];
+let activeTab = 0;
 
 function storedSelection() {
   const none = { car: null, tune: DRAFT };
@@ -1068,6 +1099,34 @@ function switchCar(next) {
   refresh();
 }
 
+/* ---------- tabs ---------- */
+
+function selectTab(i) {
+  activeTab = i;
+  tabs.forEach((tab, k) => {
+    tab.setAttribute("aria-selected", k === i ? "true" : "false");
+    tab.tabIndex = k === i ? 0 : -1;
+    panels[k].hidden = k !== i;
+  });
+}
+
+function tabKey(ev) {
+  if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+  let next;
+  if (ev.key === "ArrowRight") next = (activeTab + 1) % tabs.length;
+  else if (ev.key === "ArrowLeft") next = (activeTab + tabs.length - 1) % tabs.length;
+  else if (ev.key === "Home") next = 0;
+  else if (ev.key === "End") next = tabs.length - 1;
+  else return;
+  ev.preventDefault();
+  selectTab(next);
+  tabs[next].focus();
+}
+
+tabs.forEach((tab, i) => {
+  tab.addEventListener("click", () => selectTab(i));
+  tab.addEventListener("keydown", tabKey);
+});
 $("car-select").addEventListener("change", () => switchCar(choiceOf($("car-select").value)));
 $("btn-apply").addEventListener("click", () => {
   if (selection.tune === DRAFT) openDialog("create");
