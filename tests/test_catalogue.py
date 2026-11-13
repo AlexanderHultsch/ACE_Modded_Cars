@@ -16,9 +16,17 @@ KNOWN_KEYS = set(tune.REQUIRED) | {"min", "max", "default", "default_template", 
 ROLE_NAMES = set(tune.MANIFEST_ROLES) | set(tune.TYRE_ROLES) | {"car", "mech_preset", "turbo"}
 TEMPLATE_FIELDS = {"stock_display_name", "stock_variant_name"}
 COMMON = "content\\cars\\common_phsx\\"
+GROUP_ORDER = ["Meta", "Display", "Engine", "Turbo", "Gearbox & clutch", "Differential", "Differential (hardware)", "Steering",
+               "Brakes", "Vehicle (hardware)", "Springs & anti-roll", "Ride height & bump stops", "Dampers", "Suspension (physical)",
+               "Alignment & tyres", "Tyres", "Fuel", "Electronics"]
+MOVED = {"clutch_max_torque": "Gearbox & clutch", "steer_ratio": "Steering", "steer_ratio_min": "Steering",
+         "steer_ratio_max": "Steering", "steer_rod_ratio": "Steering", "steer_lock_deg": "Steering",
+         "caster_front": "Alignment & tyres", "brake_bias": "Brakes", "brake_bias_min": "Brakes", "brake_bias_max": "Brakes",
+         "brake_bias_hw": "Brakes", "brake_torque": "Brakes", "handbrake_torque": "Brakes"}
 CAT = tune.load_catalogue()
 SETTINGS = CAT["settings"]
 BY_ID = {s["id"]: s for s in SETTINGS}
+BY_GROUP = {g["name"]: g for g in CAT["groups"]}
 CARS_DATA = tune.load_cars()
 
 
@@ -268,9 +276,39 @@ class TestCatalogueData(unittest.TestCase):
         self.assertEqual(front["choices"], rear["choices"])
         self.assertEqual(front["choice_values"], rear["choice_values"])
 
-    def test_groups_are_contiguous(self):
+    def test_only_the_regrouped_groups_are_split_in_the_file(self):
         runs = [s["group"] for i, s in enumerate(SETTINGS) if i == 0 or s["group"] != SETTINGS[i - 1]["group"]]
-        self.assertEqual(len(runs), len(set(runs)))
+        self.assertEqual({g for g, n in collections.Counter(runs).items() if n > 1},
+                         {"Gearbox & clutch", "Steering", "Brakes", "Alignment & tyres"})
+
+    def test_the_group_list_is_the_decided_order(self):
+        self.assertEqual([g["name"] for g in CAT["groups"]], GROUP_ORDER)
+        self.assertEqual([g["name"] for g in tune.group_list()], GROUP_ORDER)
+
+    def test_every_group_has_a_one_line_description_and_nothing_else(self):
+        for g in CAT["groups"]:
+            with self.subTest(g["name"]):
+                self.assertEqual(set(g), {"name", "description"})
+                self.assertTrue(0 < len(g["description"]) <= tune.GROUP_DESCRIPTION_MAX)
+                self.assertEqual(g["description"], g["description"].strip())
+                self.assertNotRegex(g["description"], r"[\x00-\x1f\x7f]")
+
+    def test_every_setting_group_is_listed_and_every_listed_group_is_used(self):
+        self.assertEqual({s["group"] for s in SETTINGS}, set(GROUP_ORDER))
+        self.assertEqual([s["id"] for s in SETTINGS if s["group"] not in GROUP_ORDER], [])
+
+    def test_the_regrouped_settings_are_in_their_new_groups(self):
+        self.assertEqual({sid: BY_ID[sid]["group"] for sid in MOVED}, MOVED)
+
+    def test_the_old_group_names_are_gone(self):
+        self.assertFalse({"Gearing", "Steering & brakes (setup)", "Brakes & steering (hardware)"} & {s["group"] for s in SETTINGS})
+
+    def test_the_group_sizes_after_the_regrouping(self):
+        self.assertEqual(collections.Counter(s["group"] for s in SETTINGS),
+                         {"Meta": 2, "Display": 2, "Engine": 10, "Turbo": 3, "Gearbox & clutch": 14, "Differential": 6,
+                          "Differential (hardware)": 6, "Steering": 5, "Brakes": 6, "Vehicle (hardware)": 1,
+                          "Springs & anti-roll": 12, "Ride height & bump stops": 12, "Dampers": 8, "Suspension (physical)": 12,
+                          "Alignment & tyres": 15, "Tyres": 24, "Fuel": 1, "Electronics": 4})
 
     def test_ui_hint_is_header(self):
         self.assertEqual({s["ui"] for s in SETTINGS if "ui" in s}, {"header"})
@@ -350,6 +388,90 @@ class TestLoaderValidation(unittest.TestCase):
             data = mini_catalogue(mini_setting("a", targets=[("@engine", "limiter")]))
             del data["car_id"]
             tune.load_catalogue(write_json(d, "c.json", data))
+
+
+MISSING = object()
+
+
+class TestGroupsValidation(unittest.TestCase):
+    def load(self, groups, *settings):
+        with tmp() as d:
+            data = mini_catalogue(*(settings or (mini_setting("a", targets=[("@engine", "limiter")]),)))
+            if groups is MISSING:
+                del data["groups"]
+            else:
+                data["groups"] = groups
+            return tune.load_catalogue(write_json(d, "c.json", data))
+
+    def test_listed_groups_load_and_keep_their_order(self):
+        a, b = mini_setting("a", group="B", targets=[("@engine", "limiter")]), mini_setting("b", group="A", targets=[("@engine", "x")])
+        groups = [{"name": "A", "description": "da"}, {"name": "B", "description": "db"}]
+        self.assertEqual(self.load(groups, a, b)["groups"], groups)
+
+    def test_a_description_of_exactly_the_limit_is_accepted(self):
+        self.load([{"name": "G", "description": "x" * tune.GROUP_DESCRIPTION_MAX}])
+
+    def test_invalid_groups_are_refused(self):
+        ok = {"name": "G", "description": "d"}
+        cases = [
+            ("missing key", MISSING, "needs groups"),
+            ("empty list", [], "needs groups"),
+            ("not a list", {"G": "d"}, "needs groups"),
+            ("entry not an object", ["G"], "every group needs a name and a description"),
+            ("name missing", [{"description": "d"}], "every group needs a name and a description"),
+            ("name empty", [{"name": "", "description": "d"}], "every group needs a name and a description"),
+            ("name not text", [{"name": 1, "description": "d"}], "every group needs a name and a description"),
+            ("description missing", [{"name": "G"}], "every group needs a name and a description"),
+            ("description empty", [{"name": "G", "description": ""}], "every group needs a name and a description"),
+            ("description not text", [{"name": "G", "description": None}], "every group needs a name and a description"),
+            ("description too long", [{"name": "G", "description": "x" * (tune.GROUP_DESCRIPTION_MAX + 1)}],
+             "every group needs a name and a description"),
+            ("newline in the description", [{"name": "G", "description": "a\nb"}], "group 'G' has a tab, a newline"),
+            ("tab in the description", [{"name": "G", "description": "a\tb"}], "group 'G' has a tab, a newline"),
+            ("control character in the name", [{"name": "G\x01", "description": "d"}], "tab, a newline or another control"),
+            ("duplicate name", [ok, dict(ok, description="other")], "duplicate group name 'G'"),
+        ]
+        for name, groups, message in cases:
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, message):
+                    self.load(groups)
+
+    def test_a_setting_group_that_is_not_listed_is_refused_with_the_setting_named(self):
+        with self.assertRaisesRegex(ValueError, "setting 'a' has the group 'G', which is not listed in groups"):
+            self.load([{"name": "H", "description": "d"}])
+
+    def test_a_listed_group_that_no_setting_uses_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "group 'Unused' is listed in groups but no setting uses it"):
+            self.load([{"name": "G", "description": "d"}, {"name": "Unused", "description": "d"}])
+
+    def test_the_error_names_the_catalogue_file(self):
+        with tmp() as d:
+            data = mini_catalogue(mini_setting("a", targets=[("@engine", "limiter")]))
+            del data["groups"]
+            path = write_json(d, "c.json", data)
+            with self.assertRaises(ValueError) as cm:
+                tune.load_catalogue(path)
+            self.assertIn(path, str(cm.exception))
+
+
+class TestGroupList(unittest.TestCase):
+    CAT = {"groups": [{"name": "B", "description": "db"}, {"name": "A", "description": "da"}], "settings": []}
+
+    def test_it_returns_the_groups_in_order(self):
+        self.assertEqual(tune.group_list(self.CAT), [{"name": "B", "description": "db"}, {"name": "A", "description": "da"}])
+
+    def test_the_result_is_a_copy_the_caller_may_change(self):
+        cat = {"groups": [{"name": "B", "description": "db"}], "settings": []}
+        first = tune.group_list(cat)
+        first[0]["name"] = "changed"
+        first.append({"name": "x", "description": "y"})
+        self.assertEqual(cat["groups"], [{"name": "B", "description": "db"}])
+        self.assertEqual(tune.group_list(cat), [{"name": "B", "description": "db"}])
+        self.assertIsNot(tune.group_list(cat)[0], tune.group_list(cat)[0])
+
+    def test_without_an_argument_it_reads_the_catalogue_file(self):
+        self.assertEqual(tune.group_list(), CAT["groups"])
+        self.assertIsNot(tune.group_list()[0], CAT["groups"][0])
 
 
 class TestCarsJson(unittest.TestCase):
@@ -447,14 +569,25 @@ class TestReferenceDocs(unittest.TestCase):
         cls.texts = {c["id"]: (DOCS / (c["id"] + ".md")).read_bytes().decode("utf-8") for c in CARS_DATA["cars"]}
         cls.docs = {car: parse_doc(text) for car, text in cls.texts.items()}
 
-    def test_rows_are_a_subset_of_the_catalogue_in_catalogue_order(self):
-        order = [s["id"] for s in SETTINGS]
+    def test_rows_are_a_subset_of_the_catalogue_in_group_order_then_catalogue_order(self):
+        order = [s["id"] for s in sorted(SETTINGS, key=lambda s: GROUP_ORDER.index(s["group"]))]
         for car, doc in self.docs.items():
             with self.subTest(car):
                 ids = [r["id"] for r in doc["rows"]]
                 self.assertEqual(len(ids), len(set(ids)))
                 self.assertLessEqual(set(ids), set(order))
                 self.assertEqual(ids, [i for i in order if i in set(ids)])
+
+    def test_each_group_heading_is_followed_by_the_description_of_the_group(self):
+        descriptions = {g["name"]: g["description"] for g in CAT["groups"]}
+        for car, text in self.texts.items():
+            with self.subTest(car):
+                headings = re.findall(r"^## (.*)$", text, re.M)
+                groups = [h for h in headings if h not in ("Copies differ in the stock data", "Not covered yet")]
+                self.assertEqual(groups, [g for g in GROUP_ORDER if g in set(groups)])
+                self.assertEqual(set(groups), {r["group"] for r in self.docs[car]["rows"]})
+                for g in groups:
+                    self.assertIn("\n## %s\n\n%s\n\n| Variable | Name |" % (g, descriptions[g]), text)
 
     def test_labels_groups_units_descriptions_and_status_equal_the_catalogue(self):
         for car, doc in self.docs.items():
@@ -516,6 +649,27 @@ class TestReferenceDocs(unittest.TestCase):
         self.assertIn("- `a`: `@car p` = 1; `@engine p` = 2\n", text)
         self.assertNotIn("(`b`)", text)
         self.assertTrue(text.endswith("\n- " + tune.DOC_NOT_COVERED[-1] + "\n"))
+
+    def test_doc_text_orders_the_groups_by_the_group_list_and_puts_the_description_under_the_heading(self):
+        def row(rid, group):
+            return dict(group=group, id=rid, label=rid, absent=False, unit="", description="x", verified=True, default=1,
+                        copies_differ=False)
+
+        rows = [row("a", "G1"), row("b", "G2"), row("c", "G1"), row("d", "G3"), row("e", "G0")]
+        groups = [{"name": "G2", "description": "second first"}, {"name": "G1", "description": "then first"},
+                  {"name": "Unused", "description": "not in the rows"}]
+        text = tune.doc_text("ks_x", "Car X", rows, groups)
+        self.assertEqual(re.findall(r"^## (.*)$", text, re.M), ["G2", "G1", "G3", "G0", "Not covered yet"])
+        self.assertIn("## G2\n\nsecond first\n\n| Variable |", text)
+        self.assertIn("## G1\n\nthen first\n\n| Variable |", text)
+        self.assertIn("## G3\n\n| Variable |", text)
+        self.assertEqual(re.findall(r"^\| `(\w)`", text, re.M), ["b", "a", "c", "d", "e"])
+        self.assertNotIn("not in the rows", text)
+
+    def test_doc_text_takes_the_group_list_of_the_catalogue_by_default(self):
+        text = tune.doc_text("ks_x", "Car X", [dict(group="Fuel", id="f", label="F", absent=False, unit="", description="x",
+                                                   verified=True, default=1, copies_differ=False)])
+        self.assertIn("## Fuel\n\n%s\n\n| Variable |" % BY_GROUP["Fuel"]["description"], text)
 
 
 class TestStatedCounts(unittest.TestCase):

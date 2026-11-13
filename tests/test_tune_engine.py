@@ -2735,6 +2735,7 @@ class TestCommands(CarCase):
         rows = tune.resolve_defaults(self.work, "ks_x")
         self.assertEqual(text, tune.doc_text("ks_x", "Car X", rows))
         self.assertIn("| `limiter` | L limiter | 7000 |", text)
+        self.assertIn("## G\n\nd G\n\n| Variable |", text)
         self.assertNotIn("`deep`", text)
         self.assertIn("## Copies differ in the stock data", text)
 

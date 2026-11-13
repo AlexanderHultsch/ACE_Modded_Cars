@@ -4,6 +4,8 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 ## Meta
 
+Names shown in the game's car list. The name suffix tells your tuned car apart from the stock car.
+
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `variant_name` | Variant name | GR86 Premium |  | Name of the car's preset/variant (value of the line whose key ends with _preset_base in en.cars.loc written by the build). The default is the stock car's own text for that line, you can change it. Shown only for cars whose stock text has such a line (cars without one get no variant line). Where exactly the game shows it is not confirmed. | unverified |
@@ -11,12 +13,16 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 ## Display
 
+Numbers shown on the car's spec sheet in the menus. They are text only and do not change how the car drives.
+
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `display_power_ps` | Displayed power | 235.0 | PS | Power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. The file stores the unit as HORSEPOWER_US. | unverified |
 | `display_torque_nm` | Displayed torque | 250.0 | Nm | Torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine. | unverified |
 
 ## Engine
+
+Power, rev limit and throttle behaviour of the engine. The power scale multiplies the whole torque curve.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -31,7 +37,9 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 | `throttle_lag_dn` | Throttle lag down | 0.92 |  | Throttle response lag when the throttle is closed (EngineData.throttle_lag_dn). Scale and effect are not confirmed. The engine map also stores its own value, which this setting does not change. | unverified |
 | `coast_scale` | Coast scale | 1.0 | x | Multiplies the value of every point of the engine coast (off-throttle) curve. From about 1000 rpm upwards the stock points are negative, so a higher factor means stronger engine braking there; the positive points at low rpm are scaled too. 1.0 is stock. Reading of the curve is assumed, not confirmed in the game. | unverified |
 
-## Gearing
+## Gearbox & clutch
+
+Gear ratios, shift times and the automatic shifter, plus the clutch torque. A higher ratio number is a shorter gear.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -46,8 +54,11 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 | `gear_up_time` | Upshift time | 280.0 | ms | Duration of an upshift (GearBoxData.gear_up_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts. | unverified |
 | `gear_dn_time` | Downshift time | 300.0 | ms | Duration of a downshift (GearBoxData.gear_dn_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts. | unverified |
 | `auto_cut_off_time` | Auto cut-off time | 0.0 (absent) | ms | Time the engine power is cut during an automatic shift (GearBoxData.auto_cut_off_time). Assumed to be milliseconds, not confirmed. A lower value shortens the power cut. | unverified |
+| `clutch_max_torque` | Clutch max torque | 500.0 | Nm | Maximum torque the clutch transmits before it slips (ClutchData.clutch_max_torque), written to the clutch file and the car's inline copy. A lower value should let the clutch slip earlier, a higher one hold more torque; effect in the game not confirmed. | unverified |
 
 ## Differential
+
+Setup defaults of the differential as offered in the in-game setup (power, coast, preload). In the game the setup values count, they override the hardware values of the car files.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -60,6 +71,8 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 ## Differential (hardware)
 
+The differential model in the car's drivetrain file: type and lock factors. A lock factor is a multiplier of the input torque (1.0 is 100%), preload is in Nm. The setup values override these.
+
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `diff_type` | Differential type | Torsen |  | Differential hardware model (DifferentialData.type). Spool is a fully locked rear axle, the drift classic. The stock file does not store this field, so it reads as the first choice, LSD. Not confirmed that the game applies it for this car. | unverified |
@@ -69,7 +82,9 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 | `diff_hw_power` | Diff lock power (hardware) | 0.03 |  | Lock factor under power of the differential model (DifferentialData.power), assumed 0 (open) to 1 (locked). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed. | unverified |
 | `diff_hw_coast` | Diff lock coast (hardware) | 0.03 |  | Lock factor on coast of the differential model (DifferentialData.coast), assumed 0 (open) to 1 (locked). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed. | unverified |
 
-## Steering & brakes (setup)
+## Steering
+
+Steering ratio and steering lock. The lock is measured from the centre to full lock, so the full range is twice the value. A negative ratio is needed when the steering arm sits behind the wheel centre.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -77,28 +92,32 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 | `steer_ratio_min` | Steering ratio min | 13.2 | :1 | Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest steering ratio allowed (quickest steering). | unverified |
 | `steer_ratio_max` | Steering ratio max | 13.2 | :1 | Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest steering ratio allowed (slowest steering). | unverified |
 | `steer_rod_ratio` | Steering rod ratio | 0.001975 |  | Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022). Effect in the game not confirmed. | unverified |
-| `caster_front` | Front caster | -0.06296 | deg | Default setup: caster angle of the front wheels (both wheels). The stock values are small negative numbers and the unit is assumed to be degrees, not confirmed; the effect on the steering in the game is not confirmed. | unverified |
+| `steer_lock_deg` | Steering lock | 450.0 | deg | Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed whether per side or lock to lock. Raising it allows more wheel rotation, and with it more front wheel angle. | unverified |
+
+## Brakes
+
+Total brake torque and the front/rear bias. The total torque is split by the current bias; the bias of the setup overrides the car file.
+
+| Variable | Name | Default | Unit | Description | Status |
+| --- | --- | --- | --- | --- | --- |
 | `brake_bias` | Brake bias front | 75.0 | % | Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner. | verified |
 | `brake_bias_min` | Brake bias min | 72.0 | % | Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front brake bias allowed. The stock file does not store this field, so it reads as 0. | unverified |
 | `brake_bias_max` | Brake bias max | 72.0 | % | Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front brake bias allowed. | unverified |
 | `brake_bias_hw` | Brake bias front (brake file) | 72.0 | % | Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Most cars store a percentage (for example 68), some store a fraction (for example 0.75); which of the two the game reads is not confirmed. | unverified |
-
-## Brakes & steering (hardware)
-
-| Variable | Name | Default | Unit | Description | Status |
-| --- | --- | --- | --- | --- | --- |
-| `clutch_max_torque` | Clutch max torque | 500.0 | Nm | Maximum torque the clutch transmits before it slips (ClutchData.clutch_max_torque), written to the clutch file and the car's inline copy. A lower value should let the clutch slip earlier, a higher one hold more torque; effect in the game not confirmed. | unverified |
 | `handbrake_torque` | Handbrake torque | 1000.0 | Nm | Braking torque of the handbrake (BrakesData.handBrakeTorque). Raising it locks the rear wheels harder when the handbrake is pulled, which helps start a slide. | verified |
 | `brake_torque` | Total brake torque | 2700.0 | Nm | Total braking torque of the brake system (BrakesData.totalTorque). Raising it makes the brakes stronger. | verified |
-| `steer_lock_deg` | Steering lock | 450.0 | deg | Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed whether per side or lock to lock. Raising it allows more wheel rotation, and with it more front wheel angle. | unverified |
 
 ## Vehicle (hardware)
+
+Mass of the car as the physics uses it. A different mass shifts the weight balance and ride height; the stored spring collar positions are not recomputed by this tuner.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `car_mass` | Car mass | 1359.0 | kg | Physics mass of the car (GeneralCarData.totalMass, stored in the .car only). The displayed weight on the spec sheet is separate text. Raising it makes the car heavier to accelerate, brake and turn. | verified |
 
 ## Springs & anti-roll
+
+Spring rates and anti-roll bar stiffness of the setup, with the limits of the in-game setup screen. The setup values override the coilover values of the car files.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -117,6 +136,8 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 ## Ride height & bump stops
 
+Target ride height, spring collar positions and bump stops of the setup. Kunos: the editor's Auto Setup computes the collar positions from the ride height, so change them by hand only together and test the result.
+
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `ride_height_front` | Front ride height | 140.0 | mm | Default setup: target ride height of the front axle (setup aero.front_target_height). The spring collar positions (collar_front) realise the target height, so change them together; the effect on the handling is not confirmed. | unverified |
@@ -134,6 +155,8 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 ## Dampers
 
+Slow and fast damper rates of the setup. Cars with active dampers ignore these values, and cars with racing damper tables may use click numbers instead of force values: check this on the car.
+
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `damper_front_slow_bump` | Front damper slow bump | 6.0 | Ns/m | Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer. | verified |
@@ -146,6 +169,8 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 | `damper_rear_fast_rebound` | Rear damper fast rebound | 3000.0 | Ns/m | Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the rear axle (both wheels). Higher is firmer. | verified |
 
 ## Suspension (physical)
+
+Spring, damper and anti-roll values stored in the car files themselves (coilover files). The setup values override most of them; they still matter inside the simulation of that file.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -164,8 +189,11 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 ## Alignment & tyres
 
+Camber, toe, caster and tyre pressure of the setup, with their limits. A setup value outside its limits is forced to the limit by the game, which can make the car behave wrongly: keep value and limits consistent.
+
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
+| `caster_front` | Front caster | -0.06296 | deg | Default setup: caster angle of the front wheels (both wheels). The stock values are small negative numbers and the unit is assumed to be degrees, not confirmed; the effect on the steering in the game is not confirmed. | unverified |
 | `camber_front` | Front camber | -0.9 | deg | Default setup: front wheel tilt (both wheels). More negative tilts the top of the wheel inward, which gives more grip in corners and less on straights. | verified |
 | `camber_rear` | Rear camber | -1.9 | deg | Default setup: rear wheel tilt (both wheels). More negative tilts the top of the wheel inward, which gives more cornering grip and less straight-line grip at the rear. | verified |
 | `toe_front` | Front toe | -0.04999999 | deg | Default setup: front wheel toe angle (both wheels). Sign convention assumed: a negative value points the fronts slightly outward. | verified |
@@ -182,6 +210,8 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 | `tyre_pressure_max` | Tyre pressure max | 45.0 | psi | Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest tyre pressure allowed (all four wheels). | unverified |
 
 ## Tyres
+
+Tyre model values of the car's own tyre files. Kunos advises against editing them: the code connecting them is not user-controlled and a changed calibration can make a tyre behave unpredictably. Change little and test.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -212,11 +242,15 @@ This file lists the tuner settings (`tuner/catalogue.json`) of the Toyota GR86 (
 
 ## Fuel
 
+Fuel at the start of a session. Fuel weight changes the balance of the car.
+
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |
 | `fuel_start` | Starting fuel | 30.0 | L | Default setup: fuel in the tank at the start. More fuel adds weight. | verified |
 
 ## Electronics
+
+Traction control and ABS levels. Levels are counted from 0 (the first level); the car must define the first level as no intervention for the aid to be switchable off.
 
 | Variable | Name | Default | Unit | Description | Status |
 | --- | --- | --- | --- | --- | --- |

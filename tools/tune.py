@@ -212,6 +212,7 @@ STOCK_PROPERTIES = ("property_1", "property_2", "property_3")
 # apply fallback for the default car when stock_info.json is missing and the game is not reachable: the values of the BMW M3 E46 CSL
 CLONE_YEAR, CLONE_BRAND = 2003, "BMW"
 NAME_SUFFIX_MAX = 30
+GROUP_DESCRIPTION_MAX = 360
 KINDS = ("value", "curve_scale", "meta", "flag")
 VALUE_TYPES = ("int", "float", "string", "enum", "bool")
 HANDLERS = ("variant_name", "name_suffix")
@@ -370,6 +371,20 @@ def load_catalogue(path=CATALOGUE):
     cat = read_json(path)
     if not isinstance(cat.get("settings"), list):
         raise ValueError("%s: needs settings" % path)
+    names = []
+    for g in cat.get("groups") if isinstance(cat.get("groups"), list) else []:
+        if not (isinstance(g, dict) and isinstance(g.get("name"), str) and g["name"]
+                and isinstance(g.get("description"), str) and 0 < len(g["description"]) <= GROUP_DESCRIPTION_MAX):
+            raise ValueError("%s: every group needs a name and a description (text of 1 to %d characters)"
+                             % (path, GROUP_DESCRIPTION_MAX))
+        if any(ord(c) < 32 or ord(c) == 127 for c in g["name"] + g["description"]):
+            raise ValueError("%s: group %r has a tab, a newline or another control character in its name or description"
+                             % (path, g["name"]))
+        if g["name"] in names:
+            raise ValueError("%s: duplicate group name %r" % (path, g["name"]))
+        names.append(g["name"])
+    if not names:
+        raise ValueError("%s: needs groups, a list of name and description" % path)
     seen = set()
     for s in cat["settings"]:
         missing = [k for k in REQUIRED if k not in s]
@@ -415,7 +430,18 @@ def load_catalogue(path=CATALOGUE):
                                         and (isinstance(s.get("default"), str) or isinstance(s.get("default_template"), str))):
             raise ValueError("%s: setting %r needs a handler (%s) and a string default or default_template"
                              % (path, s["id"], "/".join(HANDLERS)))
+        if s["group"] not in names:
+            raise ValueError("%s: setting %r has the group %r, which is not listed in groups" % (path, s["id"], s["group"]))
+    used = {s["group"] for s in cat["settings"]}
+    unused = [n for n in names if n not in used]
+    if unused:
+        raise ValueError("%s: group %r is listed in groups but no setting uses it" % (path, unused[0]))
     return cat
+
+
+def group_list(catalogue=None):
+    """The setting groups of the catalogue in display order, as copies of {"name", "description"}."""
+    return [{"name": g["name"], "description": g["description"]} for g in (catalogue or load_catalogue())["groups"]]
 
 
 def find_setting(cat, setting_id):
@@ -2415,18 +2441,22 @@ def note_untested(car_id):
         print("note: %s is not in the tested list; results are unverified" % car_id)
 
 
-def doc_text(car_id, display_name, rows):
-    """Markdown reference of one car: one table per group, the copies-differ section when needed, the fixed "Not covered yet" list."""
+def doc_text(car_id, display_name, rows, groups=None):
+    """Markdown reference of one car: one table per group (group_list() order, with the description; row groups not listed follow), the copies-differ section when needed, the fixed "Not covered yet" list."""
     def cell(text):
         return str(text).replace("|", "\\|")
 
-    groups = {}
+    by_group = {}
     for r in rows:
-        groups.setdefault(r["group"], []).append(r)
+        by_group.setdefault(r["group"], []).append(r)
+    listed = group_list() if groups is None else groups
+    described = {g["name"]: g["description"] for g in listed}
+    ordered = [g["name"] for g in listed if g["name"] in by_group] + [n for n in by_group if n not in described]
     lines = ["# %s: tuner settings" % display_name, "", DOC_INTRO % (display_name, car_id, car_id)]
-    for group, items in groups.items():
-        lines += ["", "## " + cell(group), "", "| Variable | Name | Default | Unit | Description | Status |",
-                  "| --- | --- | --- | --- | --- | --- |"]
+    for group in ordered:
+        items = by_group[group]
+        lines += ["", "## " + cell(group), ""] + ([described[group], ""] if group in described else [])
+        lines += ["| Variable | Name | Default | Unit | Description | Status |", "| --- | --- | --- | --- | --- | --- |"]
         lines += ["| %s |" % " | ".join([
             "`%s`" % r["id"], cell(r["label"]), cell(fmt(r["default"]) + (" (absent)" if r["absent"] else "")),
             cell(r["unit"]), cell(r["description"]), "verified" if r["verified"] else "unverified"]) for r in items]

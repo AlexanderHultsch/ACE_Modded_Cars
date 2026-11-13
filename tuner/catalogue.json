@@ -1,5 +1,25 @@
 {
   "car_id": "ks_bmw_m3_e46_csl",
+  "groups": [
+    {"name": "Meta", "description": "Names shown in the game's car list. The name suffix tells your tuned car apart from the stock car."},
+    {"name": "Display", "description": "Numbers shown on the car's spec sheet in the menus. They are text only and do not change how the car drives."},
+    {"name": "Engine", "description": "Power, rev limit and throttle behaviour of the engine. The power scale multiplies the whole torque curve."},
+    {"name": "Turbo", "description": "Boost pressure of the turbos. Only cars whose engine has a turbo show these. The boost of each turbo is the real cap; the engine-level maximum is only a reference."},
+    {"name": "Gearbox & clutch", "description": "Gear ratios, shift times and the automatic shifter, plus the clutch torque. A higher ratio number is a shorter gear."},
+    {"name": "Differential", "description": "Setup defaults of the differential as offered in the in-game setup (power, coast, preload). In the game the setup values count, they override the hardware values of the car files."},
+    {"name": "Differential (hardware)", "description": "The differential model in the car's drivetrain file: type and lock factors. A lock factor is a multiplier of the input torque (1.0 is 100%), preload is in Nm. The setup values override these."},
+    {"name": "Steering", "description": "Steering ratio and steering lock. The lock is measured from the centre to full lock, so the full range is twice the value. A negative ratio is needed when the steering arm sits behind the wheel centre."},
+    {"name": "Brakes", "description": "Total brake torque and the front/rear bias. The total torque is split by the current bias; the bias of the setup overrides the car file."},
+    {"name": "Vehicle (hardware)", "description": "Mass of the car as the physics uses it. A different mass shifts the weight balance and ride height; the stored spring collar positions are not recomputed by this tuner."},
+    {"name": "Springs & anti-roll", "description": "Spring rates and anti-roll bar stiffness of the setup, with the limits of the in-game setup screen. The setup values override the coilover values of the car files."},
+    {"name": "Ride height & bump stops", "description": "Target ride height, spring collar positions and bump stops of the setup. Kunos: the editor's Auto Setup computes the collar positions from the ride height, so change them by hand only together and test the result."},
+    {"name": "Dampers", "description": "Slow and fast damper rates of the setup. Cars with active dampers ignore these values, and cars with racing damper tables may use click numbers instead of force values: check this on the car."},
+    {"name": "Suspension (physical)", "description": "Spring, damper and anti-roll values stored in the car files themselves (coilover files). The setup values override most of them; they still matter inside the simulation of that file."},
+    {"name": "Alignment & tyres", "description": "Camber, toe, caster and tyre pressure of the setup, with their limits. A setup value outside its limits is forced to the limit by the game, which can make the car behave wrongly: keep value and limits consistent."},
+    {"name": "Tyres", "description": "Tyre model values of the car's own tyre files. Kunos advises against editing them: the code connecting them is not user-controlled and a changed calibration can make a tyre behave unpredictably. Change little and test."},
+    {"name": "Fuel", "description": "Fuel at the start of a session. Fuel weight changes the balance of the car."},
+    {"name": "Electronics", "description": "Traction control and ABS levels. Levels are counted from 0 (the first level); the car must define the first level as no intervention for the aid to be switchable off."}
+  ],
   "settings": [
     {
       "id": "variant_name", "group": "Meta", "label": "Variant name", "kind": "meta", "type": "string", "unit": "",
@@ -146,7 +166,7 @@
       ]
     },
     {
-      "id": "final_ratio", "group": "Gearing", "label": "Final drive ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "final_ratio", "group": "Gearbox & clutch", "label": "Final drive ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Final drive ratio. A higher number shortens every gear: stronger acceleration, lower top speed.",
       "verified": true, "min": 2.0, "max": 6.0,
       "targets": [
@@ -155,7 +175,7 @@
       ]
     },
     {
-      "id": "gear_1", "group": "Gearing", "label": "Gear 1 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_1", "group": "Gearbox & clutch", "label": "Gear 1 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 1st gear. A higher number gives shorter gearing.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -164,7 +184,7 @@
       ]
     },
     {
-      "id": "gear_2", "group": "Gearing", "label": "Gear 2 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_2", "group": "Gearbox & clutch", "label": "Gear 2 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 2nd gear. A higher number gives shorter gearing.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -173,7 +193,7 @@
       ]
     },
     {
-      "id": "gear_3", "group": "Gearing", "label": "Gear 3 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_3", "group": "Gearbox & clutch", "label": "Gear 3 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 3rd gear. A higher number gives shorter gearing.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -182,7 +202,7 @@
       ]
     },
     {
-      "id": "gear_4", "group": "Gearing", "label": "Gear 4 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_4", "group": "Gearbox & clutch", "label": "Gear 4 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 4th gear. A higher number gives shorter gearing.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -191,7 +211,7 @@
       ]
     },
     {
-      "id": "gear_5", "group": "Gearing", "label": "Gear 5 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_5", "group": "Gearbox & clutch", "label": "Gear 5 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 5th gear. A higher number gives shorter gearing.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -200,7 +220,7 @@
       ]
     },
     {
-      "id": "gear_6", "group": "Gearing", "label": "Gear 6 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_6", "group": "Gearbox & clutch", "label": "Gear 6 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 6th gear. A higher number gives shorter gearing. Only shown for cars with at least 6 gears.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -209,7 +229,7 @@
       ]
     },
     {
-      "id": "gear_7", "group": "Gearing", "label": "Gear 7 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_7", "group": "Gearbox & clutch", "label": "Gear 7 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 7th gear. A higher number gives shorter gearing. Only shown for cars with at least 7 gears.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -218,7 +238,7 @@
       ]
     },
     {
-      "id": "gear_8", "group": "Gearing", "label": "Gear 8 ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "gear_8", "group": "Gearbox & clutch", "label": "Gear 8 ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Gear ratio of 8th gear. A higher number gives shorter gearing. Only shown for cars with 8 gears.",
       "verified": true, "min": 0.5, "max": 8.0,
       "targets": [
@@ -227,7 +247,7 @@
       ]
     },
     {
-      "id": "autoshift_up_rpm", "group": "Gearing", "label": "Auto-shift up rpm", "kind": "value", "type": "int", "unit": "rpm",
+      "id": "autoshift_up_rpm", "group": "Gearbox & clutch", "label": "Auto-shift up rpm", "kind": "value", "type": "int", "unit": "rpm",
       "description": "Engine speed at which the automatic gearbox shifts up (GearBoxData.autoshifter.up). Raising it makes the automatic hold each gear longer; keep it below the rev limiter.",
       "verified": true, "min": 3000, "max": 12000,
       "targets": [
@@ -236,7 +256,7 @@
       ]
     },
     {
-      "id": "gear_up_time", "group": "Gearing", "label": "Upshift time", "kind": "value", "type": "float", "unit": "ms",
+      "id": "gear_up_time", "group": "Gearbox & clutch", "label": "Upshift time", "kind": "value", "type": "float", "unit": "ms",
       "description": "Duration of an upshift (GearBoxData.gear_up_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
@@ -245,7 +265,7 @@
       ]
     },
     {
-      "id": "gear_dn_time", "group": "Gearing", "label": "Downshift time", "kind": "value", "type": "float", "unit": "ms",
+      "id": "gear_dn_time", "group": "Gearbox & clutch", "label": "Downshift time", "kind": "value", "type": "float", "unit": "ms",
       "description": "Duration of a downshift (GearBoxData.gear_dn_time). Assumed to be milliseconds, not confirmed. A lower value gives faster shifts.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
@@ -254,7 +274,7 @@
       ]
     },
     {
-      "id": "auto_cut_off_time", "group": "Gearing", "label": "Auto cut-off time", "kind": "value", "type": "float", "unit": "ms",
+      "id": "auto_cut_off_time", "group": "Gearbox & clutch", "label": "Auto cut-off time", "kind": "value", "type": "float", "unit": "ms",
       "description": "Time the engine power is cut during an automatic shift (GearBoxData.auto_cut_off_time). Assumed to be milliseconds, not confirmed. A lower value shortens the power cut.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
@@ -365,7 +385,7 @@
       ]
     },
     {
-      "id": "steer_ratio", "group": "Steering & brakes (setup)", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
+      "id": "steer_ratio", "group": "Steering", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
       "description": "Default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle.",
       "verified": true, "min": -30, "max": 30,
       "targets": [
@@ -373,7 +393,7 @@
       ]
     },
     {
-      "id": "steer_ratio_min", "group": "Steering & brakes (setup)", "label": "Steering ratio min", "kind": "value", "type": "float", "unit": ":1",
+      "id": "steer_ratio_min", "group": "Steering", "label": "Steering ratio min", "kind": "value", "type": "float", "unit": ":1",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest steering ratio allowed (quickest steering).",
       "verified": false, "min": 5, "max": 30,
       "targets": [
@@ -381,7 +401,7 @@
       ]
     },
     {
-      "id": "steer_ratio_max", "group": "Steering & brakes (setup)", "label": "Steering ratio max", "kind": "value", "type": "float", "unit": ":1",
+      "id": "steer_ratio_max", "group": "Steering", "label": "Steering ratio max", "kind": "value", "type": "float", "unit": ":1",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest steering ratio allowed (slowest steering).",
       "verified": false, "min": 5, "max": 30,
       "targets": [
@@ -389,7 +409,7 @@
       ]
     },
     {
-      "id": "steer_rod_ratio", "group": "Steering & brakes (setup)", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
+      "id": "steer_rod_ratio", "group": "Steering", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
       "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022). Effect in the game not confirmed.",
       "verified": false, "min": 0.0005, "max": 0.005,
       "targets": [
@@ -397,7 +417,7 @@
       ]
     },
     {
-      "id": "caster_front", "group": "Steering & brakes (setup)", "label": "Front caster", "kind": "value", "type": "float", "unit": "deg",
+      "id": "caster_front", "group": "Alignment & tyres", "label": "Front caster", "kind": "value", "type": "float", "unit": "deg",
       "description": "Default setup: caster angle of the front wheels (both wheels). The stock values are small negative numbers and the unit is assumed to be degrees, not confirmed; the effect on the steering in the game is not confirmed.",
       "verified": false, "min": -2, "max": 2,
       "targets": [
@@ -406,7 +426,7 @@
       ]
     },
     {
-      "id": "brake_bias", "group": "Steering & brakes (setup)", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
+      "id": "brake_bias", "group": "Brakes", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
       "description": "Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner.",
       "verified": true, "min": 0, "max": 100,
       "targets": [
@@ -414,7 +434,7 @@
       ]
     },
     {
-      "id": "brake_bias_min", "group": "Steering & brakes (setup)", "label": "Brake bias min", "kind": "value", "type": "float", "unit": "%",
+      "id": "brake_bias_min", "group": "Brakes", "label": "Brake bias min", "kind": "value", "type": "float", "unit": "%",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front brake bias allowed. The stock file does not store this field, so it reads as 0.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
@@ -422,7 +442,7 @@
       ]
     },
     {
-      "id": "brake_bias_max", "group": "Steering & brakes (setup)", "label": "Brake bias max", "kind": "value", "type": "float", "unit": "%",
+      "id": "brake_bias_max", "group": "Brakes", "label": "Brake bias max", "kind": "value", "type": "float", "unit": "%",
       "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front brake bias allowed.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
@@ -430,7 +450,7 @@
       ]
     },
     {
-      "id": "brake_bias_hw", "group": "Steering & brakes (setup)", "label": "Brake bias front (brake file)", "kind": "value", "type": "float", "unit": "%",
+      "id": "brake_bias_hw", "group": "Brakes", "label": "Brake bias front (brake file)", "kind": "value", "type": "float", "unit": "%",
       "description": "Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Most cars store a percentage (for example 68), some store a fraction (for example 0.75); which of the two the game reads is not confirmed.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
@@ -439,7 +459,7 @@
       ]
     },
     {
-      "id": "clutch_max_torque", "group": "Brakes & steering (hardware)", "label": "Clutch max torque", "kind": "value", "type": "float", "unit": "Nm",
+      "id": "clutch_max_torque", "group": "Gearbox & clutch", "label": "Clutch max torque", "kind": "value", "type": "float", "unit": "Nm",
       "description": "Maximum torque the clutch transmits before it slips (ClutchData.clutch_max_torque), written to the clutch file and the car's inline copy. A lower value should let the clutch slip earlier, a higher one hold more torque; effect in the game not confirmed.",
       "verified": false, "min": 50, "max": 5000,
       "targets": [
@@ -448,7 +468,7 @@
       ]
     },
     {
-      "id": "handbrake_torque", "group": "Brakes & steering (hardware)", "label": "Handbrake torque", "kind": "value", "type": "float", "unit": "Nm",
+      "id": "handbrake_torque", "group": "Brakes", "label": "Handbrake torque", "kind": "value", "type": "float", "unit": "Nm",
       "description": "Braking torque of the handbrake (BrakesData.handBrakeTorque). Raising it locks the rear wheels harder when the handbrake is pulled, which helps start a slide.",
       "verified": true, "min": 0, "max": 6000,
       "targets": [
@@ -457,7 +477,7 @@
       ]
     },
     {
-      "id": "brake_torque", "group": "Brakes & steering (hardware)", "label": "Total brake torque", "kind": "value", "type": "float", "unit": "Nm",
+      "id": "brake_torque", "group": "Brakes", "label": "Total brake torque", "kind": "value", "type": "float", "unit": "Nm",
       "description": "Total braking torque of the brake system (BrakesData.totalTorque). Raising it makes the brakes stronger.",
       "verified": true, "min": 500, "max": 10000,
       "targets": [
@@ -466,7 +486,7 @@
       ]
     },
     {
-      "id": "steer_lock_deg", "group": "Brakes & steering (hardware)", "label": "Steering lock", "kind": "value", "type": "float", "unit": "deg",
+      "id": "steer_lock_deg", "group": "Steering", "label": "Steering lock", "kind": "value", "type": "float", "unit": "deg",
       "description": "Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed whether per side or lock to lock. Raising it allows more wheel rotation, and with it more front wheel angle.",
       "verified": false, "min": 90, "max": 1440,
       "targets": [
