@@ -182,6 +182,12 @@ button.reset { padding: 2px 8px; font-size: 12px; }
   color: var(--color-accent);
 }
 .default { font-size: 13.5px; }
+.garage { padding: 0; overflow-wrap: anywhere; }
+.garage-body { padding: 0 14px 12px; }
+.garage-help { font-size: 13px; color: var(--color-text-muted); }
+.garage fieldset { min-width: 0; margin: 0 0 8px; padding: 0; border: 0; }
+.garage-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 3px 0; }
+.garage-row label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .empty { padding: 18px 14px; color: var(--color-text-muted); }
 .sr-only {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
@@ -256,6 +262,25 @@ button.reset { padding: 2px 8px; font-size: 12px; }
     </section>
 
     <section id="tuner" hidden>
+      <div id="garage" class="panel garage">
+        <button id="garage-toggle" class="grouptoggle" type="button" aria-expanded="false" aria-controls="garage-body">
+          <span class="chev" aria-hidden="true"></span>
+          <span class="gname">Garage tyres</span>
+          <span id="garage-count" class="gcount"></span>
+        </button>
+        <div id="garage-body" class="garage-body" hidden>
+          <p class="garage-help">Tick the tyres this car offers in the garage. The first ticked tyre in the list is the one the car starts on. Own tyres (from the Tyre Creator tab) are listed first. Unverified: whether the game accepts extra or removed tyres is not tested yet.</p>
+          <fieldset>
+            <legend class="sr-only">Tyres offered in the garage</legend>
+            <div id="garage-rows"></div>
+          </fieldset>
+          <div class="actions">
+            <button id="btn-garage-reset" type="button" disabled>Reset to stock tyres</button>
+          </div>
+          <p id="garage-error" class="msg err" role="alert" hidden></p>
+          <p id="garage-missing" class="msg warn" hidden></p>
+        </div>
+      </div>
       <div class="toolbar">
         <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
         <label><input id="changed-only" type="checkbox"> changed only</label>
@@ -405,6 +430,16 @@ let tyreDialog = null;
 // counts the loads of the library, so that a slow answer never replaces a newer one
 let tyreSeq = 0;
 let tyreJobRunning = false;
+// the garage of the shown car or modded car as the server answered last ({choices, custom, missing, ...}), null until it is
+// loaded; garageOpen is the state of its panel: collapsed by default, reset when another car is selected; garageRows are the
+// checkboxes in the order of the choices; garageSeq counts the loads and the answers of writes, so that a slow load never
+// replaces a newer answer
+let garage = null;
+let garageOpen = false;
+let garageError = "";
+let garageRows = [];
+let garageSeq = 0;
+let garageJobRunning = false;
 
 function storedSelection() {
   const none = { car: null, tune: DRAFT };
@@ -619,6 +654,7 @@ function renderButtons() {
   $("tuner").hidden = !baseOk || !tableLoaded;
   $("name-host").hidden = !baseOk || !tableLoaded || !headerRow;
   renderTyreControls();
+  renderGarageControls();
 }
 
 function addLine(box, text, cls) {
@@ -1031,6 +1067,7 @@ async function loadSettings() {
     buildTable(list, target);
     tableLoaded = true;
     localError = "";
+    loadGarage();
   } catch (e) {
     localError = e.message;
   }
@@ -1046,6 +1083,7 @@ async function startJob(path, body) {
     localError = e.message;
   }
   await refresh();
+  loadGarage();
 }
 
 // Create has started its job: when it ends with a new modded car, that car is selected
@@ -1118,6 +1156,7 @@ async function submitDialog() {
         closeDialog(true);
       }
       await refresh();
+      loadGarage();
     } else {
       const res = await api("/api/duplicate", { new_id: newId, suffix: suffix }, target);
       if (dialog !== mine) return;
@@ -1164,6 +1203,10 @@ function switchCar(next) {
   selection = next;
   storeSelection(next);
   expanded.clear();
+  garageOpen = false;
+  garage = null;
+  garageError = "";
+  renderGarage();
   awaitCreated = null;
   closeDialog(false);
   tableLoaded = false;
@@ -1498,6 +1541,156 @@ function tyreDialogKey(ev) {
   }
 }
 
+/* ---------- garage tyres ---------- */
+
+function garageSummary() {
+  if (!garage) return "";
+  const start = garage.choices.find((c) => c.start);
+  return "(" + garage.choices.filter((c) => c.ticked).length + " of " + garage.choices.length + " ticked" +
+    (start ? ", starts on " + start.label : "") + ")";
+}
+
+function renderGarageToggle() {
+  $("garage-toggle").setAttribute("aria-expanded", garageOpen ? "true" : "false");
+  $("garage-body").hidden = !garageOpen;
+  $("garage-count").textContent = garageSummary();
+}
+
+function renderGarageLines() {
+  const missing = garage ? garage.missing : [];
+  $("garage-missing").textContent = missing.length ? "No longer available and ignored: " + missing.join(", ") : "";
+  $("garage-missing").hidden = missing.length === 0;
+  $("garage-error").textContent = garageError;
+  $("garage-error").hidden = garageError === "";
+}
+
+// the checkboxes and the reset button are off while a job runs and while the page has no base car
+function lockGarage() {
+  let why = "";
+  if (!info) why = serverError || "server not reachable";
+  else if (info.job.state === "running") why = "a job is running";
+  else if (!info.base_present) why = "extract the stock car first";
+  const locked = why !== "";
+  for (const g of garageRows) g.input.disabled = locked;
+  if (!locked && !(garage && garage.custom)) why = "the car offers its stock tyres already";
+  $("btn-garage-reset").disabled = why !== "";
+  $("btn-garage-reset").title = why;
+}
+
+// the list is drawn from the answer of the server; the focus stays on the checkbox the user toggled
+function renderGarage() {
+  const focused = garageRows.find((g) => g.input === document.activeElement);
+  const box = $("garage-rows");
+  box.replaceChildren();
+  garageRows = [];
+  for (const c of garage ? garage.choices : []) {
+    const row = el("div", "garage-row");
+    const label = el("label");
+    const input = el("input");
+    input.type = "checkbox";
+    input.checked = c.ticked;
+    label.append(input, el("span", "", c.label));
+    row.appendChild(label);
+    row.appendChild(el("span", "unit", c.kind === "own" ? "own tyre" : "stock tyre"));
+    if (c.start) row.appendChild(el("span", "unit", "starts on this"));
+    box.appendChild(row);
+    garageRows.push({ key: c.key, input: input });
+  }
+  renderGarageToggle();
+  renderGarageLines();
+  lockGarage();
+  const back = focused && garageRows.find((g) => g.key === focused.key);
+  if (back && !back.input.disabled) back.input.focus();
+}
+
+function renderGarageControls() {
+  const running = !!info && info.job.state === "running";
+  // a job that ends may have changed the library or the car, so the garage is read again
+  if (garageJobRunning && !running && !$("panel-car").hidden) loadGarage();
+  garageJobRunning = running;
+  lockGarage();
+}
+
+async function loadGarage() {
+  if (!tableLoaded) return;
+  const target = selection;
+  const seq = ++garageSeq;
+  try {
+    const res = await api("/api/garage", undefined, target);
+    if (seq !== garageSeq || target !== selection) return;
+    garage = res;
+    garageError = "";
+  } catch (e) {
+    if (seq !== garageSeq || target !== selection) return;
+    garage = null;
+    garageError = e.message;
+  }
+  renderGarage();
+}
+
+// the answer of a write carries the garage of the server, which wins over what the page showed
+function showGarage(target, answer) {
+  if (target !== selection) return;
+  garageSeq += 1;
+  garage = answer;
+  garageError = "";
+  renderGarage();
+}
+
+// a failed write: the garage is read again and the message of the write stays in the panel
+async function garageFailed(target, e) {
+  await loadGarage();
+  if (target !== selection) return;
+  garageError = e.message;
+  renderGarageLines();
+}
+
+async function sendGarageSet(keys, target) {
+  try {
+    const res = await api("/api/garage_set", { keys: keys }, target);
+    showGarage(target, res.garage);
+  } catch (e) {
+    await garageFailed(target, e);
+  }
+}
+
+async function sendGarageReset(target) {
+  try {
+    const res = await api("/api/garage_reset", {}, target);
+    showGarage(target, res.garage);
+  } catch (e) {
+    await garageFailed(target, e);
+  }
+}
+
+function garageChanged(ev) {
+  const row = garageRows.find((g) => g.input === ev.target);
+  if (!row) return;
+  const keys = garageRows.filter((g) => g.input.checked).map((g) => g.key);
+  if (keys.length === 0) {
+    row.input.checked = true;
+    garageError = "Tick at least one tyre.";
+    renderGarageLines();
+    return;
+  }
+  garageError = "";
+  renderGarageLines();
+  const target = selection;
+  queue = queue.then(() => sendGarageSet(keys, target));
+}
+
+function resetGarage() {
+  const target = selection;
+  garageError = "";
+  renderGarageLines();
+  queue = queue.then(() => sendGarageReset(target));
+}
+
+function toggleGarage() {
+  garageOpen = !garageOpen;
+  renderGarageToggle();
+}
+
 /* ---------- tabs ---------- */
 
 function selectTab(i) {
@@ -1508,6 +1701,7 @@ function selectTab(i) {
     panels[k].hidden = k !== i;
   });
   if (tabs[i] === $("tab-tyres")) loadTyres(true);
+  if (tabs[i] === $("tab-car")) loadGarage();
 }
 
 function tabKey(ev) {
@@ -1550,6 +1744,9 @@ $("btn-tyre-reset").addEventListener("click", resetTyre);
 $("tyre-dialog-ok").addEventListener("click", submitTyreDialog);
 $("tyre-dialog-cancel").addEventListener("click", () => closeTyreDialog(true));
 $("tyre-dialog").addEventListener("keydown", tyreDialogKey);
+$("garage-toggle").addEventListener("click", toggleGarage);
+$("garage").addEventListener("change", garageChanged);
+$("btn-garage-reset").addEventListener("click", resetGarage);
 $("search").addEventListener("input", applyFilter);
 $("changed-only").addEventListener("change", applyFilter);
 document.addEventListener("visibilitychange", () => {

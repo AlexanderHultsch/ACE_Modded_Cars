@@ -153,10 +153,6 @@ class TestNoInjectionSinks(unittest.TestCase):
         self.assertIn("createTextNode", CODE)
 
 
-# server routes the page does not call yet: take a route out of this list when the page starts to use it
-SERVER_ONLY = ("/api/garage", "/api/garage_set", "/api/garage_reset")
-
-
 def called_paths():
     """The route paths the script writes as plain strings, plus the routes of ts.QUERY_ROUTES, which the script writes with their
     query string: "/api/tyre?id=" + encodeURIComponent(id). No other route may carry a query string."""
@@ -165,7 +161,7 @@ def called_paths():
 
 
 class TestApiContract(unittest.TestCase):
-    ROUTES = [r for r in list(ts.GET_ROUTES) + list(ts.POST_ROUTES) if r not in SERVER_ONLY]
+    ROUTES = list(ts.GET_ROUTES) + list(ts.POST_ROUTES)
 
     def test_the_script_has_one_fetch_call(self):
         self.assertEqual(len(re.findall(r"\bfetch\(", CODE)), 1)
@@ -209,7 +205,7 @@ class TestApiContract(unittest.TestCase):
 
     def test_every_api_call_of_the_page_passes_the_selection_which_carries_the_tune(self):
         calls = re.findall(r"await api\((.*)\);$", CODE, re.M)
-        self.assertEqual(len(calls), 17, calls)
+        self.assertEqual(len(calls), 20, calls)
         for call in calls:
             with self.subTest(call):
                 self.assertRegex(call, r", (?:want|target|r\.target|selection)$")
@@ -1128,6 +1124,210 @@ class TestTyreCreator(unittest.TestCase):
                 body = function_body(name)
                 self.assertIn("textContent" if name == "openTyreDialog" else "el(", body)
                 self.assertNotRegex(body, r"\.html\b|innerHTML")
+
+
+class TestGarage(unittest.TestCase):
+    CAR_PANEL = MARKUP[MARKUP.index('id="panel-car"'):MARKUP.index('id="panel-tyres"')]
+    PANEL = re.search(r'<div id="garage" class="panel garage">.*?\n      </div>\n', MARKUP, re.S).group(0)
+
+    @staticmethod
+    def tag(ident):
+        return re.search(r'<[a-z]+\b[^>]*\bid="%s"[^>]*>' % ident, MARKUP).group(0)
+
+    def test_the_panel_sits_in_the_settings_section_above_the_toolbar(self):
+        tuner = MARKUP[MARKUP.index('<section id="tuner"'):MARKUP.index('id="panel-tyres"')]
+        self.assertIn('id="garage"', tuner)
+        self.assertLess(tuner.index('id="garage"'), tuner.index('<div class="toolbar">'))
+        self.assertLess(tuner.index('<div class="toolbar">'), tuner.index('<div class="tablewrap">'))
+        self.assertNotRegex(self.tag("garage"), r"\bhidden\b")
+        self.assertIn('id="garage"', self.CAR_PANEL)
+        self.assertNotIn('id="garage"', MARKUP[MARKUP.index('id="panel-tyres"'):])
+
+    def test_the_header_is_a_collapsed_toggle_button_with_a_chevron_the_name_and_the_summary(self):
+        button = re.search(r'<button id="garage-toggle".*?</button>', self.PANEL, re.S).group(0)
+        for part in ('class="grouptoggle"', 'type="button"', 'aria-expanded="false"', 'aria-controls="garage-body"'):
+            self.assertIn(part, button)
+        self.assertIn('<span class="chev" aria-hidden="true"></span>', button)
+        self.assertIn('<span class="gname">Garage tyres</span>', button)
+        self.assertIn('<span id="garage-count" class="gcount"></span>', button)
+        self.assertIn("garage-body", dom_ids())
+
+    def test_the_body_is_hidden_by_default_and_holds_the_help_the_list_the_reset_button_and_the_lines(self):
+        self.assertRegex(self.tag("garage-body"), r"\bhidden>$")
+        body = self.PANEL[self.PANEL.index('id="garage-body"'):]
+        for text in ("Tick the tyres this car offers in the garage.", "The first ticked tyre in the list is the one the car starts on.",
+                     "Own tyres (from the Tyre Creator tab) are listed first.",
+                     "Unverified: whether the game accepts extra or removed tyres is not tested yet."):
+            self.assertIn(text, body)
+        self.assertRegex(body, r'<fieldset>\s*<legend class="sr-only">Tyres offered in the garage</legend>\s*<div id="garage-rows"></div>\s*</fieldset>')
+        self.assertIn('<button id="btn-garage-reset" type="button" disabled>Reset to stock tyres</button>', body)
+        self.assertIn('<p id="garage-error" class="msg err" role="alert" hidden></p>', body)
+        self.assertIn('<p id="garage-missing" class="msg warn" hidden></p>', body)
+        self.assertLess(body.index("<fieldset>"), body.index("btn-garage-reset"))
+        self.assertLess(body.index("btn-garage-reset"), body.index('id="garage-error"'))
+
+    def test_a_row_is_a_checkbox_in_a_label_with_the_name_and_muted_texts_for_the_kind_and_the_start(self):
+        body = function_body("renderGarage")
+        self.assertIn('input.type = "checkbox";', body)
+        self.assertIn("input.checked = c.ticked;", body)
+        self.assertIn('label.append(input, el("span", "", c.label));', body)
+        self.assertIn('c.kind === "own" ? "own tyre" : "stock tyre"', body)
+        self.assertIn('if (c.start) row.appendChild(el("span", "unit", "starts on this"));', body)
+        self.assertIn('el("div", "garage-row")', body)
+        self.assertIn("garageRows.push({ key: c.key, input: input });", body)
+        self.assertNotRegex(body, r"innerHTML|\.html\b")
+
+    def test_the_summary_counts_the_ticked_tyres_and_names_the_start(self):
+        body = function_body("garageSummary")
+        self.assertIn('"(" + garage.choices.filter((c) => c.ticked).length + " of " + garage.choices.length + " ticked"', body)
+        self.assertIn('(start ? ", starts on " + start.label : "") + ")"', body)
+        self.assertIn("garage.choices.find((c) => c.start)", body)
+        self.assertIn('$("garage-count").textContent = garageSummary();', function_body("renderGarageToggle"))
+
+    def test_the_panel_is_collapsed_by_default_and_the_toggle_flips_a_separate_variable(self):
+        self.assertRegex(CODE, r"(?m)^let garageOpen = false;")
+        self.assertNotRegex(CODE, r"garageOpen = true")
+        body = function_body("toggleGarage")
+        self.assertIn("garageOpen = !garageOpen;", body)
+        self.assertNotIn("expanded", body)
+        toggle = function_body("renderGarageToggle")
+        self.assertIn('$("garage-toggle").setAttribute("aria-expanded", garageOpen ? "true" : "false");', toggle)
+        self.assertIn('$("garage-body").hidden = !garageOpen;', toggle)
+        self.assertNotIn("remove(", toggle)
+        self.assertIn('$("garage-toggle").addEventListener("click", toggleGarage);', CODE)
+
+    def test_expand_all_and_collapse_all_do_not_touch_the_garage(self):
+        for name in ("setAllGroups", "toggleGroup", "applyFilter", "revealGroup"):
+            with self.subTest(name):
+                self.assertNotIn("garage", function_body(name).lower())
+        self.assertNotIn("garage", re.search(r'<div class="toolbar">.*?</div>', MARKUP, re.S).group(0))
+
+    def test_another_car_collapses_the_panel_and_forgets_the_old_answer(self):
+        body = function_body("switchCar")
+        for part in ("garageOpen = false;", "garage = null;", 'garageError = "";', "renderGarage();"):
+            self.assertIn(part, body)
+        self.assertEqual(len(re.findall(r"(?m)^  garageOpen = false;", CODE)), 1)
+
+    def test_the_garage_is_read_with_the_selection_without_a_body_through_the_one_api_helper(self):
+        body = function_body("loadGarage")
+        self.assertIn('await api("/api/garage", undefined, target);', body)
+        self.assertIn("if (!tableLoaded) return;", body)
+        self.assertIn("if (seq !== garageSeq || target !== selection) return;", body)
+        self.assertIn("garage = res;", body)
+        self.assertIn("garageError = e.message;", body)
+        self.assertIn("renderGarage();", body)
+        self.assertEqual(len(re.findall(r"\bfetch\(", CODE)), 1)
+
+    def test_the_garage_is_loaded_with_the_table_after_a_tab_change_after_a_job_and_after_create_and_apply(self):
+        self.assertIn("loadGarage();", function_body("loadSettings"))
+        self.assertLess(function_body("loadSettings").index("tableLoaded = true;"), function_body("loadSettings").index("loadGarage();"))
+        self.assertIn('if (tabs[i] === $("tab-car")) loadGarage();', function_body("selectTab"))
+        body = function_body("renderGarageControls")
+        self.assertIn('if (garageJobRunning && !running && !$("panel-car").hidden) loadGarage();', body)
+        self.assertIn("garageJobRunning = running;", body)
+        self.assertIn("renderGarageControls();", function_body("renderButtons"))
+        self.assertRegex(function_body("startJob"), r"await refresh\(\);\s*loadGarage\(\);")
+        self.assertRegex(function_body("submitDialog"), r"await refresh\(\);\s*loadGarage\(\);")
+        self.assertEqual(len(re.findall(r"\bpollTimer = setTimeout\(", CODE)), 1)
+        self.assertEqual(len(re.findall(r"setInterval\(", CODE)), 0)
+        self.assertEqual(re.findall(r"setTimeout\([^;]*[Gg]arage", CODE), [])
+
+    def test_a_change_posts_the_ticked_keys_in_the_order_of_the_choices_through_the_shared_queue(self):
+        self.assertIn('$("garage").addEventListener("change", garageChanged);', CODE)
+        body = function_body("garageChanged")
+        self.assertIn("garageRows.filter((g) => g.input.checked).map((g) => g.key)", body)
+        self.assertIn("queue = queue.then(() => sendGarageSet(keys, target));", body)
+        self.assertIn("const target = selection;", body)
+        send = function_body("sendGarageSet")
+        self.assertIn('await api("/api/garage_set", { keys: keys }, target);', send)
+        self.assertIn("showGarage(target, res.garage);", send)
+        self.assertEqual(set(re.findall(r'\b(\w+):', re.search(r'api\("/api/garage_set", (\{[^}]*\})', CODE).group(1))),
+                         set(re.findall(r'body\.get\("(\w+)"\)', inspect.getsource(ts.api_garage_set))) - {"tune"})
+
+    def test_unticking_the_last_tyre_is_prevented_with_a_message_and_no_call(self):
+        body = function_body("garageChanged")
+        refusal = body[body.index("if (keys.length === 0) {"):body.index("garageError = \"\";")]
+        self.assertIn("row.input.checked = true;", refusal)
+        self.assertIn('garageError = "Tick at least one tyre.";', refusal)
+        self.assertIn("return;", refusal)
+        self.assertNotIn("queue", refusal)
+        self.assertNotIn("api(", refusal)
+        self.assertIn("tick at least one tyre", inspect.getsource(ts.tune.set_garage))
+
+    def test_reset_posts_garage_reset_through_the_queue_and_is_off_unless_the_selection_is_custom(self):
+        self.assertIn('$("btn-garage-reset").addEventListener("click", resetGarage);', CODE)
+        self.assertIn("queue = queue.then(() => sendGarageReset(target));", function_body("resetGarage"))
+        self.assertIn('await api("/api/garage_reset", {}, target);', function_body("sendGarageReset"))
+        self.assertIn("showGarage(target, res.garage);", function_body("sendGarageReset"))
+        body = function_body("lockGarage")
+        self.assertIn('if (!locked && !(garage && garage.custom)) why = "the car offers its stock tyres already";', body)
+        self.assertIn('$("btn-garage-reset").disabled = why !== "";', body)
+        self.assertIn('$("btn-garage-reset").title = why;', body)
+
+    def test_the_server_answer_wins_and_a_failed_write_reads_the_garage_again_and_keeps_its_message(self):
+        show = function_body("showGarage")
+        self.assertIn("if (target !== selection) return;", show)
+        self.assertIn("garageSeq += 1;", show)
+        self.assertIn("garage = answer;", show)
+        self.assertIn("renderGarage();", show)
+        failed = function_body("garageFailed")
+        self.assertLess(failed.index("await loadGarage();"), failed.index("garageError = e.message;"))
+        self.assertIn("renderGarageLines();", failed)
+        for name in ("sendGarageSet", "sendGarageReset"):
+            with self.subTest(name):
+                self.assertIn("await garageFailed(target, e);", function_body(name))
+        self.assertEqual(inspect.getsource(ts.garage_json).count("tune.garage_choices"), 1)
+
+    def test_the_missing_keys_are_a_warning_line_and_the_error_line_is_the_alert_of_the_panel(self):
+        body = function_body("renderGarageLines")
+        self.assertIn('"No longer available and ignored: " + missing.join(", ")', body)
+        self.assertIn("garage ? garage.missing : []", body)
+        self.assertIn('$("garage-missing").hidden = missing.length === 0;', body)
+        self.assertIn('$("garage-error").textContent = garageError;', body)
+        self.assertIn('$("garage-error").hidden = garageError === "";', body)
+        self.assertEqual(CODE.count('setAttribute("role", "alert")'), 1)
+        self.assertNotIn("aria-live", self.PANEL)
+
+    def test_the_checkboxes_and_the_reset_button_are_off_while_a_job_runs_or_without_a_base_car(self):
+        body = function_body("lockGarage")
+        self.assertIn('if (!info) why = serverError || "server not reachable";', body)
+        self.assertIn('else if (info.job.state === "running") why = "a job is running";', body)
+        self.assertIn('else if (!info.base_present) why = "extract the stock car first";', body)
+        self.assertIn("for (const g of garageRows) g.input.disabled = locked;", body)
+        self.assertIn("lockGarage();", function_body("renderGarage"))
+        self.assertIn("lockGarage();", function_body("renderGarageControls"))
+
+    def test_the_focus_goes_back_to_the_toggled_checkbox_by_its_key_after_the_redraw(self):
+        body = function_body("renderGarage")
+        self.assertIn("garageRows.find((g) => g.input === document.activeElement)", body)
+        self.assertIn("garageRows.find((g) => g.key === focused.key)", body)
+        self.assertIn("if (back && !back.input.disabled) back.input.focus();", body)
+        self.assertLess(body.index("lockGarage();"), body.index("back.input.focus();"))
+        self.assertNotIn("aria-live", function_body("renderGarage") + function_body("renderGarageToggle") + function_body("toggleGarage"))
+
+    def test_the_styles_use_tokens_and_the_chevron_of_the_group_toggle(self):
+        for cls in ("garage", "garage-body", "garage-help", "garage-row"):
+            with self.subTest(cls):
+                self.assertIn(cls, css_classes())
+                self.assertIn(cls, used_classes())
+        self.assertIn(".garage-help { font-size: 13px; color: var(--color-text-muted); }", STYLE)
+        self.assertIn(".garage fieldset { min-width: 0;", STYLE)
+        self.assertIn(".garage { padding: 0; overflow-wrap: anywhere; }", STYLE)
+
+    def test_the_server_routes_the_page_calls_exist_and_the_exemption_list_is_gone(self):
+        for route in ("/api/garage", "/api/garage_set", "/api/garage_reset"):
+            with self.subTest(route):
+                self.assertTrue(route in ts.GET_ROUTES or route in ts.POST_ROUTES)
+                self.assertIn(route, called_paths())
+        self.assertNotIn("SERVER_ONLY", globals())
+        self.assertEqual(sorted(TestApiContract.ROUTES), sorted(list(ts.GET_ROUTES) + list(ts.POST_ROUTES)))
+
+    def test_the_fields_of_a_choice_the_page_reads_are_sent_by_the_server(self):
+        source = inspect.getsource(ts.tune.garage_choices) + inspect.getsource(ts.tune.garage_entries)
+        sent = quoted_words(ts.tune.garage_choices, ts.tune.garage_entries) | set(re.findall(r"\b(\w+)=", source))
+        read = set(re.findall(r"\b(?:c|garage)\.(\w+)", "".join(function_body(n) for n in ("renderGarage", "garageSummary", "lockGarage", "renderGarageLines"))))
+        self.assertTrue({"key", "kind", "label", "ticked", "start", "choices", "custom", "missing"} <= read, sorted(read))
+        self.assertEqual(sorted(read - sent), [])
 
 
 class TestStartBat(unittest.TestCase):
