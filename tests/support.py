@@ -164,7 +164,8 @@ class FakeCar:
 
     @staticmethod
     def key(path):
-        return os.path.realpath(path)
+        import kspkg
+        return os.path.realpath(kspkg.plain_path(path))
 
     def add(self, rel, obj=None):
         """A file below the car folder (rel with /), e.g. data/x.car."""

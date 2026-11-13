@@ -129,7 +129,8 @@ class TestCopyRenamed(Base):
         n, counts = clone_car.copy_renamed(str(src), str(dst), "ks_x", "ax_x")
         self.assertEqual(n, 5)
         self.assertEqual(sorted(os.path.relpath(os.path.join(dp, f), dst) for dp, _, fs in os.walk(dst) for f in fs),
-                         sorted(["data/ax_x.car", "meshes/AX_X_body.mesh", "sub/deep/ax_xyz.txt", "plain.txt", "ui/AX_X/icon.png"]))
+                         sorted([os.path.join("data", "ax_x.car"), os.path.join("meshes", "AX_X_body.mesh"),
+                                 os.path.join("sub", "deep", "ax_xyz.txt"), "plain.txt", os.path.join("ui", "AX_X", "icon.png")]))
         self.assertTrue((dst / "empty_ax_x_dir").is_dir())
         self.assertTrue((dst / "empty").is_dir())
         car = self.read(dst / "data" / "ax_x.car")
