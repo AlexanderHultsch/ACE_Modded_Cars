@@ -347,9 +347,13 @@ class TestTexts(unittest.TestCase):
             self.assertIn(label, README)
 
     def test_the_tables_have_the_documented_columns_in_order(self):
-        heads = re.findall(r'<th scope="col">(.*?)</th>', MARKUP)
+        heads = [h.replace("<br>", " ") for h in re.findall(r'<th scope="col">(.*?)</th>', MARKUP)]
         self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Range for base cars", "Description",
                                  "Variable name", "Value", "Default (source tyre)", "Description"])
+
+    def test_both_default_headers_break_the_line_directly_before_the_opening_bracket(self):
+        heads = re.findall(r'<th scope="col">(Default.*?)</th>', MARKUP)
+        self.assertEqual(heads, ["Default<br>(for the selected car)", "Default<br>(source tyre)"])
 
     def test_the_dialog_tells_the_id_rules_of_the_server(self):
         body = function_body("openDialog")
@@ -659,7 +663,7 @@ class TestBaseRangeColumn(unittest.TestCase):
     TYRE_TABLE = MARKUP.split('<caption class="sr-only">Settings of the selected tyre</caption>', 1)[1].split('id="tyre-rows"')[0]
 
     def test_the_header_sits_between_default_and_description_in_the_car_table_only(self):
-        heads = re.findall(r'<th scope="col">(.*?)</th>', self.CAR_TABLE)
+        heads = [h.replace("<br>", " ") for h in re.findall(r'<th scope="col">(.*?)</th>', self.CAR_TABLE)]
         self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Range for base cars", "Description"])
         self.assertNotIn("Range for base cars", self.TYRE_TABLE)
 
@@ -1128,7 +1132,8 @@ class TestTyreCreator(unittest.TestCase):
         self.assertIn('<button id="btn-tyre-reset" type="button">Reset all values</button>', editor)
         self.assertIn('<tbody id="tyre-rows"></tbody>', editor)
         self.assertIn('<caption class="sr-only">Settings of the selected tyre</caption>', editor)
-        self.assertEqual(re.findall(r'<th scope="col">(.*?)</th>', editor), ["Variable name", "Value", "Default (source tyre)", "Description"])
+        self.assertEqual([h.replace("<br>", " ") for h in re.findall(r'<th scope="col">(.*?)</th>', editor)],
+                         ["Variable name", "Value", "Default (source tyre)", "Description"])
         self.assertNotIn('id="rows"', self.PANEL)
 
     def test_the_error_line_is_a_visible_alert_of_the_panel_outside_the_dialog(self):
