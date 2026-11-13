@@ -33,7 +33,7 @@
     },
     {
       "id": "display_power_ps", "group": "Display", "label": "Displayed power", "kind": "value", "type": "float", "unit": "PS",
-      "description": "Power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. Kunos documentation: numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. The file stores the unit as HORSEPOWER_US.",
+      "description": "Numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. This is the power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. The file stores the unit as HORSEPOWER_US.",
       "verified": false, "min": 0, "max": 2000,
       "targets": [
         {"file": "@mech_preset", "path": "car_specs.items[key=CarSpecs_KeyEnum_POWER].value"}
@@ -41,7 +41,7 @@
     },
     {
       "id": "display_torque_nm", "group": "Display", "label": "Displayed torque", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine. Kunos documentation: numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values.",
+      "description": "Numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. This is the torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine.",
       "verified": false, "min": 0, "max": 2000,
       "targets": [
         {"file": "@mech_preset", "path": "car_specs.items[key=CarSpecs_KeyEnum_TORQUE].value"}
@@ -49,7 +49,7 @@
     },
     {
       "id": "limiter", "group": "Engine", "label": "Rev limiter", "kind": "value", "type": "int", "unit": "rpm",
-      "description": "Engine rev limiter (EngineData.limiter). The engine cuts power when it reaches this speed. Kunos documentation: Limiter is the maximum rpm of the engine. nominal_rpm and engine_damage_rpm are separate settings and should normally be raised together with the limiter.",
+      "description": "Limiter is the maximum rpm of the engine (EngineData.limiter); the engine cuts power when it reaches this speed. nominal_rpm and engine_damage_rpm are separate settings and should normally be raised together with the limiter.",
       "verified": true, "min": 3000, "max": 12000,
       "targets": [
         {"file": "@engine", "path": "limiter"},
@@ -58,7 +58,7 @@
     },
     {
       "id": "idle_rpm", "group": "Engine", "label": "Idle rpm", "kind": "value", "type": "int", "unit": "rpm",
-      "description": "Lowest engine speed (EngineData.minimum). Kunos documentation: Minimum is the stall rpm of the engine. Whether it also sets the idle speed is not confirmed in the game.",
+      "description": "Minimum is the stall rpm of the engine (EngineData.minimum), the lowest engine speed. Whether it also sets the idle speed is not confirmed in the game.",
       "verified": false, "min": 300, "max": 3000,
       "targets": [
         {"file": "@engine", "path": "minimum"},
@@ -67,7 +67,7 @@
     },
     {
       "id": "power_scale", "group": "Engine", "label": "Power scale", "kind": "curve_scale", "type": "float", "unit": "x",
-      "description": "Multiplies the torque value of every point of the engine power curve. 1.0 is stock, 1.056 is about +20 hp. Kunos documentation: power and torque values in the engine file are values at the wheel; the power curve is torque in Nm over rpm, and turbos multiply on top.",
+      "description": "Power and torque values in the engine file are values at the wheel; the power curve is torque in Nm over rpm, and turbos multiply on top. This setting multiplies the torque value of every point of the engine power curve. 1.0 is stock, 1.056 is about +20 hp.",
       "verified": true, "default": 1.0, "min": 0.5, "max": 2.0,
       "curve_from": {"file": "@engine", "path": "powerCurve"},
       "targets": []
@@ -92,7 +92,7 @@
     },
     {
       "id": "limiter_cycles", "group": "Engine", "label": "Limiter cut frequency", "kind": "value", "type": "int", "unit": "",
-      "description": "Frequency of the rev limiter cut (EngineData.limiterCycles). Kunos documentation: Limiter Cycles is the limiter frequency and works together with the engine inertia, the coast torque and the power torque. The effect in the game is not confirmed.",
+      "description": "Limiter Cycles is the limiter frequency (EngineData.limiterCycles), the frequency of the rev limiter cut, and works together with the engine inertia, the coast torque and the power torque. The effect in the game is not confirmed.",
       "verified": false, "min": 1, "max": 100,
       "targets": [
         {"file": "@engine", "path": "limiterCycles"},
@@ -110,7 +110,7 @@
     },
     {
       "id": "throttle_lag_up", "group": "Engine", "label": "Throttle lag up", "kind": "value", "type": "float", "unit": "",
-      "description": "Throttle response lag when the throttle is opened (EngineData.throttle_lag_up). Kunos documentation: the throttle lag delays the effect of the pedal input. The scale is not confirmed. The engine map also stores its own value, which this setting does not change.",
+      "description": "The throttle lag delays the effect of the pedal input; this is the lag when the throttle is opened (EngineData.throttle_lag_up). The scale is not confirmed. The engine map also stores its own value, which this setting does not change.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@engine", "path": "throttle_lag_up"},
@@ -119,7 +119,7 @@
     },
     {
       "id": "throttle_lag_dn", "group": "Engine", "label": "Throttle lag down", "kind": "value", "type": "float", "unit": "",
-      "description": "Throttle response lag when the throttle is closed (EngineData.throttle_lag_dn). Kunos documentation: the throttle lag delays the effect of the pedal input. The scale is not confirmed. The engine map also stores its own value, which this setting does not change.",
+      "description": "The throttle lag delays the effect of the pedal input; this is the lag when the throttle is closed (EngineData.throttle_lag_dn). The scale is not confirmed. The engine map also stores its own value, which this setting does not change.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@engine", "path": "throttle_lag_dn"},
@@ -128,14 +128,14 @@
     },
     {
       "id": "coast_scale", "group": "Engine", "label": "Coast scale", "kind": "curve_scale", "type": "float", "unit": "x",
-      "description": "Multiplies the value of every point of the engine coast (off-throttle) curve. From about 1000 rpm upwards the stock points are negative, so a higher factor means stronger engine braking there; the positive points at low rpm are scaled too. 1.0 is stock. Kunos documentation: the coast curve has the same axes as the power curve (torque in Nm over rpm) but negative torque; it is 0 at idle rpm, and about 20 is the starter torque and the engine stall resistance. The effect of the factor in the game is not confirmed.",
+      "description": "The coast curve has the same axes as the power curve (torque in Nm over rpm) but negative torque; it is 0 at idle rpm, and about 20 is the starter torque and the engine stall resistance. This setting multiplies the value of every point of the engine coast (off-throttle) curve. From about 1000 rpm upwards the stock points are negative, so a higher factor means stronger engine braking there; the positive points at low rpm are scaled too. 1.0 is stock. The effect of the factor in the game is not confirmed.",
       "verified": false, "default": 1.0, "min": 0, "max": 3,
       "curve_from": {"file": "@engine", "path": "coastCurve"},
       "targets": []
     },
     {
       "id": "turbo_boost_1", "group": "Turbo", "label": "Turbo 1 max boost", "kind": "value", "type": "float", "unit": "bar",
-      "description": "Maximum boost pressure of the first turbo (TurboData.max_boost, in bar), written to the engine file, the turbo's own file and the car's inline copy. Kunos documentation: Max boost is the peak boost of a turbo; with two turbos each needs its own controller, or one runs unregulated at full boost. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with a turbo.",
+      "description": "Max boost is the peak boost of a turbo (TurboData.max_boost, in bar); with two turbos each needs its own controller, or one runs unregulated at full boost. This is the maximum boost pressure of the first turbo, written to the engine file, the turbo's own file and the car's inline copy. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with a turbo.",
       "verified": false, "min": 0, "max": 3, "hide_if_absent": true,
       "targets": [
         {"file": "@engine", "path": "turbos[0].max_boost"},
@@ -145,7 +145,7 @@
     },
     {
       "id": "turbo_boost_2", "group": "Turbo", "label": "Turbo 2 max boost", "kind": "value", "type": "float", "unit": "bar",
-      "description": "Maximum boost pressure of the second turbo (TurboData.max_boost, in bar), written to the engine file, the turbo's own file and the car's inline copy. Kunos documentation: Max boost is the peak boost of a turbo; with two turbos each needs its own controller, or one runs unregulated at full boost. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with two turbos.",
+      "description": "Max boost is the peak boost of a turbo (TurboData.max_boost, in bar); with two turbos each needs its own controller, or one runs unregulated at full boost. This is the maximum boost pressure of the second turbo, written to the engine file, the turbo's own file and the car's inline copy. Not confirmed in the game. Shown only when the stock data has this field. Only shown for cars with two turbos.",
       "verified": false, "min": 0, "max": 3, "hide_if_absent": true,
       "targets": [
         {"file": "@engine", "path": "turbos[1].max_boost"},
@@ -155,7 +155,7 @@
     },
     {
       "id": "max_turbo_boost", "group": "Turbo", "label": "Engine max boost", "kind": "value", "type": "float", "unit": "bar",
-      "description": "Engine-level reference value of the turbo boost pressure in bar (EngineData.max_turbo_boost), written to the engine file and the car's inline copy. Kunos documentation: Max Turbo Boost has no physical effect, it is only a reference for gameplay and audio; the boost of each turbo (turbo_boost_1, turbo_boost_2) is the real cap. Only shown for cars whose engine lists a turbo file.",
+      "description": "Max Turbo Boost has no physical effect, it is only a reference for gameplay and audio; the boost of each turbo (turbo_boost_1, turbo_boost_2) is the real cap. This is the engine-level reference value of the turbo boost pressure in bar (EngineData.max_turbo_boost), written to the engine file and the car's inline copy. Only shown for cars whose engine lists a turbo file.",
       "verified": false, "min": 0, "max": 3, "hide_if_absent": true,
       "needs": [
         {"file": "@turbo[0]", "path": "max_boost"}
@@ -248,7 +248,7 @@
     },
     {
       "id": "autoshift_up_rpm", "group": "Gearbox & clutch", "label": "Auto-shift up rpm", "kind": "value", "type": "int", "unit": "rpm",
-      "description": "Engine speed at which the automatic gearbox shifts up (GearBoxData.autoshifter.up). Kunos documentation: Auto Shifter Up is the target rpm for the upshift. Raising it makes the automatic hold each gear longer; keep it below the rev limiter.",
+      "description": "Auto Shifter Up is the target rpm for the upshift (GearBoxData.autoshifter.up), the engine speed at which the automatic gearbox shifts up. Raising it makes the automatic hold each gear longer; keep it below the rev limiter.",
       "verified": true, "min": 3000, "max": 12000,
       "targets": [
         {"file": "@gearbox", "path": "autoshifter.up"},
@@ -257,7 +257,7 @@
     },
     {
       "id": "gear_up_time", "group": "Gearbox & clutch", "label": "Upshift time", "kind": "value", "type": "float", "unit": "ms",
-      "description": "Duration of an upshift (GearBoxData.gear_up_time). Kunos documentation: Gear Up Time is the shift duration in ms. A lower value gives faster shifts.",
+      "description": "Gear Up Time is the shift duration in ms (GearBoxData.gear_up_time), the duration of an upshift. A lower value gives faster shifts.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
         {"file": "@gearbox", "path": "gear_up_time"},
@@ -266,7 +266,7 @@
     },
     {
       "id": "gear_dn_time", "group": "Gearbox & clutch", "label": "Downshift time", "kind": "value", "type": "float", "unit": "ms",
-      "description": "Duration of a downshift (GearBoxData.gear_dn_time). Kunos documentation: Gear Dn Time is the shift duration in ms. A lower value gives faster shifts.",
+      "description": "Gear Dn Time is the shift duration in ms (GearBoxData.gear_dn_time), the duration of a downshift. A lower value gives faster shifts.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
         {"file": "@gearbox", "path": "gear_dn_time"},
@@ -275,7 +275,7 @@
     },
     {
       "id": "auto_cut_off_time", "group": "Gearbox & clutch", "label": "Auto cut-off time", "kind": "value", "type": "float", "unit": "ms",
-      "description": "Time the engine power is cut during an automatic shift (GearBoxData.auto_cut_off_time). Kunos documentation: Auto Cut Off Time is the length of the throttle cut. The unit (assumed milliseconds) is not confirmed. A lower value shortens the power cut.",
+      "description": "Auto Cut Off Time is the length of the throttle cut (GearBoxData.auto_cut_off_time), the time the engine power is cut during an automatic shift. The unit (assumed milliseconds) is not confirmed. A lower value shortens the power cut.",
       "verified": false, "min": 0, "max": 1000,
       "targets": [
         {"file": "@gearbox", "path": "auto_cut_off_time"},
@@ -308,7 +308,7 @@
     },
     {
       "id": "diff_power_max", "group": "Differential", "label": "Diff power max", "kind": "value", "type": "float", "unit": "",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential power lock. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest value allowed for the differential power lock.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.differential.power.max"}
@@ -316,7 +316,7 @@
     },
     {
       "id": "diff_coast_max", "group": "Differential", "label": "Diff coast max", "kind": "value", "type": "float", "unit": "",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential coast lock. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest value allowed for the differential coast lock.",
       "verified": false, "min": 0, "max": 1,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.differential.coast.max"}
@@ -324,7 +324,7 @@
     },
     {
       "id": "diff_preload_max", "group": "Differential", "label": "Diff preload max", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest value allowed for the differential preload. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest value allowed for the differential preload.",
       "verified": false, "min": 0, "max": 300,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.differential.preload.max"}
@@ -332,7 +332,7 @@
     },
     {
       "id": "diff_type", "group": "Differential (hardware)", "label": "Differential type", "kind": "value", "type": "enum", "unit": "",
-      "description": "Differential hardware model (DifferentialData.type). Spool is a fully locked rear axle, the drift classic. The stock file does not store this field, so it reads as the first choice, LSD. Kunos documentation: the differential type can be changed on the fly (for example from LSD to Torsen) to get the desired effect; wear and temperature of the differential are ignored (not active). Not confirmed that the game applies it for this car.",
+      "description": "The differential type can be changed on the fly (for example from LSD to Torsen) to get the desired effect; wear and temperature of the differential are ignored (not active). This is the differential hardware model (DifferentialData.type). Spool is a fully locked rear axle, the drift classic. The stock file does not store this field, so it reads as the first choice, LSD. Not confirmed that the game applies it for this car.",
       "verified": false, "choices": ["LSD", "Spool", "Torsen", "EpicyclicTorsen", "EpicyclicLSD", "TorqueVectoring"],
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.type"},
@@ -341,7 +341,7 @@
     },
     {
       "id": "diff_hw_preload", "group": "Differential (hardware)", "label": "Diff preload (hardware)", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Preload torque of the differential model (DifferentialData.preload), written to the drivetrain file and the car's inline copy. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Kunos documentation: the preload is in Nm. Which layer the game uses is not confirmed.",
+      "description": "The preload is in Nm. This is the preload torque of the differential model (DifferentialData.preload), written to the drivetrain file and the car's inline copy. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 300,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.preload"},
@@ -350,7 +350,7 @@
     },
     {
       "id": "diff_hw_bias_power", "group": "Differential (hardware)", "label": "Diff torque bias power", "kind": "value", "type": "float", "unit": "",
-      "description": "Torque bias ratio under power of the differential model (DifferentialData.torque_bias_ratio_power). Kunos documentation: Torsen differentials use the TBR (torque bias ratio), where 5.0 means 5:1. Assumed: a higher ratio locks the axle harder under power. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Torsen differentials use the TBR (torque bias ratio), where 5.0 means 5:1. This is the TBR under power of the differential model (DifferentialData.torque_bias_ratio_power). Assumed: a higher ratio locks the axle harder under power. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 1, "max": 10,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_power"},
@@ -359,7 +359,7 @@
     },
     {
       "id": "diff_hw_bias_coast", "group": "Differential (hardware)", "label": "Diff torque bias coast", "kind": "value", "type": "float", "unit": "",
-      "description": "Torque bias ratio on coast of the differential model (DifferentialData.torque_bias_ratio_coast). Kunos documentation: Torsen differentials use the TBR (torque bias ratio), where 5.0 means 5:1. Assumed: a higher ratio locks the axle harder off throttle. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "Torsen differentials use the TBR (torque bias ratio), where 5.0 means 5:1. This is the TBR on coast of the differential model (DifferentialData.torque_bias_ratio_coast). Assumed: a higher ratio locks the axle harder off throttle. Stock values differ per car; a car that does not store the field shows it as absent. These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 10,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.torque_bias_ratio_coast"},

@@ -334,9 +334,13 @@ class TestCatalogueData(unittest.TestCase):
         text = BY_ID["max_turbo_boost"]["description"]
         self.assertIn("no physical effect", text)
         self.assertNotIn("seems to be the real cap", text)
-        for sid in ("limiter_cycles", "gear_up_time", "steer_lock_deg", "tc_level"):
+        for sid in ("display_power_ps", "display_torque_nm", "limiter", "idle_rpm", "power_scale", "limiter_cycles",
+                    "throttle_lag_up", "throttle_lag_dn", "coast_scale", "turbo_boost_1", "turbo_boost_2",
+                    "max_turbo_boost", "autoshift_up_rpm", "gear_up_time", "gear_dn_time", "auto_cut_off_time",
+                    "diff_power_max", "diff_coast_max", "diff_preload_max", "diff_type", "diff_hw_preload",
+                    "diff_hw_bias_power", "diff_hw_bias_coast"):
             with self.subTest(sid):
-                self.assertIn("Kunos documentation:", BY_ID[sid]["description"])
+                self.assertNotIn("Kunos documentation:", BY_ID[sid]["description"])
 
 
 class TestLoaderValidation(unittest.TestCase):
