@@ -436,6 +436,7 @@ def check_post_headers(headers):
 
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "TunerServer"
+    body_read = False
 
     def do_GET(self):
         self.handle_request("GET")
@@ -458,6 +459,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if length > MAX_BODY:
             raise ApiError(413, "request body too large")
         raw = self.rfile.read(length)
+        self.body_read = True
         if not raw.strip():
             return {}
         try:
@@ -467,6 +469,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             raise ApiError(400, "body must be a JSON object")
         return body
+
+    # an unread body makes Windows reset the connection, so the client would miss the error response
+    def discard_body(self):
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return
+        if 0 < length <= MAX_BODY:
+            self.rfile.read(length)
 
     def dispatch(self, method):
         check_host(self.headers.get("Host"))
@@ -493,6 +504,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             status, payload = self.dispatch(method)
         except ApiError as e:
+            if method == "POST" and not self.body_read:
+                self.discard_body()
             status, payload = e.status, {"error": e.message}
         except (ValueError, OSError) as e:
             status, payload = 500, {"error": str(e)}

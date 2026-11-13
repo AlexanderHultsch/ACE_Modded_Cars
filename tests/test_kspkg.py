@@ -3,6 +3,7 @@ import contextlib
 import io
 import os
 import pathlib
+import shutil
 import struct
 import unittest
 
@@ -342,12 +343,13 @@ class Packed(unittest.TestCase):
     def test_pack_rejects_a_path_longer_than_the_entry_name_field(self):
         with tmp() as d:
             deep = d / "src" / "content" / "cars" / "x" / ("a" * 120) / ("b" * 120)
-            deep.mkdir(parents=True)
-            (deep / "f.bin").write_bytes(b"x")
+            os.makedirs(kspkg.long_path(deep))
+            pathlib.Path(kspkg.long_path(deep / "f.bin")).write_bytes(b"x")
             pkg = d / "long.kspkg"
             with self.assertRaisesRegex(ValueError, "path too long"):
                 capture(kspkg.cmd_pack, str(d / "src"), str(pkg))
             self.assertFalse(pkg.exists())
+            shutil.rmtree(kspkg.long_path(d / "src"))
 
 
 class HandBuilt(unittest.TestCase):
