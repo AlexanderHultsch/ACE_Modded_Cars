@@ -2957,14 +2957,12 @@ class TestUsageText(unittest.TestCase):
         self.assertEqual(len(tune.__doc__.split("\n\n")[0].splitlines()), 1)
 
     def test_every_usage_line_is_a_command_main_dispatches(self):
-        with open(ROOT / "tools" / "tune.py", encoding="utf-8") as f:
-            src = f.read()
-        main_src = src[src.index("def main():"):]
         commands = [line.split()[2] for line in self.usage_lines()]
         self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "duplicate", "doc", "tyres", "tyre-sources",
                                     "tyre-new", "tyre-show", "tyre-set", "tyre-unset", "tyre-delete", "garage", "garage-set", "garage-reset"])
+        self.assertEqual(list(tune.COMMANDS), commands)
         for cmd in commands:
-            self.assertIn('cmd == "%s"' % cmd, main_src)
+            self.assertEqual(tune.COMMANDS[cmd].__name__, "cmd_" + cmd.replace("-", "_"))
 
     def test_every_documented_option_and_positional_is_accepted_by_the_parser(self):
         class Reached(Exception):

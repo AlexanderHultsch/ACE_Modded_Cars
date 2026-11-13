@@ -2406,219 +2406,279 @@ def tune_arg(work, car_id, opts):
     return tune_id
 
 
+def cmd_cars():
+    pos, opts = cli_args(("game", "mods", "work"), ("tested", "modded"))
+    if pos or ("tested" in opts and "modded" in opts):
+        usage()
+    work, _ = start(opts)
+    game = os.path.expandvars(opts.get("game", DEFAULT_GAME))
+    if "modded" in opts:
+        print(table(["id", "stock", "label", "suffix", "installed", "built"],
+                    [[r["id"], r["stock"], r["label"], r["name_suffix"], "yes" if r["installed"] else "no",
+                      "yes" if r["built"] else "no"] for r in list_modded(work, mods_arg(opts))]))
+        return
+    print(table(["id", "display name", "extracted", "tested", "new id", "installed", "size"],
+                [[r["id"], r["display_name"], "yes" if r["extracted"] else "no", "yes" if r["tested"] else "no",
+                  r["new_id"], "yes" if r["installed"] else "no",
+                  "%.1f MB" % (r["bytes"] / (1 << 20)) if r["extracted"] else "-"]
+                 for r in list_cars(work, mods_arg(opts), "tested" in opts, game)]))
+    if "tested" not in opts and load_cars_index(work, game) is None:
+        print("note: the game package is not available and there is no car index, "
+              "only the tested cars are listed")
+
+
+def cmd_init():
+    pos, opts = cli_args(("car", "game", "work"))
+    if pos:
+        usage()
+    work, car_id = start(opts)
+    note_untested(car_id)
+    res = init(work, car_id, os.path.expandvars(opts.get("game", DEFAULT_GAME)))
+    print("base already present" if res["present"] else "extracted the stock car")
+    print("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
+    print("stock localization %s" % res["stock_loc"])
+    print("stock info %s" % res["stock_info"])
+    print("shared tyre files %s" % res["tyre_files"])
+
+
+def cmd_defaults():
+    pos, opts = cli_args(("car", "tune", "work"), ("hidden",))
+    if pos:
+        usage()
+    work, car_id = start(opts)
+    tune_arg(work, car_id, opts)
+    every = resolve_defaults(work, car_id, hidden=True)
+    rows = [r for r in every if r["applicable"]]
+    save_json(os.path.join(car_work(work, car_id), "defaults.json"), rows)
+    print_defaults(rows)
+    print("%d hidden for this car (not applicable)" % (len(every) - len(rows)))
+    if "hidden" in opts:
+        for r in every:
+            if not r["applicable"]:
+                print("  %s: %s" % (r["id"], r["reason"]))
+    print_copy_differences(rows)
+
+
+def cmd_set():
+    pos, opts = cli_args(("car", "tune", "work"))
+    if len(pos) != 2:
+        usage()
+    work, car_id = start(opts)
+    res = set_value(work, car_id, pos[0], pos[1], tune=tune_arg(work, car_id, opts))
+    for w in res["warnings"]:
+        print("warning: " + w, file=sys.stderr)
+    print("%s = %s" % (res["id"], fmt(res["value"])))
+
+
+def cmd_unset():
+    pos, opts = cli_args(("car", "tune", "work"))
+    if len(pos) != 1:
+        usage()
+    work, car_id = start(opts)
+    res = unset_value(work, car_id, pos[0], tune=tune_arg(work, car_id, opts))
+    print("%s %s" % (res["id"], "removed from the state" if res["removed"] else "was not set"))
+
+
+def cmd_show():
+    pos, opts = cli_args(("car", "tune", "work"))
+    if pos:
+        usage()
+    work, car_id = start(opts)
+    tune_id = tune_arg(work, car_id, opts)
+    cat = load_catalogue()
+    warn_unknown_state(work, car_id, cat, tune_id)
+    rows = effective_rows(work, car_id, cat, tune=tune_id)
+    print(table(["", "id", "value", "default", "unit"],
+                [["*" if r["changed"] else "", r["id"], fmt(r["value"]), fmt(r["default"]), r["unit"]]
+                 for r in rows]))
+
+
+def cmd_apply():
+    pos, opts = cli_args(("car", "tune", "new-id", "mods", "work"), ("no-install",))
+    if pos:
+        usage()
+    if "tune" in opts and "new-id" in opts:
+        raise ValueError("--tune and --new-id cannot be combined")
+    if "no-install" not in opts and game_running():
+        raise ValueError("the game is running, close it first")
+    work, car_id = start(opts)
+    note_untested(car_id)
+    new_id = tune_arg(work, car_id, opts) or opts.get("new-id")
+    cat = load_catalogue()
+    warn_unknown_state(work, car_id, cat, new_id)
+    res = apply(work, car_id, new_id, "no-install" not in opts, mods_arg(opts), cat)
+    print("car: %s, new id: %s" % (car_id, res["new_id"]))
+    print("applied %d setting(s)" % len(res["applied"]))
+    for a in res["applied"]:
+        print("  %s: %s -> %s  [%s]" % (a["id"], fmt(a["old"]), fmt(a["new"]), ", ".join(a["files"])))
+    for n in res["notes"]:
+        print(n)
+    print("package: %s (%d bytes)" % (res["package"], res["size"]))
+    if res["installed"]:
+        print("installed: %s" % res["installed"])
+        print("backup: %s" % (res["backup"] or "no previous install"))
+
+
+def cmd_duplicate():
+    pos, opts = cli_args(("car", "tune", "new-id", "suffix", "mods", "work"), ("draft",))
+    if pos or ("tune" in opts and "draft" in opts):
+        usage()
+    work, car_id = start(opts)
+    src = DRAFT if "draft" in opts else tune_arg(work, car_id, opts)
+    res = duplicate_tune(work, car_id, src, opts.get("new-id"), opts.get("suffix"), mods_arg(opts))
+    print("car: %s, new id: %s" % (car_id, res["id"]))
+    print("name suffix: %s" % res["name_suffix"])
+
+
+def cmd_doc():
+    pos, opts = cli_args(("car", "out", "work"), ("all",))
+    if pos or ("all" in opts and ("car" in opts or "out" in opts)):
+        usage()
+    work, car_id = start(opts)
+    if "all" in opts:
+        for c in load_cars()["cars"]:
+            if not init(work, c["id"])["present"]:
+                print("extracted the stock car %s" % c["id"])
+            print("wrote %s" % write_doc(work, c["id"], str(DOC_DIR / (c["id"] + ".md"))))
+    else:
+        note_untested(car_id)
+        print("wrote %s" % write_doc(work, car_id, os.path.abspath(opts.get("out", DOC_DIR / (car_id + ".md")))))
+
+
+def cmd_tyres():
+    pos, opts = cli_args(("work",))
+    if pos:
+        usage()
+    work = work_arg(opts)
+    tyres = list_tyres(work)
+    if not tyres:
+        print("no tyres in the library")
+    else:
+        print(table(["id", "name", "source", "changed"],
+                    [[t["id"], t["name"], source_label(t["source"]["front"], t["source"]["rear"]), t["changed"]]
+                     if "error" not in t else [t["id"], "-", "error: " + t["error"], "-"] for t in tyres]))
+
+
+def cmd_tyre_sources():
+    pos, opts = cli_args(("work",))
+    if pos:
+        usage()
+    sources = list_source_tyres(work_arg(opts))
+    if not sources:
+        print("note: no extracted car offers a tyre pair (init extracts a car and its shared tyre files)")
+    else:
+        print(table(["label", "cars", "key"], [[e["label"], ", ".join(e["cars"]), e["key"]] for e in sources]))
+
+
+def cmd_tyre_new():
+    pos, opts = cli_args(("name", "source", "work"))
+    if pos or "name" not in opts or "source" not in opts:
+        usage()
+    res = create_tyre(work_arg(opts), opts["name"], opts["source"])
+    print("created tyre %s: %s (%s)" % (res["id"], res["name"], source_label(res["source"]["front"], res["source"]["rear"])))
+
+
+def cmd_tyre_show():
+    pos, opts = cli_args(("work",))
+    if len(pos) != 1:
+        usage()
+    work = work_arg(opts)
+    tyre = load_tyre(work, pos[0])
+    rows = tyre_rows(work, pos[0])
+    print("tyre %s: %s, source %s" % (pos[0], tyre["name"], source_label(tyre["source"]["front"], tyre["source"]["rear"])))
+    print(table(["", "id", "value", "default", "unit", "note"],
+                [["*" if r["changed"] else "", r["id"], fmt(r["value"]), fmt(r["default"]), r["unit"], r["reason"] or ""]
+                 for r in rows]))
+
+
+def cmd_tyre_set():
+    pos, opts = cli_args(("work",))
+    if len(pos) != 3:
+        usage()
+    res = set_tyre_value(work_arg(opts), pos[0], pos[1], pos[2])
+    for w in res["warnings"]:
+        print("warning: " + w, file=sys.stderr)
+    print("%s = %s" % (res["id"], fmt(res["value"])))
+
+
+def cmd_tyre_unset():
+    pos, opts = cli_args(("work",))
+    if len(pos) != 2:
+        usage()
+    res = unset_tyre_value(work_arg(opts), pos[0], pos[1])
+    print("%s %s" % (res["id"], "removed from the tyre" if res["removed"] else "was not set"))
+
+
+def cmd_tyre_delete():
+    pos, opts = cli_args(("work",))
+    if len(pos) != 1:
+        usage()
+    res = delete_tyre(work_arg(opts), pos[0])
+    print("deleted tyre %s" % res["id"])
+
+
+def cmd_garage():
+    pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+    if pos or ("tune" in opts and "draft" in opts):
+        usage()
+    work, car_id = start(opts)
+    res = garage_choices(work, car_id, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+    print("garage of %s: %s" % (car_id, "saved selection" if res["custom"] else "default (all stock tyres, the car is not touched)"))
+    if res["choices"]:
+        print(table(["ticked", "start", "key", "label"],
+                    [["x" if c["ticked"] else "", "start" if c["start"] else "", c["key"], c["label"]] for c in res["choices"]]))
+    else:
+        print("note: no tyres to choose from (the presets of the car offer no tyre pair and the library is empty)")
+    for key in res["missing"]:
+        print("warning: the saved tyre %s is not available any more" % key, file=sys.stderr)
+
+
+def cmd_garage_set():
+    pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+    if not pos or ("tune" in opts and "draft" in opts):
+        usage()
+    work, car_id = start(opts)
+    res = set_garage(work, car_id, pos, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+    print("garage: %d tyre(s), starting on %s%s" % (len(res["keys"]), res["start"],
+                                                   " (the default selection, nothing is stored)" if res.get("default") else ""))
+
+
+def cmd_garage_reset():
+    pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+    if pos or ("tune" in opts and "draft" in opts):
+        usage()
+    work, car_id = start(opts)
+    res = reset_garage(work, car_id, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+    print("garage selection %s" % ("removed from the state" if res["removed"] else "was not set"))
+
+
+COMMANDS = {
+    "cars": cmd_cars,
+    "init": cmd_init,
+    "defaults": cmd_defaults,
+    "set": cmd_set,
+    "unset": cmd_unset,
+    "show": cmd_show,
+    "apply": cmd_apply,
+    "duplicate": cmd_duplicate,
+    "doc": cmd_doc,
+    "tyres": cmd_tyres,
+    "tyre-sources": cmd_tyre_sources,
+    "tyre-new": cmd_tyre_new,
+    "tyre-show": cmd_tyre_show,
+    "tyre-set": cmd_tyre_set,
+    "tyre-unset": cmd_tyre_unset,
+    "tyre-delete": cmd_tyre_delete,
+    "garage": cmd_garage,
+    "garage-set": cmd_garage_set,
+    "garage-reset": cmd_garage_reset,
+}
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
-        if cmd == "cars":
-            pos, opts = cli_args(("game", "mods", "work"), ("tested", "modded"))
-            if pos or ("tested" in opts and "modded" in opts):
-                usage()
-            work, _ = start(opts)
-            game = os.path.expandvars(opts.get("game", DEFAULT_GAME))
-            if "modded" in opts:
-                print(table(["id", "stock", "label", "suffix", "installed", "built"],
-                            [[r["id"], r["stock"], r["label"], r["name_suffix"], "yes" if r["installed"] else "no",
-                              "yes" if r["built"] else "no"] for r in list_modded(work, mods_arg(opts))]))
-                return
-            print(table(["id", "display name", "extracted", "tested", "new id", "installed", "size"],
-                        [[r["id"], r["display_name"], "yes" if r["extracted"] else "no", "yes" if r["tested"] else "no",
-                          r["new_id"], "yes" if r["installed"] else "no",
-                          "%.1f MB" % (r["bytes"] / (1 << 20)) if r["extracted"] else "-"]
-                         for r in list_cars(work, mods_arg(opts), "tested" in opts, game)]))
-            if "tested" not in opts and load_cars_index(work, game) is None:
-                print("note: the game package is not available and there is no car index, "
-                      "only the tested cars are listed")
-        elif cmd == "init":
-            pos, opts = cli_args(("car", "game", "work"))
-            if pos:
-                usage()
-            work, car_id = start(opts)
-            note_untested(car_id)
-            res = init(work, car_id, os.path.expandvars(opts.get("game", DEFAULT_GAME)))
-            print("base already present" if res["present"] else "extracted the stock car")
-            print("%s: %d files, %d folders, %d bytes" % (res["dir"], res["files"], res["dirs"], res["bytes"]))
-            print("stock localization %s" % res["stock_loc"])
-            print("stock info %s" % res["stock_info"])
-            print("shared tyre files %s" % res["tyre_files"])
-        elif cmd == "defaults":
-            pos, opts = cli_args(("car", "tune", "work"), ("hidden",))
-            if pos:
-                usage()
-            work, car_id = start(opts)
-            tune_arg(work, car_id, opts)
-            every = resolve_defaults(work, car_id, hidden=True)
-            rows = [r for r in every if r["applicable"]]
-            save_json(os.path.join(car_work(work, car_id), "defaults.json"), rows)
-            print_defaults(rows)
-            print("%d hidden for this car (not applicable)" % (len(every) - len(rows)))
-            if "hidden" in opts:
-                for r in every:
-                    if not r["applicable"]:
-                        print("  %s: %s" % (r["id"], r["reason"]))
-            print_copy_differences(rows)
-        elif cmd == "set":
-            pos, opts = cli_args(("car", "tune", "work"))
-            if len(pos) != 2:
-                usage()
-            work, car_id = start(opts)
-            res = set_value(work, car_id, pos[0], pos[1], tune=tune_arg(work, car_id, opts))
-            for w in res["warnings"]:
-                print("warning: " + w, file=sys.stderr)
-            print("%s = %s" % (res["id"], fmt(res["value"])))
-        elif cmd == "unset":
-            pos, opts = cli_args(("car", "tune", "work"))
-            if len(pos) != 1:
-                usage()
-            work, car_id = start(opts)
-            res = unset_value(work, car_id, pos[0], tune=tune_arg(work, car_id, opts))
-            print("%s %s" % (res["id"], "removed from the state" if res["removed"] else "was not set"))
-        elif cmd == "show":
-            pos, opts = cli_args(("car", "tune", "work"))
-            if pos:
-                usage()
-            work, car_id = start(opts)
-            tune_id = tune_arg(work, car_id, opts)
-            cat = load_catalogue()
-            warn_unknown_state(work, car_id, cat, tune_id)
-            rows = effective_rows(work, car_id, cat, tune=tune_id)
-            print(table(["", "id", "value", "default", "unit"],
-                        [["*" if r["changed"] else "", r["id"], fmt(r["value"]), fmt(r["default"]), r["unit"]]
-                         for r in rows]))
-        elif cmd == "apply":
-            pos, opts = cli_args(("car", "tune", "new-id", "mods", "work"), ("no-install",))
-            if pos:
-                usage()
-            if "tune" in opts and "new-id" in opts:
-                raise ValueError("--tune and --new-id cannot be combined")
-            if "no-install" not in opts and game_running():
-                raise ValueError("the game is running, close it first")
-            work, car_id = start(opts)
-            note_untested(car_id)
-            new_id = tune_arg(work, car_id, opts) or opts.get("new-id")
-            cat = load_catalogue()
-            warn_unknown_state(work, car_id, cat, new_id)
-            res = apply(work, car_id, new_id, "no-install" not in opts, mods_arg(opts), cat)
-            print("car: %s, new id: %s" % (car_id, res["new_id"]))
-            print("applied %d setting(s)" % len(res["applied"]))
-            for a in res["applied"]:
-                print("  %s: %s -> %s  [%s]" % (a["id"], fmt(a["old"]), fmt(a["new"]), ", ".join(a["files"])))
-            for n in res["notes"]:
-                print(n)
-            print("package: %s (%d bytes)" % (res["package"], res["size"]))
-            if res["installed"]:
-                print("installed: %s" % res["installed"])
-                print("backup: %s" % (res["backup"] or "no previous install"))
-        elif cmd == "duplicate":
-            pos, opts = cli_args(("car", "tune", "new-id", "suffix", "mods", "work"), ("draft",))
-            if pos or ("tune" in opts and "draft" in opts):
-                usage()
-            work, car_id = start(opts)
-            src = DRAFT if "draft" in opts else tune_arg(work, car_id, opts)
-            res = duplicate_tune(work, car_id, src, opts.get("new-id"), opts.get("suffix"), mods_arg(opts))
-            print("car: %s, new id: %s" % (car_id, res["id"]))
-            print("name suffix: %s" % res["name_suffix"])
-        elif cmd == "doc":
-            pos, opts = cli_args(("car", "out", "work"), ("all",))
-            if pos or ("all" in opts and ("car" in opts or "out" in opts)):
-                usage()
-            work, car_id = start(opts)
-            if "all" in opts:
-                for c in load_cars()["cars"]:
-                    if not init(work, c["id"])["present"]:
-                        print("extracted the stock car %s" % c["id"])
-                    print("wrote %s" % write_doc(work, c["id"], str(DOC_DIR / (c["id"] + ".md"))))
-            else:
-                note_untested(car_id)
-                print("wrote %s" % write_doc(work, car_id, os.path.abspath(opts.get("out", DOC_DIR / (car_id + ".md")))))
-        elif cmd == "tyres":
-            pos, opts = cli_args(("work",))
-            if pos:
-                usage()
-            work = work_arg(opts)
-            tyres = list_tyres(work)
-            if not tyres:
-                print("no tyres in the library")
-            else:
-                print(table(["id", "name", "source", "changed"],
-                            [[t["id"], t["name"], source_label(t["source"]["front"], t["source"]["rear"]), t["changed"]]
-                             if "error" not in t else [t["id"], "-", "error: " + t["error"], "-"] for t in tyres]))
-        elif cmd == "tyre-sources":
-            pos, opts = cli_args(("work",))
-            if pos:
-                usage()
-            sources = list_source_tyres(work_arg(opts))
-            if not sources:
-                print("note: no extracted car offers a tyre pair (init extracts a car and its shared tyre files)")
-            else:
-                print(table(["label", "cars", "key"], [[e["label"], ", ".join(e["cars"]), e["key"]] for e in sources]))
-        elif cmd == "tyre-new":
-            pos, opts = cli_args(("name", "source", "work"))
-            if pos or "name" not in opts or "source" not in opts:
-                usage()
-            res = create_tyre(work_arg(opts), opts["name"], opts["source"])
-            print("created tyre %s: %s (%s)" % (res["id"], res["name"], source_label(res["source"]["front"], res["source"]["rear"])))
-        elif cmd == "tyre-show":
-            pos, opts = cli_args(("work",))
-            if len(pos) != 1:
-                usage()
-            work = work_arg(opts)
-            tyre = load_tyre(work, pos[0])
-            rows = tyre_rows(work, pos[0])
-            print("tyre %s: %s, source %s" % (pos[0], tyre["name"], source_label(tyre["source"]["front"], tyre["source"]["rear"])))
-            print(table(["", "id", "value", "default", "unit", "note"],
-                        [["*" if r["changed"] else "", r["id"], fmt(r["value"]), fmt(r["default"]), r["unit"], r["reason"] or ""]
-                         for r in rows]))
-        elif cmd == "tyre-set":
-            pos, opts = cli_args(("work",))
-            if len(pos) != 3:
-                usage()
-            res = set_tyre_value(work_arg(opts), pos[0], pos[1], pos[2])
-            for w in res["warnings"]:
-                print("warning: " + w, file=sys.stderr)
-            print("%s = %s" % (res["id"], fmt(res["value"])))
-        elif cmd == "tyre-unset":
-            pos, opts = cli_args(("work",))
-            if len(pos) != 2:
-                usage()
-            res = unset_tyre_value(work_arg(opts), pos[0], pos[1])
-            print("%s %s" % (res["id"], "removed from the tyre" if res["removed"] else "was not set"))
-        elif cmd == "tyre-delete":
-            pos, opts = cli_args(("work",))
-            if len(pos) != 1:
-                usage()
-            res = delete_tyre(work_arg(opts), pos[0])
-            print("deleted tyre %s" % res["id"])
-        elif cmd == "garage":
-            pos, opts = cli_args(("car", "tune", "work"), ("draft",))
-            if pos or ("tune" in opts and "draft" in opts):
-                usage()
-            work, car_id = start(opts)
-            res = garage_choices(work, car_id, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
-            print("garage of %s: %s" % (car_id, "saved selection" if res["custom"] else "default (all stock tyres, the car is not touched)"))
-            if res["choices"]:
-                print(table(["ticked", "start", "key", "label"],
-                            [["x" if c["ticked"] else "", "start" if c["start"] else "", c["key"], c["label"]] for c in res["choices"]]))
-            else:
-                print("note: no tyres to choose from (the presets of the car offer no tyre pair and the library is empty)")
-            for key in res["missing"]:
-                print("warning: the saved tyre %s is not available any more" % key, file=sys.stderr)
-        elif cmd == "garage-set":
-            pos, opts = cli_args(("car", "tune", "work"), ("draft",))
-            if not pos or ("tune" in opts and "draft" in opts):
-                usage()
-            work, car_id = start(opts)
-            res = set_garage(work, car_id, pos, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
-            print("garage: %d tyre(s), starting on %s%s" % (len(res["keys"]), res["start"],
-                                                           " (the default selection, nothing is stored)" if res.get("default") else ""))
-        elif cmd == "garage-reset":
-            pos, opts = cli_args(("car", "tune", "work"), ("draft",))
-            if pos or ("tune" in opts and "draft" in opts):
-                usage()
-            work, car_id = start(opts)
-            res = reset_garage(work, car_id, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
-            print("garage selection %s" % ("removed from the state" if res["removed"] else "was not set"))
-        else:
-            usage()
+        COMMANDS.get(cmd, usage)()
     except (ValueError, OSError) as e:
         sys.exit("error: %s" % e)
 
