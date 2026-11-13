@@ -22,6 +22,10 @@ Work folder layout: <work>/<car>/{base, build/<new_id>, tune_state.json, stock_i
 shared <work>/backups, <work>/stock_loc/en.cars.loc and <work>/cars_index.json. The first command that runs moves the
 old single-car layout (<work>/base, build, tune_state.json, stock_info.json, defaults.json) into <work>/<default car>
 and prints what moved.
+Modded cars (tuned copies of a stock car, library functions list_tunes, list_modded, duplicate_tune, no command yet): the
+first one is the default tune <new_id> with the files above; every further one has its own tuned-car id (same length as
+the stock id) and lives in <work>/<car>/tunes/<id>/{tune_state.json, meta.json = {"stock": <car>}}; the unsaved working
+state of a stock car is <work>/<car>/draft_state.json (state functions take tune=None for the default tune, DRAFT or an id).
 
 cars:    table of every game car sorted by display name: id, display name (stock_info.json when extracted, else the
           game's name), extracted yes/no, tested yes/no (listed in tuner/cars.json), new id, installed yes/no
@@ -129,6 +133,8 @@ DEFAULT_WORK = "%USERPROFILE%\\ace_modded_cars_work"
 DEFAULT_GAME = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Assetto Corsa EVO\\content.kspkg"
 GAME_EXE = "AssettoCorsaEVO.exe"
 OLD_LAYOUT = ("base", "build", "tune_state.json", "stock_info.json", "defaults.json")
+TUNES = "tunes"
+DRAFT = "draft"
 DOC_DIR = REPO / "docs" / "settings"
 DOC_INTRO = (
     "This file lists the tuner settings (`tuner/catalogue.json`) of the %s (car id `%s`) with their defaults. It is "
@@ -352,12 +358,32 @@ def find_setting(cat, setting_id):
     raise ValueError("unknown setting %r" % setting_id)
 
 
-def state_path(work, car_id):
-    return os.path.join(car_work(work, car_id), "tune_state.json")
+def check_tune_id(work, car_id, tune):
+    if not isinstance(tune, str):
+        raise ValueError("tune id must be text, got %r" % (tune,))
+    # ids only: the "unused" folder never exists (as in apply)
+    clone_car.validate(car_id, tune, os.path.join(build_dir(work, car_id), "unused"))
 
 
-def load_state(work, car_id):
-    path = state_path(work, car_id)
+def is_default_tune(car_id, tune):
+    return tune is None or tune == new_id_for(car_id)
+
+
+def tune_dir(work, car_id, tune):
+    """Folder of the state file of a tune: the car folder for the default tune (None or new_id_for) and for the draft,
+    <car>/tunes/<id> for any other tuned-car id (which must be valid for the car)."""
+    if is_default_tune(car_id, tune) or tune == DRAFT:
+        return car_work(work, car_id)
+    check_tune_id(work, car_id, tune)
+    return os.path.join(car_work(work, car_id), TUNES, tune)
+
+
+def state_path(work, car_id, tune=None):
+    return os.path.join(tune_dir(work, car_id, tune), "draft_state.json" if tune == DRAFT else "tune_state.json")
+
+
+def load_state(work, car_id, tune=None):
+    path = state_path(work, car_id, tune)
     if not os.path.exists(path):
         return {}
     state = read_json(path)
@@ -366,8 +392,12 @@ def load_state(work, car_id):
     return state
 
 
-def save_state(work, car_id, state):
-    save_json(state_path(work, car_id), state)
+def save_state(work, car_id, state, tune=None):
+    path = state_path(work, car_id, tune)
+    save_json(path, state)
+    meta = os.path.join(os.path.dirname(path), "meta.json")
+    if not (is_default_tune(car_id, tune) or tune == DRAFT) and not os.path.exists(meta):
+        save_json(meta, {"stock": car_id})
 
 
 def unknown_state_ids(work, car_id, catalogue=None):
@@ -1357,6 +1387,169 @@ def list_cars(work, mods_dir=None, tested_only=False, game=DEFAULT_GAME, sizes=T
                      "new_id": new_id, "installed": os.path.isfile(os.path.join(mods, new_id + ".kspkg")),
                      "bytes": count_tree(car_root)["bytes"] if extracted and sizes else None})
     return sorted(rows, key=lambda r: (r["display_name"].lower(), r["id"]))
+
+
+def name_suffix_setting(catalogue=None):
+    for s in (catalogue or load_catalogue())["settings"]:
+        if s.get("handler") == "name_suffix":
+            return s
+    raise ValueError("the catalogue has no name_suffix setting")
+
+
+def state_suffix(state, s):
+    return coerce(s, state[s["id"]]) if s["id"] in state else s["default"]
+
+
+def is_tune_id(work, car_id, name):
+    try:
+        check_tune_id(work, car_id, name)
+    except ValueError:
+        return False
+    return name != DRAFT
+
+
+def tunes_of(work, car_id, s):
+    """The tunes of a stock car for the name suffix setting s, default tune first, then by id. The default tune is
+    listed when its state file or its build folder exists, every other tune when tunes/<id>/tune_state.json exists."""
+    default = new_id_for(car_id)
+    found = []
+    has_state = os.path.isfile(kspkg.long_path(state_path(work, car_id)))
+    if has_state or os.path.isdir(kspkg.long_path(os.path.join(build_dir(work, car_id), default))):
+        found.append((default, has_state))
+    folder = os.path.join(car_work(work, car_id), TUNES)
+    for name in sorted(os.listdir(kspkg.long_path(folder))) if os.path.isdir(kspkg.long_path(folder)) else []:
+        if name != default and is_tune_id(work, car_id, name) and os.path.isfile(kspkg.long_path(state_path(work, car_id, name))):
+            found.append((name, True))
+    return sorted(({"id": i, "stock": car_id, "default": i == default, "name_suffix": state_suffix(load_state(work, car_id, i), s),
+                    "has_state": h} for i, h in found), key=lambda t: (not t["default"], t["id"]))
+
+
+def list_tunes(work, car_id):
+    """The modded cars (tuned copies) of a stock car: {id, stock, default, name_suffix, has_state}, default tune first,
+    then by id. name_suffix is the suffix in the saved state, the catalogue default when the state has none."""
+    return tunes_of(work, car_id, name_suffix_setting())
+
+
+def car_folders(work):
+    """Ids of the stock cars that have a folder in the work folder (a base, a build, a state, a draft or tunes), sorted."""
+    if not os.path.isdir(kspkg.long_path(work)):
+        return []
+    return sorted(n for n in os.listdir(kspkg.long_path(work)) if re.fullmatch(r"[a-z0-9_]+", n)
+                  and any(os.path.exists(kspkg.long_path(os.path.join(work, n, x)))
+                          for x in ("base", "build", "tune_state.json", "draft_state.json", TUNES)))
+
+
+def known_tune_ids(work, mods_dir=None):
+    """Every tuned-car id that must not be reused: the default tune id of each tested car, each car of the cached car
+    index and each car folder of the work folder, every tune folder below <work>/*/tunes and, when mods_dir is given,
+    every <id>.kspkg in it. Offline: the car index is read from its cache only."""
+    # "" is never a file, so load_cars_index never reads the game package
+    cars = {c["id"] for c in load_cars()["cars"]} | {c["id"] for c in load_cars_index(work, "") or []} | set(car_folders(work))
+    known = {new_id_for(c) for c in cars}
+    for car_id in car_folders(work):
+        folder = os.path.join(car_work(work, car_id), TUNES)
+        if os.path.isdir(kspkg.long_path(folder)):
+            known.update(n for n in os.listdir(kspkg.long_path(folder)) if os.path.isdir(kspkg.long_path(os.path.join(folder, n))))
+    if mods_dir is not None:
+        mods = clone_car.expand(mods_dir)
+        if os.path.isdir(kspkg.long_path(mods)):
+            known.update(n[:-len(".kspkg")].lower() for n in os.listdir(kspkg.long_path(mods)) if n.lower().endswith(".kspkg"))
+    return known
+
+
+def free_tune_id(work, car_id, mods_dir=None):
+    """The first unused tuned-car id of a stock car: the default id with its last two characters replaced by 01, 02, ...
+    99 (same length as the stock id)."""
+    base, known = new_id_for(car_id), known_tune_ids(work, mods_dir)
+    for n in range(1, 100):
+        candidate = base[:-2] + "%02d" % n
+        if candidate in known:
+            continue
+        try:
+            check_tune_id(work, car_id, candidate)
+        except ValueError:
+            continue
+        return candidate
+    raise ValueError("no free tuned car id left for %s (%s01 .. %s99 are taken or invalid)" % (car_id, base[:-2], base[:-2]))
+
+
+def suffix_owner(work, car_id, suffix, exclude=None):
+    """Id of a tune of the stock car (other than exclude) that uses the name suffix, else None."""
+    for t in list_tunes(work, car_id):
+        if t["id"] != exclude and t["name_suffix"] == suffix:
+            return t["id"]
+    return None
+
+
+def suffix_taken(work, car_id, suffix, exclude=None):
+    return suffix_owner(work, car_id, suffix, exclude) is not None
+
+
+def free_suffix(work, car_id, wanted, exclude=None):
+    """wanted when no other tune of the stock car uses it, else wanted + 2, 3, ... (cut at the end to stay within the
+    length limit of the setting)."""
+    coerce(name_suffix_setting(), wanted)
+    candidate, n = wanted, 1
+    while suffix_taken(work, car_id, candidate, exclude):
+        n += 1
+        candidate = wanted[:NAME_SUFFIX_MAX - len(str(n))] + str(n)
+    return candidate
+
+
+def duplicate_tune(work, car_id, src, new_id=None, suffix=None, mods_dir=None):
+    """Copy the saved values of a tune (src: a tune id, None for the default tune, or DRAFT) to a new tune of the stock
+    car; returns {id, stock, name_suffix}. new_id None picks free_tune_id; an explicit id must be valid, unused
+    (the default id only while the default tune does not exist) and not DRAFT. suffix None keeps the suffix of src
+    made unique with free_suffix; an explicit one must not be used by another tune. Nothing is written on an error."""
+    s = name_suffix_setting()
+    default = new_id_for(car_id)
+    if not (is_default_tune(car_id, src) or src == DRAFT) and not os.path.isfile(kspkg.long_path(state_path(work, car_id, src))):
+        raise ValueError("%s has no tune %s" % (car_id, src))
+    state = copy.deepcopy(load_state(work, car_id, src))
+    if new_id is None:
+        new_id = free_tune_id(work, car_id, mods_dir)
+    else:
+        check_tune_id(work, car_id, new_id)
+        known = known_tune_ids(work, mods_dir)
+        if new_id == default:
+            if any(t["default"] for t in list_tunes(work, car_id)):
+                raise ValueError("%s is already a tune of %s" % (new_id, car_id))
+            known.discard(default)
+        if new_id == DRAFT or new_id in known:
+            raise ValueError("tuned car id %s is already used or reserved" % new_id)
+    if suffix is None:
+        suffix = free_suffix(work, car_id, state_suffix(state, s))
+    else:
+        coerce(s, suffix)
+        owner = suffix_owner(work, car_id, suffix)
+        if owner:
+            raise ValueError("name suffix already used by %s" % owner)
+    state[s["id"]] = suffix
+    save_state(work, car_id, state, new_id)
+    return {"id": new_id, "stock": car_id, "name_suffix": suffix}
+
+
+def list_modded(work, mods_dir=None):
+    """Every modded car of every stock car with a work folder: {id, stock, label (stock display name + suffix), name_suffix,
+    default, installed (<id>.kspkg in the mods folder), built (build/<id>/<id>.kspkg)}, sorted by label. Stock cars without
+    tunes give nothing; a damaged stock_info.json falls back to the cached car index, the tested label or the car id."""
+    s = name_suffix_setting()
+    mods = clone_car.expand(mods_dir or clone_car.DEFAULT_MODS)
+    labels = {c["id"]: c["label"] for c in load_cars()["cars"]}
+    names = {c["id"]: c["display_name"] for c in load_cars_index(work, "") or []}
+    rows = []
+    for car_id in car_folders(work):
+        tunes = tunes_of(work, car_id, s)
+        try:
+            info = load_stock_info(work, car_id) if tunes else None
+        except (ValueError, OSError):
+            info = None
+        stock_name = info["display_name"] if info else names.get(car_id) or labels.get(car_id) or car_id
+        for t in tunes:
+            rows.append({"id": t["id"], "stock": car_id, "label": stock_name + t["name_suffix"], "name_suffix": t["name_suffix"],
+                         "default": t["default"], "installed": os.path.isfile(os.path.join(mods, t["id"] + ".kspkg")),
+                         "built": os.path.isfile(kspkg.long_path(os.path.join(build_dir(work, car_id), t["id"], t["id"] + ".kspkg")))})
+    return sorted(rows, key=lambda r: (r["label"].lower(), r["id"]))
 
 
 def table(headers, rows):

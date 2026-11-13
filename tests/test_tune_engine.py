@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import sys
 import threading
 import unittest
@@ -1265,6 +1266,497 @@ class TestListCars(Base):
             tune.note_untested("ks_a")
             tune.note_untested("ks_zzz")
         self.assertEqual(out.getvalue(), "note: ks_zzz is not in the tested list; results are unverified\n")
+
+
+# --------------------------------------------------------------------------------------------- modded cars (tunes)
+class TuneCase(Base):
+    """Two synthetic stock cars ks_alpha / ks_bravo (default tunes ax_alpha / ax_bravo) in a scratch work folder and mods folder."""
+
+    def setUp(self):
+        super().setUp()
+        self.cars(("ks_alpha", "Alpha"), ("ks_bravo", "Bravo"))
+        self.patch(tune, "load_catalogue", lambda path=None: mini_catalogue(suffix()))
+        self.mods = str(self.d / "mods")
+        os.makedirs(self.mods)
+
+    def extract(self, car_id):
+        self.write(os.path.join(tune.car_root_of(tune.base_dir(self.work, car_id), car_id), "f.bin"), b"x", binary=True)
+
+    def build(self, car_id, tune_id):
+        self.write(os.path.join(tune.build_dir(self.work, car_id), tune_id, tune_id + ".kspkg"), b"p", binary=True)
+
+    def install(self, tune_id):
+        self.write(os.path.join(self.mods, tune_id + ".kspkg"), b"p", binary=True)
+
+    def files(self):
+        return sorted(os.path.relpath(os.path.join(dp, n), self.work) for dp, _, names in os.walk(self.work) for n in names)
+
+    def dirs(self):
+        return sorted(os.path.relpath(os.path.join(dp, n), self.work) for dp, names, _ in os.walk(self.work) for n in names)
+
+
+class TestTuneStatePaths(TuneCase):
+    def test_old_calls_keep_the_legacy_path(self):
+        self.assertEqual(tune.state_path(self.work, "ks_alpha"), os.path.join(self.work, "ks_alpha", "tune_state.json"))
+        tune.save_state(self.work, "ks_alpha", {"limiter": 1})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha"), {"limiter": 1})
+        self.assertEqual(self.files(), [os.path.join("ks_alpha", "tune_state.json")])
+
+    def test_default_id_and_none_are_the_legacy_path_and_write_no_meta(self):
+        self.assertEqual(tune.state_path(self.work, "ks_alpha", "ax_alpha"), tune.state_path(self.work, "ks_alpha"))
+        tune.save_state(self.work, "ks_alpha", {"a": 1}, "ax_alpha")
+        self.assertEqual(tune.load_state(self.work, "ks_alpha"), {"a": 1})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alpha"), {"a": 1})
+        self.assertEqual(self.files(), [os.path.join("ks_alpha", "tune_state.json")])
+
+    def test_draft_path_and_no_meta(self):
+        self.assertEqual(tune.DRAFT, "draft")
+        self.assertEqual(tune.state_path(self.work, "ks_alpha", tune.DRAFT), os.path.join(self.work, "ks_alpha", "draft_state.json"))
+        tune.save_state(self.work, "ks_alpha", {"d": 1}, tune.DRAFT)
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", tune.DRAFT), {"d": 1})
+        self.assertEqual(self.files(), [os.path.join("ks_alpha", "draft_state.json")])
+        self.assertEqual(tune.load_state(self.work, "ks_alpha"), {})
+
+    def test_other_ids_live_in_tunes_with_a_meta_file(self):
+        self.assertEqual(tune.TUNES, "tunes")
+        self.assertEqual(tune.state_path(self.work, "ks_alpha", "ax_alp01"), os.path.join(self.work, "ks_alpha", "tunes", "ax_alp01", "tune_state.json"))
+        tune.save_state(self.work, "ks_alpha", {"x": 2}, "ax_alp01")
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp01"), {"x": 2})
+        self.assertEqual(self.files(), [os.path.join("ks_alpha", "tunes", "ax_alp01", "meta.json"), os.path.join("ks_alpha", "tunes", "ax_alp01", "tune_state.json")])
+        with open(os.path.join(self.work, "ks_alpha", "tunes", "ax_alp01", "meta.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f), {"stock": "ks_alpha"})
+
+    def test_an_existing_meta_file_is_kept(self):
+        meta = self.write(os.path.join(self.work, "ks_alpha", "tunes", "ax_alp01", "meta.json"), {"stock": "ks_alpha", "keep": True})
+        tune.save_state(self.work, "ks_alpha", {}, "ax_alp01")
+        with open(meta, encoding="utf-8") as f:
+            self.assertEqual(json.load(f), {"stock": "ks_alpha", "keep": True})
+
+    def test_a_missing_tune_state_is_empty(self):
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp01"), {})
+
+    def test_tune_dir(self):
+        car = os.path.join(self.work, "ks_alpha")
+        self.assertEqual([tune.tune_dir(self.work, "ks_alpha", t) for t in (None, "ax_alpha", tune.DRAFT)], [car] * 3)
+        self.assertEqual(tune.tune_dir(self.work, "ks_alpha", "ax_alp02"), os.path.join(car, "tunes", "ax_alp02"))
+
+    def test_invalid_ids_are_refused_everywhere_and_write_nothing(self):
+        for bad in ("ax_alp1", "ax_alpha1", "AX_ALP01", "ax_alp0!", "..", "../ax_al", "ax/alp01", "ax\\alp01", "ks_alpha", "", 5):
+            with self.subTest(bad=bad):
+                for call in (lambda: tune.state_path(self.work, "ks_alpha", bad), lambda: tune.load_state(self.work, "ks_alpha", bad),
+                             lambda: tune.save_state(self.work, "ks_alpha", {}, bad)):
+                    with self.assertRaises(ValueError):
+                        call()
+        self.assertFalse(os.path.exists(self.work))
+
+    def test_the_stock_id_is_refused_with_the_clone_message(self):
+        with self.assertRaisesRegex(ValueError, "new id equals the old id 'ks_alpha'"):
+            tune.state_path(self.work, "ks_alpha", "ks_alpha")
+
+
+class TestListTunes(TuneCase):
+    def test_nothing_without_a_state_or_build(self):
+        self.extract("ks_alpha")
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha"), [])
+        self.assertEqual(tune.list_tunes(self.work, "ks_missing"), [])
+
+    def test_default_is_listed_for_its_state_file(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A"})
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha"),
+                         [{"id": "ax_alpha", "stock": "ks_alpha", "default": True, "name_suffix": "_A", "has_state": True}])
+
+    def test_default_is_listed_for_its_build_folder_without_a_state(self):
+        self.build("ks_alpha", "ax_alpha")
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha"),
+                         [{"id": "ax_alpha", "stock": "ks_alpha", "default": True, "name_suffix": "_MY", "has_state": False}])
+
+    def test_an_empty_build_folder_of_another_tune_does_not_list_it(self):
+        self.build("ks_alpha", "ax_alp01")
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha"), [])
+
+    def test_other_tunes_need_a_state_file_and_the_default_comes_first(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_Z"}, "ax_alp02")
+        tune.save_state(self.work, "ks_alpha", {}, "ax_alp01")
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_D"})
+        os.makedirs(os.path.join(self.work, "ks_alpha", "tunes", "ax_alp03"))
+        self.write(os.path.join(self.work, "ks_alpha", "tunes", "ax_alp04", "meta.json"), {"stock": "ks_alpha"})
+        rows = tune.list_tunes(self.work, "ks_alpha")
+        self.assertEqual([(r["id"], r["default"], r["name_suffix"], r["has_state"]) for r in rows],
+                         [("ax_alpha", True, "_D", True), ("ax_alp01", False, "_MY", True), ("ax_alp02", False, "_Z", True)])
+        self.assertEqual({r["stock"] for r in rows}, {"ks_alpha"})
+
+    def test_stray_and_reserved_folders_are_ignored(self):
+        for name in ("notes", "AX_ALP01", "ax_alp1", "draft", "ax_alpha"):
+            self.write(os.path.join(self.work, "ks_alpha", "tunes", name, "tune_state.json"), {"name_suffix": "_S"})
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha"), [])
+
+    def test_the_tunes_of_another_car_are_not_listed(self):
+        tune.save_state(self.work, "ks_bravo", {}, "ax_bra01")
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha"), [])
+
+    def test_suffix_comes_from_the_catalogue_default_when_the_state_has_none(self):
+        self.patch(tune, "load_catalogue", lambda path=None: mini_catalogue(dict(suffix(), default="_DEF")))
+        tune.save_state(self.work, "ks_alpha", {"limiter": 5}, "ax_alp01")
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha")[0]["name_suffix"], "_DEF")
+
+    def test_a_catalogue_without_the_suffix_setting_is_an_error(self):
+        self.patch(tune, "load_catalogue", lambda path=None: mini_catalogue(limiter()))
+        with self.assertRaisesRegex(ValueError, "no name_suffix setting"):
+            tune.list_tunes(self.work, "ks_alpha")
+
+    def test_a_damaged_state_is_an_error_naming_the_file(self):
+        self.write(tune.state_path(self.work, "ks_alpha"), '{"name_su')
+        with self.assertRaisesRegex(ValueError, "tune_state.json"):
+            tune.list_tunes(self.work, "ks_alpha")
+
+
+class TestKnownTuneIds(TuneCase):
+    def test_default_ids_of_tested_cars_even_without_a_work_folder(self):
+        self.assertEqual(tune.known_tune_ids(self.work), {"ax_alpha", "ax_bravo"})
+
+    def test_cars_index_and_extracted_folders_add_default_ids(self):
+        self.write(tune.cars_index_path(self.work), [{"id": "ks_charlie", "display_name": "Charlie"}])
+        self.extract("ks_delta")
+        self.write(os.path.join(self.work, "backups", "x.kspkg"), b"p", binary=True)
+        self.assertEqual(tune.known_tune_ids(self.work), {"ax_alpha", "ax_bravo", "ax_charlie", "ax_delta"})
+
+    def test_tunes_folders_of_every_car(self):
+        tune.save_state(self.work, "ks_alpha", {}, "ax_alp01")
+        tune.save_state(self.work, "ks_bravo", {}, "ax_bra07")
+        os.makedirs(os.path.join(self.work, "ks_bravo", "tunes", "ax_bra08"))
+        self.write(os.path.join(self.work, "ks_bravo", "tunes", "stray.txt"), "x")
+        self.assertEqual(tune.known_tune_ids(self.work), {"ax_alpha", "ax_bravo", "ax_alp01", "ax_bra07", "ax_bra08"})
+
+    def test_mods_folder_packages_only_when_given(self):
+        self.install("ax_alp05")
+        self.write(os.path.join(self.mods, "ax_alp06.txt"), b"x", binary=True)
+        self.write(os.path.join(self.mods, "AX_ALP07.KSPKG"), b"x", binary=True)
+        self.assertNotIn("ax_alp05", tune.known_tune_ids(self.work))
+        self.assertEqual(tune.known_tune_ids(self.work, self.mods), {"ax_alpha", "ax_bravo", "ax_alp05", "ax_alp07"})
+
+    def test_a_missing_mods_folder_adds_nothing(self):
+        self.assertEqual(tune.known_tune_ids(self.work, str(self.d / "nowhere")), {"ax_alpha", "ax_bravo"})
+
+    def test_the_game_package_is_never_read(self):
+        real = tune.read_game_file
+        calls = []
+        self.patch(tune, "read_game_file", lambda *a, **k: calls.append(a) or real(*a, **k))
+        tune.known_tune_ids(self.work)
+        self.assertEqual(calls, [])
+
+
+class TestFreeTuneId(TuneCase):
+    def test_first_id_replaces_the_last_two_characters_and_keeps_the_length(self):
+        got = tune.free_tune_id(self.work, "ks_alpha")
+        self.assertEqual((got, len(got)), ("ax_alp01", len("ks_alpha")))
+        self.assertEqual(tune.free_tune_id(self.work, "ks_bmw_m3_e46_csl"), "ax_bmw_m3_e46_c01")
+
+    def test_nothing_is_written(self):
+        tune.free_tune_id(self.work, "ks_alpha", self.mods)
+        self.assertFalse(os.path.exists(self.work))
+
+    def test_the_counter_skips_tunes_mods_packages_and_other_default_ids(self):
+        tune.save_state(self.work, "ks_alpha", {}, "ax_alp01")
+        self.install("ax_alp02")
+        self.cars(("ks_alpha", "Alpha"), ("ks_alp03", "Other"))
+        # the default id of another stock car sits in the sequence: ks_alp03 -> ax_alp03
+        self.assertEqual(tune.free_tune_id(self.work, "ks_alpha", self.mods), "ax_alp04")
+
+    def test_without_the_mods_folder_its_packages_do_not_count(self):
+        self.install("ax_alp01")
+        self.assertEqual(tune.free_tune_id(self.work, "ks_alpha"), "ax_alp01")
+        self.assertEqual(tune.free_tune_id(self.work, "ks_alpha", self.mods), "ax_alp02")
+
+    def test_a_tune_of_another_stock_car_blocks_the_id_too(self):
+        tune.save_state(self.work, "ks_bravo", {}, "ax_alp01")
+        self.assertEqual(tune.free_tune_id(self.work, "ks_alpha"), "ax_alp02")
+
+    def test_ids_up_to_99_then_exhausted(self):
+        for n in range(1, 100):
+            self.install("ax_alp%02d" % n)
+        os.remove(os.path.join(self.mods, "ax_alp99.kspkg"))
+        self.assertEqual(tune.free_tune_id(self.work, "ks_alpha", self.mods), "ax_alp99")
+        self.install("ax_alp99")
+        with self.assertRaisesRegex(ValueError, "no free tuned car id left for ks_alpha"):
+            tune.free_tune_id(self.work, "ks_alpha", self.mods)
+
+    def test_a_stock_id_too_short_for_the_pattern_has_no_valid_id(self):
+        self.cars(("k", "K"))
+        with self.assertRaisesRegex(ValueError, "no free tuned car id left"):
+            tune.free_tune_id(self.work, "k")
+
+
+class TestTuneSuffix(TuneCase):
+    def setUp(self):
+        super().setUp()
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A"})
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_B"}, "ax_alp01")
+        tune.save_state(self.work, "ks_bravo", {"name_suffix": "_C"})
+
+    def test_taken_is_per_stock_car(self):
+        self.assertTrue(tune.suffix_taken(self.work, "ks_alpha", "_A"))
+        self.assertTrue(tune.suffix_taken(self.work, "ks_alpha", "_B"))
+        self.assertFalse(tune.suffix_taken(self.work, "ks_alpha", "_C"))
+        self.assertFalse(tune.suffix_taken(self.work, "ks_alpha", "_a"))
+        self.assertFalse(tune.suffix_taken(self.work, "ks_alpha", "_A "))
+
+    def test_exclude_ignores_that_tune(self):
+        self.assertFalse(tune.suffix_taken(self.work, "ks_alpha", "_A", exclude="ax_alpha"))
+        self.assertTrue(tune.suffix_taken(self.work, "ks_alpha", "_A", exclude="ax_alp01"))
+
+    def test_the_default_suffix_counts_when_the_state_has_none(self):
+        tune.save_state(self.work, "ks_alpha", {}, "ax_alp02")
+        self.assertTrue(tune.suffix_taken(self.work, "ks_alpha", "_MY"))
+
+    def test_free_suffix_returns_a_free_one_unchanged(self):
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_NEW"), "_NEW")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_C"), "_C")
+
+    def test_free_suffix_counts_up_from_2(self):
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_A"), "_A2")
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A2"}, "ax_alp02")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_A"), "_A3")
+
+    def test_free_suffix_with_exclude_keeps_its_own(self):
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_B", exclude="ax_alp01"), "_B")
+
+    def test_free_suffix_stays_within_the_length_limit(self):
+        long = "x" * tune.NAME_SUFFIX_MAX
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": long}, "ax_alp02")
+        got = tune.free_suffix(self.work, "ks_alpha", long)
+        self.assertEqual((got, len(got)), ("x" * 29 + "2", 30))
+
+    def test_free_suffix_validates_the_wanted_suffix(self):
+        for bad in ("", "x" * 31, "a\nb", 5, None):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "name_suffix expects 1 to 30 characters"):
+                tune.free_suffix(self.work, "ks_alpha", bad)
+
+    def test_suffixes_are_not_trimmed(self):
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", " _A"), " _A")
+
+
+class TestDuplicateTune(TuneCase):
+    def snapshot(self):
+        out = {}
+        for dp, _, names in os.walk(self.work):
+            for n in names:
+                with open(os.path.join(dp, n), "rb") as f:
+                    out[os.path.relpath(os.path.join(dp, n), self.work)] = f.read()
+        return out, self.dirs()
+
+    def test_from_the_default_tune(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A", "limiter": 8000, "nested": {"a": [1]}})
+        res = tune.duplicate_tune(self.work, "ks_alpha", None)
+        self.assertEqual(res, {"id": "ax_alp01", "stock": "ks_alpha", "name_suffix": "_A2"})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp01"), {"name_suffix": "_A2", "limiter": 8000, "nested": {"a": [1]}})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha"), {"name_suffix": "_A", "limiter": 8000, "nested": {"a": [1]}})
+        with open(os.path.join(self.work, "ks_alpha", "tunes", "ax_alp01", "meta.json"), encoding="utf-8") as f:
+            self.assertEqual(json.load(f), {"stock": "ks_alpha"})
+
+    def test_the_default_id_as_src_is_the_default_tune(self):
+        tune.save_state(self.work, "ks_alpha", {"limiter": 1})
+        tune.duplicate_tune(self.work, "ks_alpha", "ax_alpha")
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp01")["limiter"], 1)
+
+    def test_the_copy_is_deep(self):
+        tune.save_state(self.work, "ks_alpha", {"nested": {"a": [1]}})
+        tune.duplicate_tune(self.work, "ks_alpha", None)
+        state = tune.load_state(self.work, "ks_alpha", "ax_alp01")
+        state["nested"]["a"].append(2)
+        tune.save_state(self.work, "ks_alpha", state, "ax_alp01")
+        self.assertEqual(tune.load_state(self.work, "ks_alpha")["nested"], {"a": [1]})
+
+    def test_from_a_modded_tune_and_a_chain_of_copies(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A", "x": 1})
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_DRIFT", "x": 2}, "ax_alp01")
+        first = tune.duplicate_tune(self.work, "ks_alpha", "ax_alp01")
+        second = tune.duplicate_tune(self.work, "ks_alpha", "ax_alp01")
+        self.assertEqual((first["id"], first["name_suffix"], second["id"], second["name_suffix"]), ("ax_alp02", "_DRIFT2", "ax_alp03", "_DRIFT3"))
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp03"), {"name_suffix": "_DRIFT3", "x": 2})
+
+    def test_from_the_draft(self):
+        tune.save_state(self.work, "ks_alpha", {"limiter": 9000}, tune.DRAFT)
+        res = tune.duplicate_tune(self.work, "ks_alpha", tune.DRAFT)
+        self.assertEqual(res, {"id": "ax_alp01", "stock": "ks_alpha", "name_suffix": "_MY"})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp01"), {"limiter": 9000, "name_suffix": "_MY"})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", tune.DRAFT), {"limiter": 9000})
+
+    def test_an_absent_draft_or_default_state_copies_an_empty_state(self):
+        self.assertEqual(tune.duplicate_tune(self.work, "ks_alpha", tune.DRAFT)["id"], "ax_alp01")
+        self.assertEqual(tune.duplicate_tune(self.work, "ks_alpha", None)["name_suffix"], "_MY2")
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp02"), {"name_suffix": "_MY2"})
+
+    def test_the_first_modded_car_can_take_the_default_id(self):
+        tune.save_state(self.work, "ks_alpha", {"limiter": 9000}, tune.DRAFT)
+        res = tune.duplicate_tune(self.work, "ks_alpha", tune.DRAFT, new_id="ax_alpha")
+        self.assertEqual(res["id"], "ax_alpha")
+        self.assertEqual(tune.load_state(self.work, "ks_alpha"), {"limiter": 9000, "name_suffix": "_MY"})
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_alpha", "tunes")))
+        self.assertEqual([t["id"] for t in tune.list_tunes(self.work, "ks_alpha")], ["ax_alpha"])
+
+    def test_the_default_id_is_refused_when_the_default_tune_exists(self):
+        for make in (lambda: tune.save_state(self.work, "ks_alpha", {}), lambda: self.build("ks_alpha", "ax_alpha")):
+            make()
+            with self.assertRaisesRegex(ValueError, "ax_alpha is already a tune of ks_alpha"):
+                tune.duplicate_tune(self.work, "ks_alpha", tune.DRAFT, new_id="ax_alpha")
+            shutil.rmtree(os.path.join(self.work, "ks_alpha"))
+
+    def test_an_explicit_id(self):
+        res = tune.duplicate_tune(self.work, "ks_alpha", None, new_id="ax_alp42", suffix="_X")
+        self.assertEqual(res, {"id": "ax_alp42", "stock": "ks_alpha", "name_suffix": "_X"})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp42"), {"name_suffix": "_X"})
+
+    def test_the_auto_id_skips_the_mods_folder_when_given(self):
+        self.install("ax_alp01")
+        self.assertEqual(tune.duplicate_tune(self.work, "ks_alpha", None, mods_dir=self.mods)["id"], "ax_alp02")
+
+    def test_explicit_ids_that_are_used_are_refused(self):
+        tune.save_state(self.work, "ks_alpha", {}, "ax_alp01")
+        self.install("ax_alp02")
+        for bad in ("ax_alp01", "ax_bravo"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "already used or reserved"):
+                tune.duplicate_tune(self.work, "ks_alpha", None, new_id=bad, mods_dir=self.mods)
+        with self.assertRaisesRegex(ValueError, "already used or reserved"):
+            tune.duplicate_tune(self.work, "ks_alpha", None, new_id="ax_alp02", mods_dir=self.mods)
+        self.assertEqual(tune.duplicate_tune(self.work, "ks_alpha", None, new_id="ax_alp02")["id"], "ax_alp02")
+
+    def test_invalid_explicit_ids_are_refused(self):
+        for bad in ("ax_alp1", "ax_alpha1", "AX_ALP01", "ax/alp01", "ax\\alp01", "..", "../ax_alp", "ks_alpha", "", 5):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                tune.duplicate_tune(self.work, "ks_alpha", None, new_id=bad)
+        self.assertFalse(os.path.exists(self.work))
+
+    def test_the_draft_name_is_reserved_for_a_five_character_stock_id(self):
+        self.cars(("ks_ab", "Ab"))
+        with self.assertRaisesRegex(ValueError, "already used or reserved"):
+            tune.duplicate_tune(self.work, "ks_ab", None, new_id="draft")
+        self.assertEqual(tune.duplicate_tune(self.work, "ks_ab", None)["id"], "ax_01")
+
+    def test_suffix_defaults_to_a_unique_one_and_an_explicit_one_is_checked(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A"})
+        self.assertEqual(tune.duplicate_tune(self.work, "ks_alpha", None, suffix="_NEW")["name_suffix"], "_NEW")
+        with self.assertRaisesRegex(ValueError, "name suffix already used by ax_alpha"):
+            tune.duplicate_tune(self.work, "ks_alpha", None, suffix="_A")
+        with self.assertRaisesRegex(ValueError, "name suffix already used by ax_alp01"):
+            tune.duplicate_tune(self.work, "ks_alpha", None, suffix="_NEW")
+
+    def test_a_suffix_of_another_stock_car_is_no_collision(self):
+        tune.save_state(self.work, "ks_bravo", {"name_suffix": "_A"})
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_Q"})
+        self.assertEqual(tune.duplicate_tune(self.work, "ks_alpha", None, suffix="_A")["name_suffix"], "_A")
+
+    def test_an_invalid_explicit_suffix_is_refused(self):
+        for bad in ("", "x" * 31, "a\tb", 3):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "name_suffix expects"):
+                tune.duplicate_tune(self.work, "ks_alpha", None, suffix=bad)
+        self.assertFalse(os.path.exists(self.work))
+
+    def test_an_unknown_source_tune_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "ks_alpha has no tune ax_alp09"):
+            tune.duplicate_tune(self.work, "ks_alpha", "ax_alp09")
+        with self.assertRaises(ValueError):
+            tune.duplicate_tune(self.work, "ks_alpha", "../x")
+        self.assertFalse(os.path.exists(self.work))
+
+    def test_nothing_is_left_behind_when_validation_fails(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A", "x": 1})
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_B"}, "ax_alp01")
+        before = self.snapshot()
+        for kw in ({"new_id": "ax_alp01"}, {"new_id": "bad"}, {"suffix": "_A"}, {"suffix": ""}, {"src": "ax_alp09"}, {"new_id": "ax_alpha"}):
+            with self.subTest(kw=kw), self.assertRaises(ValueError):
+                tune.duplicate_tune(self.work, "ks_alpha", kw.pop("src", None), **kw)
+            self.assertEqual(self.snapshot(), before)
+
+    def test_a_failing_save_leaves_no_temp_file(self):
+        tune.save_state(self.work, "ks_alpha", {"x": 1})
+        before = self.snapshot()
+        self.patch(os, "replace", mock.Mock(side_effect=OSError("disk full")))
+        with self.assertRaises(OSError):
+            tune.duplicate_tune(self.work, "ks_alpha", None)
+        self.assertEqual(sorted(self.snapshot()[0]), sorted(before[0]))
+
+    def test_exhausted_ids_fail_before_anything_is_written(self):
+        for n in range(1, 100):
+            self.install("ax_alp%02d" % n)
+        with self.assertRaisesRegex(ValueError, "no free tuned car id left"):
+            tune.duplicate_tune(self.work, "ks_alpha", None, mods_dir=self.mods)
+        self.assertFalse(os.path.exists(self.work))
+
+    def test_the_state_files_are_written_with_lf_only(self):
+        tune.duplicate_tune(self.work, "ks_alpha", None)
+        with open(tune.state_path(self.work, "ks_alpha", "ax_alp01"), "rb") as f:
+            self.assertNotIn(b"\r", f.read())
+
+
+class TestListModded(TuneCase):
+    def info(self, car_id, name):
+        self.write(tune.stock_info_path(self.work, car_id), {"car_id": car_id, "display_name": name, "brand": "B", "year": 1})
+
+    def test_nothing_without_tunes(self):
+        self.extract("ks_alpha")
+        self.write(os.path.join(self.work, "backups", "ax_x.kspkg"), b"p", binary=True)
+        self.assertEqual(tune.list_modded(self.work, self.mods), [])
+        self.assertEqual(tune.list_modded(str(self.d / "nowhere"), self.mods), [])
+
+    def test_two_stock_cars_sorted_by_label(self):
+        self.info("ks_alpha", "Zeta Stock")
+        self.info("ks_bravo", "Bravo Stock")
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_Z"})
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A"}, "ax_alp01")
+        tune.save_state(self.work, "ks_bravo", {}, "ax_bra01")
+        self.build("ks_alpha", "ax_alpha")
+        self.build("ks_alpha", "ax_alp01")
+        self.install("ax_alp01")
+        self.install("ax_bra01")
+        self.extract("ks_alpha")
+        rows = tune.list_modded(self.work, self.mods)
+        self.assertEqual([(r["label"], r["id"], r["stock"], r["name_suffix"], r["default"], r["installed"], r["built"]) for r in rows],
+                         [("Bravo Stock_MY", "ax_bra01", "ks_bravo", "_MY", False, True, False),
+                          ("Zeta Stock_A", "ax_alp01", "ks_alpha", "_A", False, True, True),
+                          ("Zeta Stock_Z", "ax_alpha", "ks_alpha", "_Z", True, False, True)])
+        self.assertEqual(set(rows[0]), {"id", "stock", "label", "name_suffix", "default", "installed", "built"})
+
+    def test_a_build_only_default_tune_is_listed_and_built_needs_the_package(self):
+        self.build("ks_bravo", "ax_bravo")
+        os.makedirs(os.path.join(tune.build_dir(self.work, "ks_alpha"), "ax_alpha"))
+        tune.save_state(self.work, "ks_alpha", {})
+        rows = {r["id"]: r for r in tune.list_modded(self.work, self.mods)}
+        self.assertEqual({k: (v["built"], v["installed"]) for k, v in rows.items()}, {"ax_alpha": (False, False), "ax_bravo": (True, False)})
+
+    def test_label_falls_back_to_the_index_then_the_tested_label_then_the_id(self):
+        self.write(tune.cars_index_path(self.work), [{"id": "ks_bravo", "display_name": "Bravo Game"}, {"id": "ks_other", "display_name": "Other Game"}])
+        for car_id in ("ks_alpha", "ks_bravo", "ks_other", "ks_zzz"):
+            tune.save_state(self.work, car_id, {})
+        self.assertEqual({r["stock"]: r["label"] for r in tune.list_modded(self.work, self.mods)},
+                         {"ks_alpha": "Alpha_MY", "ks_bravo": "Bravo Game_MY", "ks_other": "Other Game_MY", "ks_zzz": "ks_zzz_MY"})
+
+    def test_an_unreadable_stock_info_does_not_break_the_list(self):
+        self.info("ks_alpha", "Alpha Stock")
+        self.write(tune.stock_info_path(self.work, "ks_bravo"), '{"car_id": "ks_bravo", "disp')
+        self.write(tune.stock_info_path(self.work, "ks_other"), {"car_id": "ks_wrong", "display_name": "X", "brand": "B", "year": 1})
+        for car_id in ("ks_alpha", "ks_bravo", "ks_other"):
+            tune.save_state(self.work, car_id, {})
+        self.assertEqual({r["stock"]: r["label"] for r in tune.list_modded(self.work, self.mods)},
+                         {"ks_alpha": "Alpha Stock_MY", "ks_bravo": "Bravo_MY", "ks_other": "ks_other_MY"})
+
+    def test_installed_is_the_exact_package_name(self):
+        tune.save_state(self.work, "ks_alpha", {})
+        self.write(os.path.join(self.mods, "ax_alpha.txt"), b"x", binary=True)
+        self.assertFalse(tune.list_modded(self.work, self.mods)[0]["installed"])
+
+    def test_an_unexpandable_mods_folder_is_an_error(self):
+        with self.assertRaisesRegex(ValueError, "cannot expand"):
+            tune.list_modded(self.work, "%ACE_TEST_NO_SUCH_VAR%" + os.sep + "m")
+
+    def test_the_draft_is_not_a_modded_car(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_D"}, tune.DRAFT)
+        self.assertEqual(tune.list_modded(self.work, self.mods), [])
+
+    def test_a_duplicate_shows_up(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A"})
+        tune.duplicate_tune(self.work, "ks_alpha", None)
+        self.assertEqual([(r["id"], r["name_suffix"]) for r in tune.list_modded(self.work, self.mods)],
+                         [("ax_alpha", "_A"), ("ax_alp01", "_A2")])
 
 
 # --------------------------------------------------------------------------------------------- work folder
