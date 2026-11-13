@@ -436,8 +436,8 @@ class TestCollapsibleGroups(unittest.TestCase):
 
     def test_the_count_names_the_settings_and_the_changed_ones_and_follows_the_rows(self):
         body = function_body("applyFilter")
-        self.assertIn('"(" + g.rows.length + (g.rows.length === 1 ? " setting, " : " settings, ") + changed + " changed)"', body)
-        self.assertIn("if (r.data.changed) changed += 1;", body)
+        self.assertIn('"(" + listed + (listed === 1 ? " setting, " : " settings, ") + changed + " changed)"', body)
+        self.assertIn("if (r.data.changed && !unlisted) changed += 1;", body)
         self.assertIn("if (refilter) applyFilter();", function_body("showRow"))
 
     def test_the_expanded_state_is_kept_by_edits_polls_and_a_table_rebuild_and_cleared_by_a_switch(self):
@@ -491,6 +491,70 @@ class TestCollapsibleGroups(unittest.TestCase):
 
     def test_the_group_toggle_has_a_visible_focus_ring_inside_its_cell(self):
         self.assertIn("button.grouptoggle:focus-visible { outline-offset: -2px; }", STYLE)
+
+
+class TestAdvancedSettings(unittest.TestCase):
+    TOOLBAR = re.search(r'<div class="toolbar">.*?</div>', MARKUP, re.S).group(0)
+
+    def test_the_box_sits_next_to_changed_only_with_its_label_and_is_unchecked(self):
+        self.assertIn('<label><input id="show-advanced" type="checkbox"> <span id="show-advanced-text">show advanced settings</span></label>',
+                      self.TOOLBAR)
+        self.assertRegex(self.TOOLBAR, r'(?s)id="changed-only".*?id="show-advanced".*?id="btn-expand-all"')
+        self.assertNotRegex(re.search(r'<input id="show-advanced"[^>]*>', MARKUP).group(0), r"\bchecked\b")
+
+    def test_the_choice_is_a_boolean_for_the_life_of_the_page(self):
+        self.assertRegex(CODE, r"(?m)^let showAdvanced = false;")
+        self.assertIn('showAdvanced = $("show-advanced").checked;', CODE)
+        for name in ("switchCar", "buildTable", "clearTable", "loadSettings", "refresh"):
+            with self.subTest(name):
+                self.assertNotIn("showAdvanced", function_body(name))
+                self.assertNotIn("show-advanced", function_body(name))
+
+    def test_ticking_the_box_runs_the_filter_and_touches_no_group(self):
+        m = re.search(r'\$\("show-advanced"\)\.addEventListener\("change", \(\) => \{(.*?)\}\);', CODE, re.S)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group(1).split(), ['showAdvanced', '=', '$("show-advanced").checked;', 'applyFilter();'])
+        self.assertNotIn("expanded", m.group(1))
+
+    def test_an_advanced_row_is_unlisted_unless_the_box_is_ticked_or_the_row_is_changed(self):
+        body = function_body("applyFilter")
+        self.assertIn("const unlisted = !!r.data.advanced && !showAdvanced && !r.data.changed;", body)
+        self.assertIn("r.match = !unlisted && (!q || r.hay.includes(q)) && (!changedOnly || r.data.changed);", body)
+        self.assertIn("r.tr.hidden = !(open && r.match);", body)
+        self.assertIn("g.tr.hidden = !any;", body)
+
+    def test_the_group_counts_leave_out_the_unlisted_rows_and_the_toggle_keeps_all_rows(self):
+        body = function_body("applyFilter")
+        self.assertIn("if (!unlisted) listed += 1;", body)
+        self.assertNotIn("g.rows.length", body)
+        self.assertIn('g.btn.setAttribute("aria-controls", g.rows.map((r) => r.tr.id).join(" "));', function_body("buildTable"))
+
+    def test_the_label_carries_the_number_of_hidden_advanced_rows(self):
+        body = function_body("applyFilter")
+        self.assertIn("if (unlisted) advancedHidden += 1;", body)
+        self.assertIn('"show advanced settings" + (advancedHidden > 0 ? " (" + advancedHidden + " hidden)" : "")', body)
+        self.assertIn('$("show-advanced-text").textContent', body)
+
+    def test_the_filter_does_not_open_or_close_groups_for_the_box(self):
+        body = function_body("applyFilter")
+        self.assertNotIn("expanded.add", body)
+        self.assertNotIn("expanded.delete", body)
+        self.assertNotIn("expanded.clear", body)
+
+    def test_the_tyre_creator_warns_below_the_intro_with_the_warning_class(self):
+        text = ("Kunos advises against editing the tyre model values: the code that connects them is not user-controlled, and a changed "
+                "calibration can make a tyre behave unpredictably (tyres may need too much slip to grip or react nervously). "
+                "Change little and test in the game.")
+        section = TestTabs.TYRES_PANEL.split("<section", 1)[1].split("</section>", 1)[0]
+        paragraphs = re.findall(r"<p\b([^>]*)>(.*?)</p>", section)
+        self.assertEqual([p[1] for p in paragraphs][1], text)
+        self.assertEqual(paragraphs[1][0].strip(), 'class="msg warn"')
+        self.assertTrue(paragraphs[0][1].startswith("Tyres you create here"))
+        self.assertIn(".msg.warn { color: var(--color-warning); }", STYLE)
+
+    def test_the_warning_text_reads_on_the_panel_background(self):
+        tokens = dict(re.findall(r"--([\w-]+): (#[0-9a-fA-F]{6});", STYLE))
+        self.assertGreaterEqual(contrast(tokens["color-warning"], tokens["color-bg-alt"]), 4.5)
 
 
 def luminance(hex_colour):

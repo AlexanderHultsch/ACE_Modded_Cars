@@ -12,7 +12,8 @@ import tune
 CARS = ROOT / "tuner" / "cars.json"
 DOCS = ROOT / "docs" / "settings"
 KNOWN_KEYS = set(tune.REQUIRED) | {"min", "max", "default", "default_template", "choices", "choice_values", "targets",
-                                   "needs", "curve_from", "handler", "hide_if_absent", "create_missing", "ui", "value"}
+                                   "needs", "curve_from", "handler", "hide_if_absent", "create_missing", "ui", "value",
+                                   "advanced"}
 ROLE_NAMES = set(tune.MANIFEST_ROLES) | set(tune.TYRE_ROLES) | {"car", "mech_preset", "turbo"}
 TEMPLATE_FIELDS = {"stock_display_name", "stock_variant_name"}
 COMMON = "content\\cars\\common_phsx\\"
@@ -250,6 +251,14 @@ class TestCatalogueData(unittest.TestCase):
                 self.assertEqual(s["kind"], "value")
                 self.assertTrue([t for t in s["targets"] if not t.get("optional")])
 
+    def test_exactly_the_spring_collar_positions_are_advanced(self):
+        flagged = [s["id"] for s in SETTINGS if "advanced" in s]
+        self.assertEqual(flagged, ["collar_front", "collar_rear"])
+        for sid in flagged:
+            with self.subTest(sid):
+                self.assertIs(BY_ID[sid]["advanced"], True)
+                self.assertIn("should not be adjusted manually", BY_ID[sid]["description"])
+
     def test_choices_only_on_enums_and_unique(self):
         for s in SETTINGS:
             with self.subTest(s["id"]):
@@ -362,6 +371,8 @@ class TestLoaderValidation(unittest.TestCase):
              "numeric value"),
             ("create_missing text", [good(create_missing="yes")], "create_missing"),
             ("hide_if_absent text", [good(hide_if_absent=1)], "hide_if_absent"),
+            ("advanced text", [good(advanced="yes")], "advanced"),
+            ("advanced number", [good(advanced=1)], "advanced"),
             ("optional text", [dict(good(), targets=[{"file": "@car", "path": "a", "optional": "yes"}])], "optional"),
             ("unknown role", [dict(good(), targets=[{"file": "@bogus", "path": "a"}])], "unknown file role '@bogus'"),
             ("role with a text index", [dict(good(), targets=[{"file": "@turbo[x]", "path": "a"}])], "unknown file role"),
@@ -386,6 +397,19 @@ class TestLoaderValidation(unittest.TestCase):
             with self.subTest(name):
                 with self.assertRaisesRegex(ValueError, message):
                     self.load(*settings)
+
+    def test_advanced_true_and_false_are_accepted(self):
+        cat = self.load(mini_setting("a", targets=[("@engine", "limiter")], advanced=True),
+                        mini_setting("b", targets=[("@engine", "limiter")], advanced=False))
+        self.assertEqual([s["advanced"] for s in cat["settings"]], [True, False])
+
+    def test_a_refused_advanced_names_the_file_and_the_setting(self):
+        with tmp() as d:
+            path = write_json(d, "c.json", mini_catalogue(mini_setting("a", targets=[("@engine", "limiter")], advanced="yes")))
+            with self.assertRaises(ValueError) as cm:
+                tune.load_catalogue(path)
+        self.assertIn(path, str(cm.exception))
+        self.assertIn("'a'", str(cm.exception))
 
     def test_settings_must_be_a_list(self):
         with self.assertRaisesRegex(ValueError, "needs settings"):

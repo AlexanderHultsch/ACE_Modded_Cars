@@ -2871,6 +2871,13 @@ class TestHelpers(Env):
         self.assertEqual((out["min"], out["max"], out["choices"], out["ui"]), (1, 5, ["a"], "header"))
         self.assertNotIn("copy_values", out)
 
+    def test_row_json_passes_advanced_only_when_the_setting_has_it(self):
+        row = {k: k for k in ROW_KEYS}
+        row.update(copies_differ=False)
+        self.assertNotIn("advanced", ts.row_json(row, {"min": 1}))
+        out = ts.row_json(row, {"advanced": True})
+        self.assertEqual((set(out), out["advanced"]), (ROW_KEYS | {"advanced"}, True))
+
     def test_row_json_adds_the_copy_values_only_when_the_copies_differ(self):
         row = {k: k for k in ROW_KEYS}
         row.update(copies_differ=True, copy_values=[{"target": "t", "value": 1}])

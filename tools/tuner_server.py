@@ -264,7 +264,7 @@ def apply_task(car, new_id, created):
 def row_json(row, s):
     out = {k: row[k] for k in ("id", "group", "label", "kind", "type", "unit", "description", "verified",
                                "default", "value", "changed", "absent", "copies_differ")}
-    out.update({k: s[k] for k in ("min", "max", "choices", "ui") if k in s})
+    out.update({k: s[k] for k in ("min", "max", "choices", "ui", "advanced") if k in s})
     if row["copies_differ"]:
         out["copy_values"] = row["copy_values"]
     return out

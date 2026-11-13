@@ -289,6 +289,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
       <div class="toolbar">
         <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
         <label><input id="changed-only" type="checkbox"> changed only</label>
+        <label><input id="show-advanced" type="checkbox"> <span id="show-advanced-text">show advanced settings</span></label>
         <button id="btn-expand-all" type="button">Expand all</button>
         <button id="btn-collapse-all" type="button">Collapse all</button>
         <span class="spacer"></span>
@@ -317,6 +318,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
     <section class="panel">
       <h2>Tyre Creator</h2>
       <p>Tyres you create here are saved once and can be ticked in the garage list of any modded car in the Car Tuner tab.</p>
+      <p class="msg warn">Kunos advises against editing the tyre model values: the code that connects them is not user-controlled, and a changed calibration can make a tyre behave unpredictably (tyres may need too much slip to grip or react nervously). Change little and test in the game.</p>
     </section>
 
     <div class="toolbar">
@@ -404,6 +406,8 @@ let groups = [];
 let groupInfo = null;
 // names of the groups the user opened; every group starts collapsed, the set is cleared when another car is selected
 const expanded = new Set();
+// the box "show advanced settings": kept for the life of the page, not reset when another car is selected
+let showAdvanced = false;
 let headerRow = null;
 let tableLoaded = false;
 // edits are sent one at a time in the order they were made
@@ -1061,13 +1065,19 @@ function applyFilter() {
   const changedOnly = $("changed-only").checked;
   const filtering = q !== "" || changedOnly;
   let visible = 0;
+  let advancedHidden = 0;
   for (const g of groups) {
     let any = false;
     let changed = 0;
+    let listed = 0;
     for (const r of g.rows) {
-      r.match = (!q || r.hay.includes(q)) && (!changedOnly || r.data.changed);
+      // an advanced setting is listed only while the box is ticked or its value is changed
+      const unlisted = !!r.data.advanced && !showAdvanced && !r.data.changed;
+      if (unlisted) advancedHidden += 1;
+      r.match = !unlisted && (!q || r.hay.includes(q)) && (!changedOnly || r.data.changed);
       if (r.match) any = true;
-      if (r.data.changed) changed += 1;
+      if (!unlisted) listed += 1;
+      if (r.data.changed && !unlisted) changed += 1;
     }
     // a filter opens the groups with matches for as long as it is set, without touching the remembered state
     const open = filtering ? any : expanded.has(g.name);
@@ -1075,10 +1085,12 @@ function applyFilter() {
     g.tr.hidden = !any;
     g.btn.setAttribute("aria-expanded", open ? "true" : "false");
     if (g.desc) g.desc.hidden = !open;
-    const text = "(" + g.rows.length + (g.rows.length === 1 ? " setting, " : " settings, ") + changed + " changed)";
+    const text = "(" + listed + (listed === 1 ? " setting, " : " settings, ") + changed + " changed)";
     if (g.count.textContent !== text) g.count.textContent = text;
     if (any) visible += 1;
   }
+  const advancedText = "show advanced settings" + (advancedHidden > 0 ? " (" + advancedHidden + " hidden)" : "");
+  if ($("show-advanced-text").textContent !== advancedText) $("show-advanced-text").textContent = advancedText;
   $("empty").hidden = visible > 0 || rows.length === 0;
 }
 
@@ -1785,6 +1797,10 @@ $("garage").addEventListener("change", garageChanged);
 $("btn-garage-reset").addEventListener("click", resetGarage);
 $("search").addEventListener("input", applyFilter);
 $("changed-only").addEventListener("change", applyFilter);
+$("show-advanced").addEventListener("change", () => {
+  showAdvanced = $("show-advanced").checked;
+  applyFilter();
+});
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refresh();
 });

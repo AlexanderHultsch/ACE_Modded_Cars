@@ -159,7 +159,8 @@ choice whose text equals the field (case-insensitive, slash and backslash alike;
 applicable), apply writes the text of the chosen choice. meta settings: variant_name, applicable only when the stock car has a variant name, and name_suffix (default _MY, 1 to 30 characters without
 control characters, not trimmed): apply names the tuned car "<stock display name><name_suffix>" (stock_info.json, else
 the car's mechanical preset), so the default lists it next to the stock car. "ui": "header" on a setting is only a hint
-for the web page (it shows the setting in its header, not in the table).
+for the web page (it shows the setting in its header, not in the table). "advanced": true is a hint for the web page too:
+it hides the setting unless the user ticks "show advanced settings" or the setting is changed; it has no effect on apply.
 
 Stdlib only. Needs schemas/acevo.desc (see tools/extract_protos.py).
 """
@@ -419,6 +420,8 @@ def load_catalogue(path=CATALOGUE):
                              % (path, s["id"]))
         if type(s.get("hide_if_absent", False)) is not bool:
             raise ValueError("%s: setting %r has a hide_if_absent that is not true or false" % (path, s["id"]))
+        if type(s.get("advanced", False)) is not bool:
+            raise ValueError("%s: setting %r has an advanced that is not true or false" % (path, s["id"]))
         files = ([t["file"] for t in s.get("targets", [])] + [t["file"] for t in needs]
                  + ([s["curve_from"]["file"]] if s["kind"] == "curve_scale" else []))
         for f in files:

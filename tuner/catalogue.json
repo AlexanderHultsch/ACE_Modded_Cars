@@ -622,7 +622,7 @@
     {
       "id": "collar_front", "group": "Ride height & bump stops", "label": "Front spring collar position", "kind": "value", "type": "float", "unit": "mm",
       "description": "Default setup: position of the front spring collars (setup aero.collar_positions_mm, both front wheels), the values that realise the target ride height. Kunos documentation: the collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. If you change them, change them together with ride_height_front.",
-      "verified": false, "min": 0, "max": 300,
+      "verified": false, "min": 0, "max": 300, "advanced": true,
       "targets": [
         {"file": "@setup", "path": "aero.collar_positions_mm[0]"},
         {"file": "@setup", "path": "aero.collar_positions_mm[1]"}
@@ -631,7 +631,7 @@
     {
       "id": "collar_rear", "group": "Ride height & bump stops", "label": "Rear spring collar position", "kind": "value", "type": "float", "unit": "mm",
       "description": "Default setup: position of the rear spring collars (setup aero.collar_positions_mm, both rear wheels), the values that realise the target ride height. Kunos documentation: the collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. If you change them, change them together with ride_height_rear.",
-      "verified": false, "min": 0, "max": 300,
+      "verified": false, "min": 0, "max": 300, "advanced": true,
       "targets": [
         {"file": "@setup", "path": "aero.collar_positions_mm[2]"},
         {"file": "@setup", "path": "aero.collar_positions_mm[3]"}
