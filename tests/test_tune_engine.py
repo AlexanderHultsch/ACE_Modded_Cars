@@ -1517,6 +1517,36 @@ class TestTuneSuffix(TuneCase):
         tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A2"}, "ax_alp02")
         self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_A"), "_A3")
 
+    def test_free_suffix_counts_a_trailing_number_up_instead_of_appending(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_MY"}, "ax_alp02")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_MY"), "_MY2")
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_MY2"}, "ax_alp03")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_MY"), "_MY3")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_MY2"), "_MY3")
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_MY3"}, "ax_alp04")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_MY2"), "_MY4")
+
+    def test_free_suffix_with_a_wanted_number_goes_to_the_next_one(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_T1"}, "ax_alp02")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_T1"), "_T2")
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_T2"}, "ax_alp03")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_T1"), "_T3")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_T3"), "_T3")
+
+    def test_free_suffix_keeps_the_width_of_a_number_with_leading_zeros(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_T01"}, "ax_alp02")
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_T09"}, "ax_alp03")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_T01"), "_T02")
+        self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_T09"), "_T10")
+
+    def test_free_suffix_cuts_the_stem_and_never_the_number(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "x" * 29 + "9"}, "ax_alp02")
+        got = tune.free_suffix(self.work, "ks_alpha", "x" * 29 + "9")
+        self.assertEqual((got, len(got)), ("x" * 28 + "10", 30))
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "9" * 30}, "ax_alp03")
+        with self.assertRaisesRegex(ValueError, "no free name suffix left"):
+            tune.free_suffix(self.work, "ks_alpha", "9" * 30)
+
     def test_free_suffix_with_exclude_keeps_its_own(self):
         self.assertEqual(tune.free_suffix(self.work, "ks_alpha", "_B", exclude="ax_alp01"), "_B")
 
@@ -1688,6 +1718,53 @@ class TestDuplicateTune(TuneCase):
             self.assertNotIn(b"\r", f.read())
 
 
+class TestNewTuneFromDraft(TuneCase):
+    def test_the_first_modded_car_takes_the_default_id(self):
+        tune.save_state(self.work, "ks_alpha", {"limiter": 9000}, tune.DRAFT)
+        res = tune.new_tune_from_draft(self.work, "ks_alpha")
+        self.assertEqual(res, {"id": "ax_alpha", "stock": "ks_alpha", "name_suffix": "_MY"})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha"), {"limiter": 9000, "name_suffix": "_MY"})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", tune.DRAFT), {"limiter": 9000})
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_alpha", "tunes")))
+        self.assertEqual([(t["id"], t["default"]) for t in tune.list_tunes(self.work, "ks_alpha")], [("ax_alpha", True)])
+
+    def test_the_second_one_takes_a_free_id_and_a_counted_suffix(self):
+        tune.save_state(self.work, "ks_alpha", {"limiter": 9000}, tune.DRAFT)
+        tune.new_tune_from_draft(self.work, "ks_alpha")
+        res = tune.new_tune_from_draft(self.work, "ks_alpha")
+        self.assertEqual(res, {"id": "ax_alp01", "stock": "ks_alpha", "name_suffix": "_MY2"})
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", "ax_alp01"), {"limiter": 9000, "name_suffix": "_MY2"})
+        self.assertEqual(tune.new_tune_from_draft(self.work, "ks_alpha")["name_suffix"], "_MY3")
+
+    def test_a_build_of_the_default_id_without_a_state_counts_as_the_default_tune(self):
+        self.build("ks_alpha", "ax_alpha")
+        self.assertEqual(tune.new_tune_from_draft(self.work, "ks_alpha")["id"], "ax_alp01")
+
+    def test_an_installed_package_of_the_free_ids_is_skipped_when_the_mods_folder_is_given(self):
+        tune.new_tune_from_draft(self.work, "ks_alpha", mods_dir=self.mods)
+        self.install("ax_alp01")
+        self.assertEqual(tune.new_tune_from_draft(self.work, "ks_alpha", mods_dir=self.mods)["id"], "ax_alp02")
+
+    def test_explicit_suffix_and_id_are_passed_on(self):
+        res = tune.new_tune_from_draft(self.work, "ks_alpha", suffix="_X", new_id="ax_alp42")
+        self.assertEqual(res, {"id": "ax_alp42", "stock": "ks_alpha", "name_suffix": "_X"})
+        self.assertEqual(tune.list_tunes(self.work, "ks_alpha")[0]["id"], "ax_alp42")
+        self.assertEqual(tune.new_tune_from_draft(self.work, "ks_alpha")["id"], "ax_alpha")
+
+    def test_errors_leave_nothing_behind(self):
+        tune.save_state(self.work, "ks_alpha", {"name_suffix": "_A"})
+        before = sorted(self.files())
+        for kw in ({"suffix": "_A"}, {"suffix": ""}, {"new_id": "ax_alpha"}, {"new_id": "bad"}):
+            with self.subTest(kw=kw), self.assertRaises(ValueError):
+                tune.new_tune_from_draft(self.work, "ks_alpha", **kw)
+            self.assertEqual(sorted(self.files()), before)
+
+    def test_the_draft_stays_unsaved_state_of_the_base_car(self):
+        tune.new_tune_from_draft(self.work, "ks_alpha")
+        self.assertEqual(tune.list_modded(self.work, self.mods)[0]["id"], "ax_alpha")
+        self.assertEqual(tune.load_state(self.work, "ks_alpha", tune.DRAFT), {})
+
+
 class TestListModded(TuneCase):
     def info(self, car_id, name):
         self.write(tune.stock_info_path(self.work, car_id), {"car_id": car_id, "display_name": name, "brand": "B", "year": 1})
@@ -1757,6 +1834,100 @@ class TestListModded(TuneCase):
         tune.duplicate_tune(self.work, "ks_alpha", None)
         self.assertEqual([(r["id"], r["name_suffix"]) for r in tune.list_modded(self.work, self.mods)],
                          [("ax_alpha", "_A"), ("ax_alp01", "_A2")])
+
+
+class TestPerTuneState(CarCase):
+    """set / unset / rows / unknown ids on the default tune (tune=None), the draft and a modded car ax01 of the stub car ks_x."""
+
+    def setUp(self):
+        super().setUp()
+        self.cars(("ks_x", "Car X"))
+        self.cat = mini_catalogue(suffix(), limiter())
+        self.patch(tune, "load_catalogue", lambda path=None: self.cat)
+        tune.save_state(self.work, "ks_x", {"limiter": 8000, "name_suffix": "_D"})
+        tune.save_state(self.work, "ks_x", {"limiter": 6000, "name_suffix": "_DR"}, tune.DRAFT)
+        tune.save_state(self.work, "ks_x", {"limiter": 9000, "name_suffix": "_M"}, "ax01")
+
+    def states(self):
+        return [tune.load_state(self.work, "ks_x", t) for t in (None, tune.DRAFT, "ax01")]
+
+    def test_set_changes_only_the_chosen_tune(self):
+        res = tune.set_value(self.work, "ks_x", "limiter", "9500", tune="ax01")
+        self.assertEqual(res, {"id": "limiter", "value": 9500, "warnings": []})
+        self.assertEqual([s["limiter"] for s in self.states()], [8000, 6000, 9500])
+        tune.set_value(self.work, "ks_x", "limiter", "4000", tune=tune.DRAFT)
+        self.assertEqual([s["limiter"] for s in self.states()], [8000, 4000, 9500])
+        tune.set_value(self.work, "ks_x", "limiter", "7500", tune="ax_x")
+        self.assertEqual([s["limiter"] for s in self.states()], [7500, 4000, 9500])
+        tune.set_value(self.work, "ks_x", "limiter", "7000")
+        self.assertEqual([s["limiter"] for s in self.states()], [7000, 4000, 9500])
+
+    def test_set_with_a_range_warning_and_errors_write_nothing(self):
+        self.assertEqual(tune.set_value(self.work, "ks_x", "limiter", "20000", tune="ax01")["warnings"],
+                         ["limiter=20000 is outside the suggested range 3000..12000"])
+        before = self.states()
+        for text, setting in (("fast", "limiter"), ("1", "nope")):
+            with self.subTest(setting), self.assertRaises(ValueError):
+                tune.set_value(self.work, "ks_x", setting, text, tune="ax01")
+        self.assertEqual(self.states(), before)
+
+    def test_unset_removes_from_the_chosen_tune_only(self):
+        self.assertEqual(tune.unset_value(self.work, "ks_x", "limiter", tune="ax01"), {"id": "limiter", "removed": True})
+        self.assertEqual(self.states(), [{"limiter": 8000, "name_suffix": "_D"}, {"limiter": 6000, "name_suffix": "_DR"}, {"name_suffix": "_M"}])
+        self.assertEqual(tune.unset_value(self.work, "ks_x", "limiter", tune="ax01"), {"id": "limiter", "removed": False})
+        self.assertEqual(tune.unset_value(self.work, "ks_x", "limiter", tune=tune.DRAFT)["removed"], True)
+        self.assertEqual(tune.load_state(self.work, "ks_x"), {"limiter": 8000, "name_suffix": "_D"})
+        with self.assertRaisesRegex(ValueError, "unknown setting 'nope'"):
+            tune.unset_value(self.work, "ks_x", "nope", tune="ax01")
+
+    def test_rows_show_the_values_of_the_chosen_tune(self):
+        values = {t: {r["id"]: (r["value"], r["changed"]) for r in tune.effective_rows(self.work, "ks_x", self.cat, tune=t)} for t in (None, tune.DRAFT, "ax01")}
+        self.assertEqual([values[t]["limiter"] for t in (None, tune.DRAFT, "ax01")], [(8000, True), (6000, True), (9000, True)])
+        self.assertEqual([values[t]["name_suffix"] for t in (None, tune.DRAFT, "ax01")], [("_D", True), ("_DR", True), ("_M", True)])
+        row = tune.effective_row(self.work, "ks_x", "limiter", self.cat, tune="ax01")
+        self.assertEqual((row["value"], row["default"], row["changed"]), (9000, 7000, True))
+        self.assertEqual(tune.effective_row(self.work, "ks_x", "limiter", self.cat)["value"], 8000)
+        self.assertEqual(tune.effective_rows(self.work, "ks_x", self.cat, True, "ax01")[0]["value"], "_M")
+
+    def test_a_tune_without_a_state_shows_the_defaults(self):
+        rows = {r["id"]: (r["value"], r["changed"]) for r in tune.effective_rows(self.work, "ks_x", self.cat, tune="ax02")}
+        self.assertEqual(rows, {"name_suffix": ("_MY", False), "limiter": (7000, False)})
+
+    def test_unknown_state_ids_and_their_warning_follow_the_tune(self):
+        tune.save_state(self.work, "ks_x", {"old_m": 1}, "ax01")
+        tune.save_state(self.work, "ks_x", {"old_d": 1})
+        self.assertEqual(tune.unknown_state_ids(self.work, "ks_x", self.cat, "ax01"), ["old_m"])
+        self.assertEqual(tune.unknown_state_ids(self.work, "ks_x", self.cat), ["old_d"])
+        self.assertEqual(tune.unknown_state_ids(self.work, "ks_x", self.cat, tune.DRAFT), [])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            tune.warn_unknown_state(self.work, "ks_x", self.cat, "ax01")
+        self.assertEqual(err.getvalue(), "warning: ignoring unknown setting 'old_m' in the saved state\n")
+
+    def test_the_tune_is_an_optional_trailing_keyword_after_the_old_arguments(self):
+        for fn, args in ((tune.set_value, ("ks_x", "limiter", "7000", self.cat)), (tune.unset_value, ("ks_x", "limiter", self.cat)),
+                         (tune.unknown_state_ids, ("ks_x", self.cat)), (tune.warn_unknown_state, ("ks_x", self.cat)),
+                         (tune.effective_row, ("ks_x", "limiter", self.cat))):
+            with self.subTest(fn.__name__), contextlib.redirect_stderr(io.StringIO()):
+                fn(self.work, *args, tune=None)
+                fn(self.work, *args)
+        self.assertEqual(len(tune.effective_rows(self.work, "ks_x", self.cat, False, None)), 2)
+
+    def test_invalid_tune_ids_are_refused_by_every_function_and_write_nothing(self):
+        before = self.states()
+        calls = (lambda t: tune.set_value(self.work, "ks_x", "limiter", "7000", self.cat, t), lambda t: tune.unset_value(self.work, "ks_x", "limiter", self.cat, t),
+                 lambda t: tune.unknown_state_ids(self.work, "ks_x", self.cat, t), lambda t: tune.warn_unknown_state(self.work, "ks_x", self.cat, t),
+                 lambda t: tune.effective_rows(self.work, "ks_x", self.cat, tune=t), lambda t: tune.effective_row(self.work, "ks_x", "limiter", self.cat, t))
+        for bad in ("ax1", "AX01", "ax0!", "..", "ax/1", "ks_x", "", 5):
+            for call in calls:
+                with self.subTest(bad=bad), self.assertRaises(ValueError):
+                    call(bad)
+        self.assertEqual(self.states(), before)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.work, "ks_x", "tunes"))), ["ax01"])
+
+    def test_the_default_tune_files_stay_where_they_were(self):
+        tune.set_value(self.work, "ks_x", "limiter", "7100", tune="ax_x")
+        self.assertEqual(sorted(f for f in os.listdir(os.path.join(self.work, "ks_x")) if f.endswith(".json")), ["draft_state.json", "tune_state.json"])
 
 
 # --------------------------------------------------------------------------------------------- work folder
@@ -2177,6 +2348,92 @@ class TestApply(CarCase):
         self.apply(self.settings(), install=False, mods_dir=str(mods))
         self.assertFalse(mods.exists())
 
+    def test_the_result_names_the_tune_and_its_suffix(self):
+        res = self.apply(self.settings(), {"name_suffix": "_TUNED"})
+        self.assertEqual((res["tune"], res["new_id"], res["name_suffix"]), ("ax_x", "ax_x", "_TUNED"))
+        self.assertEqual(self.apply(self.settings())["name_suffix"], "_TUNED")
+
+    def modded(self, state, tune_id="ax01"):
+        tune.save_state(self.work, "ks_x", state, tune_id)
+
+    def test_a_modded_car_builds_under_its_id_with_its_suffix_and_its_state_only(self):
+        self.modded({"limiter": 8000, "name_suffix": "_DRIFT"})
+        tune.save_state(self.work, "ks_x", {"limiter": 9500, "name_suffix": "_MY"})
+        res = self.apply(self.settings(limiter()), new_id="ax01")
+        self.assertEqual((res["tune"], res["new_id"], res["name_suffix"]), ("ax01", "ax01", "_DRIFT"))
+        self.assertEqual((res["build_dir"], res["package"]), (os.path.join(self.work, "ks_x", "build", "ax01"),
+                                                             os.path.join(self.work, "ks_x", "build", "ax01", "ax01.kspkg")))
+        self.assertEqual((self.calls[0][2], self.calls[0][4]), ("ax01", "Car X_DRIFT"))
+        self.assertEqual(self.built(res, "data/engine.carengine")["limiter"], 8000)
+        self.assertEqual(self.built(res, "data/x.car")["engine"]["limiter"], 8000)
+        self.assertEqual([(a["id"], a["new"]) for a in res["applied"]], [("name_suffix", "_DRIFT"), ("limiter", 8000)])
+        self.assertEqual(os.listdir(os.path.join(self.work, "ks_x", "build")), ["ax01"])
+
+    def test_building_a_modded_car_leaves_the_default_tune_and_the_draft_alone(self):
+        self.modded({"limiter": 8000, "name_suffix": "_DRIFT"})
+        tune.save_state(self.work, "ks_x", {"limiter": 9500}, tune.DRAFT)
+        before = {n: tune.load_state(self.work, "ks_x", t) for n, t in (("default", None), ("draft", tune.DRAFT), ("ax01", "ax01"))}
+        self.apply(self.settings(limiter()), new_id="ax01")
+        self.assertEqual({n: tune.load_state(self.work, "ks_x", t) for n, t in (("default", None), ("draft", tune.DRAFT), ("ax01", "ax01"))}, before)
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_x")))
+
+    def test_each_tune_builds_its_own_values(self):
+        self.modded({"limiter": 8000, "name_suffix": "_A"})
+        self.modded({"limiter": 9000, "name_suffix": "_B"}, "ax02")
+        first, second = (self.apply(self.settings(limiter()), new_id=t) for t in ("ax01", "ax02"))
+        self.assertEqual([self.built(r, "data/engine.carengine")["limiter"] for r in (first, second)], [8000, 9000])
+        self.assertEqual([c[4] for c in self.calls if c[0] == "build"], ["Car X_A", "Car X_B"])
+
+    def test_a_modded_car_is_installed_under_its_id(self):
+        self.modded({"name_suffix": "_DRIFT"})
+        mods = str(self.d / "mods")
+        res = self.apply(self.settings(), new_id="ax01", install=True, mods_dir=mods)
+        self.assertEqual(res["installed"], os.path.join(os.path.abspath(mods), "ax01.kspkg"))
+
+    def test_a_name_suffix_used_by_another_tune_is_refused_before_building(self):
+        self.modded({"name_suffix": "_SAME"})
+        tune.save_state(self.work, "ks_x", {"name_suffix": "_SAME"})
+        with self.assertRaisesRegex(ValueError, "^name suffix _SAME is already used by ax_x$"):
+            self.apply(self.settings(), new_id="ax01")
+        with self.assertRaisesRegex(ValueError, "^name suffix _SAME is already used by ax01$"):
+            self.apply(self.settings())
+        self.assertEqual(self.calls, [])
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "build")))
+
+    def test_the_suffix_of_another_stock_car_or_of_the_tune_itself_is_no_collision(self):
+        self.cars(("ks_x", "Car X"), ("ks_y", "Car Y"))
+        tune.save_state(self.work, "ks_y", {"name_suffix": "_SAME"})
+        self.modded({"name_suffix": "_SAME"})
+        self.assertEqual(self.apply(self.settings(), new_id="ax01")["name_suffix"], "_SAME")
+
+    def test_the_default_suffix_of_a_tune_without_one_collides_too(self):
+        self.modded({"limiter": 8000})
+        tune.save_state(self.work, "ks_x", {})
+        with self.assertRaisesRegex(ValueError, "name suffix _MY is already used by ax_x"):
+            self.apply(self.settings(limiter()), new_id="ax01")
+
+    def test_an_id_that_is_not_a_modded_car_is_refused_when_the_stock_car_has_modded_cars(self):
+        tune.save_state(self.work, "ks_x", {})
+        with self.assertRaisesRegex(ValueError, "^ax02 is not a modded car of ks_x, create it with duplicate first$"):
+            self.apply(self.settings(), new_id="ax02")
+        self.modded({"name_suffix": "_A"})
+        with self.assertRaisesRegex(ValueError, "ax02 is not a modded car of ks_x"):
+            self.apply(self.settings(), new_id="ax02")
+        self.assertEqual(self.calls, [])
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "build")))
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_x", "tunes", "ax02")))
+
+    def test_the_default_id_is_always_a_tune_and_a_stock_car_without_modded_cars_accepts_any_valid_id(self):
+        self.assertEqual(self.apply(self.settings(), new_id="ax_x")["tune"], "ax_x")
+        shutil.rmtree(os.path.join(self.work, "ks_x", "build"))
+        self.assertEqual(self.apply(self.settings(), new_id="ax_y")["tune"], "ax_y")
+
+    def test_the_tune_id_is_validated_before_any_state_is_read(self):
+        self.modded({})
+        for bad, message in (("ax_xy", "must have exactly 4"), ("AX01", "may only contain"), ("ks_x", "equals the old id")):
+            with self.subTest(bad), self.assertRaisesRegex(ValueError, message):
+                self.apply(self.settings(), new_id=bad)
+
     def tyre_world(self):
         self.fc.add_shared("tyres/slick/s.tyre", {"modelData": {"Dy0": 1.0}})
         self.fc.add("presets/c.compatibletyres", {"physic_compounds": [
@@ -2519,6 +2776,137 @@ class TestCommands(CarCase):
         code, out, err = self.run_main("cars", "--tested", "--work", self.work, "--game", os.path.join(self.work, "none.kspkg"))
         self.assertNotIn("note:", out)
 
+    def modded_car(self, *argv):
+        code, out, err = self.main("duplicate", *argv)
+        self.assertEqual((code, err), (0, ""), out)
+        return out
+
+    def test_duplicate_prints_the_new_id_and_suffix_and_writes_the_state(self):
+        self.main("set", "limiter", "8000")
+        code, out, err = self.main("duplicate")
+        self.assertEqual((code, out, err), (0, "car: ks_x, new id: ax01\nname suffix: _MY2\n", ""))
+        self.assertEqual(tune.load_state(self.work, "ks_x", "ax01"), {"limiter": 8000, "name_suffix": "_MY2"})
+        self.assertEqual(tune.load_state(self.work, "ks_x"), {"limiter": 8000})
+
+    def test_duplicate_takes_a_source_tune_the_draft_an_id_and_a_suffix(self):
+        self.main("set", "limiter", "8000")
+        self.main("set", "name_suffix", "_A")
+        self.assertEqual(self.modded_car("--suffix", "_B"), "car: ks_x, new id: ax01\nname suffix: _B\n")
+        self.assertEqual(self.modded_car("--tune", "ax01", "--new-id", "ax05"), "car: ks_x, new id: ax05\nname suffix: _B2\n")
+        tune.save_state(self.work, "ks_x", {"limiter": 6000}, tune.DRAFT)
+        self.assertEqual(self.modded_car("--draft"), "car: ks_x, new id: ax02\nname suffix: _MY\n")
+        self.assertEqual(tune.load_state(self.work, "ks_x", "ax02"), {"limiter": 6000, "name_suffix": "_MY"})
+        self.assertEqual(tune.load_state(self.work, "ks_x", "ax05")["limiter"], 8000)
+
+    def test_duplicate_mods_folder_packages_take_ids(self):
+        mods = self.d / "mods"
+        self.write(str(mods / "ax01.kspkg"), b"p", binary=True)
+        self.assertIn("new id: ax01\n", self.main("duplicate")[1])
+        self.assertIn("new id: ax02\n", self.main("duplicate", "--mods", str(mods))[1])
+
+    def test_duplicate_errors_are_error_lines_and_write_nothing(self):
+        self.main("set", "name_suffix", "_A")
+        before = sorted(os.listdir(os.path.join(self.work, "ks_x")))
+        for argv, message in ((("--tune", "ax09"), "error: ks_x has no tune ax09\n"), (("--tune", "draft"), "error: ks_x has no tune draft\n"),
+                              (("--suffix", "_A"), "error: name suffix already used by ax_x\n"), (("--new-id", "ax_x"), "error: ax_x is already a tune of ks_x\n"),
+                              (("--suffix", ""), "error: name_suffix expects 1 to 30 characters without control characters\n")):
+            with self.subTest(argv):
+                self.assertEqual(self.main("duplicate", *argv), (1, "", message))
+        code, out, err = self.main("duplicate", "--new-id", "AX01")
+        self.assertEqual((code, out), (1, ""))
+        self.assertTrue(err.startswith("error: new id 'AX01' may only contain"), err)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.work, "ks_x"))), before)
+
+    def test_cars_modded_lists_the_modded_cars(self):
+        mods = self.d / "mods"
+        self.main("set", "name_suffix", "_A")
+        self.modded_car("--suffix", "_B")
+        self.write(str(mods / "ax01.kspkg"), b"p", binary=True)
+        self.write(os.path.join(tune.build_dir(self.work, "ks_x"), "ax_x", "ax_x.kspkg"), b"p", binary=True)
+        code, out, err = self.run_main("cars", "--modded", "--work", self.work, "--mods", str(mods), "--game", os.path.join(self.work, "none.kspkg"))
+        self.assertEqual((code, err), (0, ""))
+        lines = out.splitlines()
+        self.assertEqual([c.strip() for c in lines[0].split("|")], ["id", "stock", "label", "suffix", "installed", "built"])
+        self.assertEqual([[c.strip() for c in line.split("|")] for line in lines[2:]],
+                         [["ax_x", "ks_x", "Car X_A", "_A", "no", "yes"], ["ax01", "ks_x", "Car X_B", "_B", "yes", "no"]])
+
+    def test_cars_modded_without_modded_cars_prints_only_the_header(self):
+        code, out, err = self.run_main("cars", "--modded", "--work", self.work, "--mods", str(self.d / "mods"), "--game", os.path.join(self.work, "none.kspkg"))
+        self.assertEqual((code, err, len(out.splitlines())), (0, "", 2))
+        self.assertNotIn("note:", out)
+
+    def test_set_unset_and_show_with_a_tune_leave_the_default_tune_alone(self):
+        self.main("set", "limiter", "8000")
+        self.modded_car()
+        self.assertEqual(self.main("set", "limiter", "9000", "--tune", "ax01")[1], "limiter = 9000\n")
+        self.assertEqual(tune.load_state(self.work, "ks_x"), {"limiter": 8000})
+        self.assertEqual(tune.load_state(self.work, "ks_x", "ax01"), {"limiter": 9000, "name_suffix": "_MY2"})
+        shown = {tune_id: {line.split("|")[1].strip(): [c.strip() for c in line.split("|")] for line in self.main("show", *extra)[1].splitlines()[2:]}
+                 for tune_id, extra in (("default", ()), ("ax01", ("--tune", "ax01")), ("ax_x", ("--tune", "ax_x")))}
+        self.assertEqual(shown["default"]["limiter"], ["*", "limiter", "8000", "7000", ""])
+        self.assertEqual(shown["ax01"]["limiter"], ["*", "limiter", "9000", "7000", ""])
+        self.assertEqual(shown["ax01"]["name_suffix"][2], "_MY2")
+        self.assertEqual(shown["ax_x"], shown["default"])
+        self.assertEqual(self.main("unset", "limiter", "--tune", "ax01")[1], "limiter removed from the state\n")
+        self.assertEqual(tune.load_state(self.work, "ks_x"), {"limiter": 8000})
+        self.assertEqual(tune.load_state(self.work, "ks_x", "ax01"), {"name_suffix": "_MY2"})
+
+    def test_show_with_a_tune_warns_about_its_unknown_ids_only(self):
+        self.modded_car()
+        tune.save_state(self.work, "ks_x", {"old_m": 1}, "ax01")
+        tune.save_state(self.work, "ks_x", {"old_d": 1})
+        err = self.main("show", "--tune", "ax01")[2]
+        self.assertIn("'old_m'", err)
+        self.assertNotIn("old_d", err)
+
+    def test_an_unknown_or_invalid_tune_is_an_error_line_for_every_command(self):
+        self.main("set", "limiter", "8000")
+        before = sorted(os.listdir(os.path.join(self.work, "ks_x")))
+        for argv in (("show",), ("defaults",), ("set", "limiter", "1"), ("unset", "limiter"), ("apply", "--no-install")):
+            for bad, message in (("ax09", "error: ks_x has no tune ax09\n"), ("draft", "error: ks_x has no tune draft\n")):
+                with self.subTest(argv=argv, bad=bad):
+                    self.assertEqual(self.main(*argv, "--tune", bad), (1, "", message))
+            with self.subTest(argv=argv, bad="bad"):
+                code, out, err = self.main(*argv, "--tune", "bad")
+                self.assertEqual((code, out), (1, ""))
+                self.assertTrue(err.startswith("error: new id 'bad' has 3 characters"), err)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.work, "ks_x"))), before)
+
+    def test_defaults_with_a_tune_prints_the_same_table(self):
+        self.modded_car()
+        self.assertEqual(self.main("defaults", "--tune", "ax01"), self.main("defaults"))
+
+    def stub_apply(self):
+        applied = []
+        self.patch(tune, "apply", lambda *a: applied.append(a) or {"new_id": a[2] or "ax_x", "applied": [], "notes": [], "package": "p.kspkg", "size": 1,
+                                                                    "installed": None, "backup": None})
+        return applied
+
+    def test_apply_with_a_tune_builds_that_tune(self):
+        self.modded_car()
+        applied = self.stub_apply()
+        code, out, err = self.main("apply", "--tune", "ax01", "--no-install")
+        self.assertEqual((code, err, [a[2] for a in applied]), (0, "", ["ax01"]))
+        self.assertIn("car: ks_x, new id: ax01\n", out)
+        self.main("apply", "--tune", "ax_x", "--no-install")
+        self.main("apply", "--no-install")
+        self.main("apply", "--new-id", "ax07", "--no-install")
+        self.assertEqual([a[2] for a in applied], ["ax01", "ax_x", None, "ax07"])
+
+    def test_apply_with_a_tune_and_a_new_id_is_an_error_before_anything_happens(self):
+        self.modded_car()
+        applied = self.stub_apply()
+        self.patch(tune, "game_running", lambda: self.fail("the game check comes after the option check"))
+        code, out, err = self.main("apply", "--tune", "ax01", "--new-id", "ax02")
+        self.assertEqual((code, out, err, applied), (1, "", "error: --tune and --new-id cannot be combined\n", []))
+
+    def test_apply_warns_about_the_unknown_ids_of_the_tune_it_builds(self):
+        self.modded_car()
+        tune.save_state(self.work, "ks_x", {"old_m": 1}, "ax01")
+        self.stub_apply()
+        code, out, err = self.main("apply", "--tune", "ax01", "--no-install")
+        self.assertEqual(err, "warning: ignoring unknown setting 'old_m' in the saved state\n")
+
     def test_show_opens_the_catalogue_once(self):
         self.patch(tune, "load_catalogue", REAL_LOAD_CATALOGUE)
         self.patch(tune, "resolve_defaults", lambda work, car, cat=None, game=None, hidden=False: [
@@ -2573,7 +2961,7 @@ class TestUsageText(unittest.TestCase):
             src = f.read()
         main_src = src[src.index("def main():"):]
         commands = [line.split()[2] for line in self.usage_lines()]
-        self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "doc"])
+        self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "duplicate", "doc"])
         for cmd in commands:
             self.assertIn('cmd == "%s"' % cmd, main_src)
 
@@ -2620,7 +3008,12 @@ for _name, _argv in (("no_arguments", []), ("unknown_command", ["frobnicate"]), 
                      ("show_with_a_positional", ["show", "x"]), ("apply_with_a_positional", ["apply", "x"]),
                      ("doc_with_a_positional", ["doc", "x"]), ("doc_all_with_car", ["doc", "--all", "--car", "ks_x"]),
                      ("doc_all_with_out", ["doc", "--all", "--out", "f.md"]), ("unknown_option", ["show", "--bogus", "1"]),
-                     ("option_without_value", ["show", "--car"])):
+                     ("option_without_value", ["show", "--car"]), ("tune_without_value", ["show", "--tune"]),
+                     ("cars_modded_with_tested", ["cars", "--modded", "--tested"]), ("duplicate_with_a_positional", ["duplicate", "x"]),
+                     ("duplicate_tune_with_draft", ["duplicate", "--tune", "ax01", "--draft"]), ("duplicate_with_all", ["duplicate", "--all"]),
+                     ("doc_with_a_tune", ["doc", "--tune", "ax01"]), ("init_with_a_tune", ["init", "--tune", "ax01"]),
+                     ("cars_with_a_tune", ["cars", "--tune", "ax01"]), ("show_with_draft", ["show", "--draft"]),
+                     ("apply_with_new_id_without_value", ["apply", "--tune", "ax01", "--new-id"])):
     setattr(TestCliUsage, "test_usage_" + _name, usage_case(_name, _argv))
 
 
@@ -2642,6 +3035,18 @@ class TestCliRuntimeErrors(unittest.TestCase):
             r = run_tool("tune.py", "defaults", "--work", d / "w", cwd=d)
             self.assertEqual((r.returncode, r.stdout), (1, ""))
             self.assertRegex(r.stderr, r"^error: no base car in .*, run init first\n$")
+
+    def test_tune_with_new_id_is_an_error_line_on_stderr_with_exit_1(self):
+        with tmp() as d:
+            r = run_tool("tune.py", "apply", "--tune", "ax01", "--new-id", "ax02", "--no-install", "--work", d / "w", cwd=d)
+            self.assertEqual((r.returncode, r.stdout, r.stderr), (1, "", "error: --tune and --new-id cannot be combined\n"))
+            self.assertEqual(os.listdir(d), [])
+
+    def test_unknown_tune_is_an_error_line_on_stderr_with_exit_1(self):
+        with tmp() as d:
+            r = run_tool("tune.py", "show", "--tune", "ax_zz99", "--work", d / "w", cwd=d)
+            self.assertEqual((r.returncode, r.stdout), (1, ""))
+            self.assertRegex(r.stderr, r"^error: .*ax_zz99")
 
     def test_unexpanded_work_folder_is_an_error_line(self):
         with tmp() as d:

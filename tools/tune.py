@@ -1,13 +1,14 @@
 """Settings engine of the tuner: read defaults, keep the chosen values, build and install the tuned car.
 
 usage:
-  python tools/tune.py cars     [--tested] [--game <content.kspkg>] [--mods <dir>] [--work <dir>]
+  python tools/tune.py cars     [--tested | --modded] [--game <content.kspkg>] [--mods <dir>] [--work <dir>]
   python tools/tune.py init     [--car ID] [--game <content.kspkg>] [--work <dir>]
-  python tools/tune.py defaults [--car ID] [--hidden] [--work <dir>]
-  python tools/tune.py set      <id> <value> [--car ID] [--work <dir>]
-  python tools/tune.py unset    <id> [--car ID] [--work <dir>]
-  python tools/tune.py show     [--car ID] [--work <dir>]
-  python tools/tune.py apply    [--car ID] [--new-id ID] [--no-install] [--mods <dir>] [--work <dir>]
+  python tools/tune.py defaults [--car ID] [--tune ID] [--hidden] [--work <dir>]
+  python tools/tune.py set      <id> <value> [--car ID] [--tune ID] [--work <dir>]
+  python tools/tune.py unset    <id> [--car ID] [--tune ID] [--work <dir>]
+  python tools/tune.py show     [--car ID] [--tune ID] [--work <dir>]
+  python tools/tune.py apply    [--car ID] [--tune ID | --new-id ID] [--no-install] [--mods <dir>] [--work <dir>]
+  python tools/tune.py duplicate [--car ID] [--tune ID | --draft] [--new-id ID] [--suffix TEXT] [--mods <dir>] [--work <dir>]
   python tools/tune.py doc      [--car ID | --all] [--out <file>] [--work <dir>]
 
 --car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
@@ -22,16 +23,18 @@ Work folder layout: <work>/<car>/{base, build/<new_id>, tune_state.json, stock_i
 shared <work>/backups, <work>/stock_loc/en.cars.loc and <work>/cars_index.json. The first command that runs moves the
 old single-car layout (<work>/base, build, tune_state.json, stock_info.json, defaults.json) into <work>/<default car>
 and prints what moved.
-Modded cars (tuned copies of a stock car, library functions list_tunes, list_modded, duplicate_tune, no command yet): the
-first one is the default tune <new_id> with the files above; every further one has its own tuned-car id (same length as
-the stock id) and lives in <work>/<car>/tunes/<id>/{tune_state.json, meta.json = {"stock": <car>}}; the unsaved working
+Modded cars (tuned copies of a stock car; library functions list_tunes, list_modded, duplicate_tune, new_tune_from_draft):
+the first one is the default tune <new_id> with the files above; every further one has its own tuned-car id (same length
+as the stock id) and lives in <work>/<car>/tunes/<id>/{tune_state.json, meta.json = {"stock": <car>}}; the unsaved working
 state of a stock car is <work>/<car>/draft_state.json (state functions take tune=None for the default tune, DRAFT or an id).
+Every modded car of a stock car has its own name suffix; the suffix of a copy is counted up (_MY -> _MY2 -> _MY3).
 
 cars:    table of every game car sorted by display name: id, display name (stock_info.json when extracted, else the
           game's name), extracted yes/no, tested yes/no (listed in tuner/cars.json), new id, installed yes/no
           (<new_id>.kspkg in the mods folder), size of the extracted stock car. --tested lists only the tested cars.
           Without the cache and the game package (--game, default the Steam install) only the tested cars are
-          listed, with a note.
+          listed, with a note. --modded lists the modded cars instead: id, stock car, label (stock name plus suffix),
+          suffix, installed yes/no (<id>.kspkg in the mods folder), built yes/no (build/<id>/<id>.kspkg).
 init:    extracts the stock car from the game package into <work>/<car>/base (skipped when already there), the game's
           stock en.cars.loc into <work>/stock_loc once, and writes <work>/<car>/stock_info.json (car id, display name,
           brand, year, property_1..3 as enum names from the game's system/cars.table, variant_name = stock text of the
@@ -48,6 +51,9 @@ defaults: reads every applicable setting of tuner/catalogue.json from <work>/<ca
 set/unset/show: edit and print <work>/<car>/tune_state.json ({setting id: value}). show lists applicable settings
           only, set refuses a setting that is not applicable to the car. Entries of the state whose id is not in the
           catalogue are ignored with a warning (show, apply) and kept in the file (remove them with unset).
+          --tune ID (also accepted by defaults and apply) picks the modded car whose state is shown or changed, an id
+          from cars --modded (default: the default tune <new_id>, the state file above); an unknown id is an error.
+          defaults prints the stock values, which do not depend on a tune: --tune is only checked there.
 apply:    refuses to install while AssettoCorsaEVO.exe runs (--no-install builds anyway). Always starts from the pristine <work>/<car>/base: clones the car
           under the new id into <work>/<car>/build/<new_id>.partial, writes every changed setting into ALL its resolved
           target files, packs <new_id>.kspkg, renames the folder to build/<new_id> (a failed run keeps the previous
@@ -61,6 +67,17 @@ apply:    refuses to install while AssettoCorsaEVO.exe runs (--no-install builds
           that name the stock file (compared case-insensitively). Other compounds and the shared files stay untouched;
           an axle without a changed tyre setting gets no file and no changed reference. A changed tyre setting of a
           car whose tyre file is inside the car folder (not shared) is refused: not supported yet.
+          --tune ID builds that modded car: its own state, its id as the new id, its name suffix; --tune and --new-id
+          cannot be combined. A suffix that another modded car of the same stock car uses is refused before building.
+          --new-id ID alone builds the state of the tune with that id (the default tune when it is left out); an id
+          that is not a modded car is refused once the stock car has modded cars, but accepted for a stock car without any
+          (old "new copy" use: no state, defaults only).
+duplicate: copies the saved values of a modded car (--tune SRC; default the default tune), or of the unsaved draft (--draft),
+          to a new modded car of the stock car and prints its id and name suffix. --new-id picks the id (valid, same length
+          as the stock id, unused; the default id <new_id> only while the default tune has neither state nor build),
+          default the first free <new_id> with its last two characters replaced by 01 .. 99; --mods adds the packages in
+          that folder to the ids that are taken. --suffix picks the name suffix (must not be used by another modded car of
+          the stock car); default the suffix of the source, counted up when taken.
 doc:      writes a Markdown reference of the settings applicable to the car with their defaults from
           <work>/<car>/base to <file> (default docs/settings/<car>.md in the repository); the car must be extracted.
           --all writes that file for every tested car of tuner/cars.json, extracting the cars that are not extracted
@@ -400,9 +417,9 @@ def save_state(work, car_id, state, tune=None):
         save_json(meta, {"stock": car_id})
 
 
-def unknown_state_ids(work, car_id, catalogue=None):
+def unknown_state_ids(work, car_id, catalogue=None, tune=None):
     known = {s["id"] for s in (catalogue or load_catalogue())["settings"]}
-    return [sid for sid in load_state(work, car_id) if sid not in known]
+    return [sid for sid in load_state(work, car_id, tune) if sid not in known]
 
 
 def to_f32(x):
@@ -488,27 +505,27 @@ def same(s, a, b):
     return a == b
 
 
-def set_value(work, car_id, setting_id, text, catalogue=None):
+def set_value(work, car_id, setting_id, text, catalogue=None, tune=None):
     cat = catalogue or load_catalogue()
     s = find_setting(cat, setting_id)
     v = coerce(s, text)
     row = resolve_defaults(work, car_id, dict(cat, settings=[s]), hidden=True)[0]
     if not row["applicable"]:
         raise ValueError("%s is not applicable to %s: %s" % (setting_id, car_id, row["reason"]))
-    state = load_state(work, car_id)
+    state = load_state(work, car_id, tune)
     state[setting_id] = v
-    save_state(work, car_id, state)
+    save_state(work, car_id, state, tune)
     warning = range_warning(s, v)
     return {"id": setting_id, "value": v, "warnings": [warning] if warning else []}
 
 
-def unset_value(work, car_id, setting_id, catalogue=None):
-    state = load_state(work, car_id)
+def unset_value(work, car_id, setting_id, catalogue=None, tune=None):
+    state = load_state(work, car_id, tune)
     if setting_id not in state:
         find_setting(catalogue or load_catalogue(), setting_id)
     removed = state.pop(setting_id, None) is not None
     if removed:
-        save_state(work, car_id, state)
+        save_state(work, car_id, state, tune)
     return {"id": setting_id, "removed": removed}
 
 
@@ -1190,9 +1207,9 @@ def resolve_rows(work, car_id, cat, game):
     return rows, tyre_error is None and (stock_name is None or complete_stock_info(info))
 
 
-def effective_rows(work, car_id, catalogue=None, hidden=False):
+def effective_rows(work, car_id, catalogue=None, hidden=False, tune=None):
     cat = catalogue or load_catalogue()
-    state = load_state(work, car_id)
+    state = load_state(work, car_id, tune)
     rows = resolve_defaults(work, car_id, cat, hidden=hidden)
     for row in rows:
         s = find_setting(cat, row["id"])
@@ -1201,10 +1218,10 @@ def effective_rows(work, car_id, catalogue=None, hidden=False):
     return rows
 
 
-def effective_row(work, car_id, setting_id, catalogue=None):
+def effective_row(work, car_id, setting_id, catalogue=None, tune=None):
     """The row of one setting as effective_rows(hidden=True) gives it, resolving only that setting."""
     cat = catalogue or load_catalogue()
-    return effective_rows(work, car_id, dict(cat, settings=[find_setting(cat, setting_id)]), hidden=True)[0]
+    return effective_rows(work, car_id, dict(cat, settings=[find_setting(cat, setting_id)]), hidden=True, tune=tune)[0]
 
 
 def scale_curve(curve, factor):
@@ -1272,7 +1289,10 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     mods = clone_car.expand(mods_dir or clone_car.DEFAULT_MODS) if install else None
     # ids only: the "unused" folder never exists, an old build of the same id is replaced below
     clone_car.validate(car_id, new_id, os.path.join(build_dir(work, car_id), "unused"))
-    rows = effective_rows(work, car_id, cat, hidden=True)
+    if (not is_default_tune(car_id, new_id) and not os.path.isdir(kspkg.long_path(tune_dir(work, car_id, new_id)))
+            and list_tunes(work, car_id)):
+        raise ValueError("%s is not a modded car of %s, create it with duplicate first" % (new_id, car_id))
+    rows = effective_rows(work, car_id, cat, hidden=True, tune=new_id)
     changed = [(s, r) for s, r in zip(cat["settings"], rows) if r["changed"]]
     bad = ["%s (%s)" % (s["id"], r["reason"]) for s, r in changed if not r["applicable"]]
     if bad:
@@ -1285,6 +1305,10 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     if info is None and car_id != load_cars()["default"]:
         raise ValueError("stock info missing, run init with the game installed")
     info = info or {}
+    name_suffix = next(r["value"] for r in rows if r["id"] == name_suffix_setting(cat)["id"])
+    owner = suffix_owner(work, car_id, name_suffix, exclude=new_id)
+    if owner:
+        raise ValueError("name suffix %s is already used by %s" % (name_suffix, owner))
     out_dir = os.path.join(build_dir(work, car_id), new_id)
     # the build always starts from the pristine base, in <new_id>.partial: the previous build of this id stays until the new one is complete
     part = out_dir + ".partial"
@@ -1355,7 +1379,7 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         remove_tree(work, out_dir)
     os.rename(kspkg.long_path(part), kspkg.long_path(out_dir))
     pkg = os.path.join(out_dir, new_id + ".kspkg")
-    result = {"new_id": new_id, "build_dir": out_dir, "package": pkg, "size": os.path.getsize(pkg),
+    result = {"new_id": new_id, "tune": new_id, "name_suffix": meta["name_suffix"], "build_dir": out_dir, "package": pkg, "size": os.path.getsize(pkg),
               "applied": applied, "notes": notes, "installed": None, "backup": None}
     if install:
         # kspkg and clone_car print their progress: keep it out of this command's output
@@ -1486,13 +1510,17 @@ def suffix_taken(work, car_id, suffix, exclude=None):
 
 
 def free_suffix(work, car_id, wanted, exclude=None):
-    """wanted when no other tune of the stock car uses it, else wanted + 2, 3, ... (cut at the end to stay within the
-    length limit of the setting)."""
+    """wanted when no other tune of the stock car uses it, else the number at its end counted up (_MY -> _MY2 -> _MY3,
+    _T1 -> _T2; leading zeros keep their width), the stem cut to stay within the length limit of the setting."""
     coerce(name_suffix_setting(), wanted)
-    candidate, n = wanted, 1
+    stem, digits = re.fullmatch(r"(.*?)(\d*)", wanted).groups()
+    candidate, n = wanted, int(digits or 1)
     while suffix_taken(work, car_id, candidate, exclude):
         n += 1
-        candidate = wanted[:NAME_SUFFIX_MAX - len(str(n))] + str(n)
+        number = str(n).zfill(len(digits))
+        if len(number) > NAME_SUFFIX_MAX:
+            raise ValueError("no free name suffix left for %s" % wanted)
+        candidate = stem[:NAME_SUFFIX_MAX - len(number)] + number
     return candidate
 
 
@@ -1527,6 +1555,14 @@ def duplicate_tune(work, car_id, src, new_id=None, suffix=None, mods_dir=None):
     state[s["id"]] = suffix
     save_state(work, car_id, state, new_id)
     return {"id": new_id, "stock": car_id, "name_suffix": suffix}
+
+
+def new_tune_from_draft(work, car_id, suffix=None, new_id=None, mods_dir=None):
+    """duplicate_tune(DRAFT) for the Apply of a stock car: new_id None takes the default id while the default tune does
+    not exist yet (no state, no build), else free_tune_id."""
+    if new_id is None and not any(t["default"] for t in list_tunes(work, car_id)):
+        new_id = new_id_for(car_id)
+    return duplicate_tune(work, car_id, DRAFT, new_id, suffix, mods_dir)
 
 
 def list_modded(work, mods_dir=None):
@@ -1584,8 +1620,8 @@ def print_copy_differences(rows):
             print("    %s = %s" % (c["target"], fmt(c["value"])))
 
 
-def warn_unknown_state(work, car_id, catalogue=None):
-    for sid in unknown_state_ids(work, car_id, catalogue):
+def warn_unknown_state(work, car_id, catalogue=None, tune=None):
+    for sid in unknown_state_ids(work, car_id, catalogue, tune):
         print("warning: ignoring unknown setting '%s' in the saved state" % sid, file=sys.stderr)
 
 
@@ -1664,15 +1700,30 @@ def mods_arg(opts):
     return clone_car.expand(opts["mods"]) if "mods" in opts else None
 
 
+def tune_arg(work, car_id, opts):
+    """The tune chosen with --tune: None when not given, the default id as given, else the id of an existing modded car."""
+    tune_id = opts.get("tune")
+    if tune_id is None or tune_id == new_id_for(car_id):
+        return tune_id
+    if tune_id == DRAFT or not os.path.isfile(kspkg.long_path(state_path(work, car_id, tune_id))):
+        raise ValueError("%s has no tune %s" % (car_id, tune_id))
+    return tune_id
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
         if cmd == "cars":
-            pos, opts = cli_args(("game", "mods", "work"), ("tested",))
-            if pos:
+            pos, opts = cli_args(("game", "mods", "work"), ("tested", "modded"))
+            if pos or ("tested" in opts and "modded" in opts):
                 usage()
             work, _ = start(opts)
             game = os.path.expandvars(opts.get("game", DEFAULT_GAME))
+            if "modded" in opts:
+                print(table(["id", "stock", "label", "suffix", "installed", "built"],
+                            [[r["id"], r["stock"], r["label"], r["name_suffix"], "yes" if r["installed"] else "no",
+                              "yes" if r["built"] else "no"] for r in list_modded(work, mods_arg(opts))]))
+                return
             print(table(["id", "display name", "extracted", "tested", "new id", "installed", "size"],
                         [[r["id"], r["display_name"], "yes" if r["extracted"] else "no", "yes" if r["tested"] else "no",
                           r["new_id"], "yes" if r["installed"] else "no",
@@ -1694,10 +1745,11 @@ def main():
             print("stock info %s" % res["stock_info"])
             print("shared tyre files %s" % res["tyre_files"])
         elif cmd == "defaults":
-            pos, opts = cli_args(("car", "work"), ("hidden",))
+            pos, opts = cli_args(("car", "tune", "work"), ("hidden",))
             if pos:
                 usage()
             work, car_id = start(opts)
+            tune_arg(work, car_id, opts)
             every = resolve_defaults(work, car_id, hidden=True)
             rows = [r for r in every if r["applicable"]]
             save_json(os.path.join(car_work(work, car_id), "defaults.json"), rows)
@@ -1709,41 +1761,47 @@ def main():
                         print("  %s: %s" % (r["id"], r["reason"]))
             print_copy_differences(rows)
         elif cmd == "set":
-            pos, opts = cli_args(("car", "work"))
+            pos, opts = cli_args(("car", "tune", "work"))
             if len(pos) != 2:
                 usage()
-            res = set_value(*start(opts), pos[0], pos[1])
+            work, car_id = start(opts)
+            res = set_value(work, car_id, pos[0], pos[1], tune=tune_arg(work, car_id, opts))
             for w in res["warnings"]:
                 print("warning: " + w, file=sys.stderr)
             print("%s = %s" % (res["id"], fmt(res["value"])))
         elif cmd == "unset":
-            pos, opts = cli_args(("car", "work"))
+            pos, opts = cli_args(("car", "tune", "work"))
             if len(pos) != 1:
                 usage()
-            res = unset_value(*start(opts), pos[0])
+            work, car_id = start(opts)
+            res = unset_value(work, car_id, pos[0], tune=tune_arg(work, car_id, opts))
             print("%s %s" % (res["id"], "removed from the state" if res["removed"] else "was not set"))
         elif cmd == "show":
-            pos, opts = cli_args(("car", "work"))
+            pos, opts = cli_args(("car", "tune", "work"))
             if pos:
                 usage()
             work, car_id = start(opts)
+            tune_id = tune_arg(work, car_id, opts)
             cat = load_catalogue()
-            warn_unknown_state(work, car_id, cat)
-            rows = effective_rows(work, car_id, cat)
+            warn_unknown_state(work, car_id, cat, tune_id)
+            rows = effective_rows(work, car_id, cat, tune=tune_id)
             print(table(["", "id", "value", "default", "unit"],
                         [["*" if r["changed"] else "", r["id"], fmt(r["value"]), fmt(r["default"]), r["unit"]]
                          for r in rows]))
         elif cmd == "apply":
-            pos, opts = cli_args(("car", "new-id", "mods", "work"), ("no-install",))
+            pos, opts = cli_args(("car", "tune", "new-id", "mods", "work"), ("no-install",))
             if pos:
                 usage()
+            if "tune" in opts and "new-id" in opts:
+                raise ValueError("--tune and --new-id cannot be combined")
             if "no-install" not in opts and game_running():
                 raise ValueError("the game is running, close it first")
             work, car_id = start(opts)
             note_untested(car_id)
+            new_id = tune_arg(work, car_id, opts) or opts.get("new-id")
             cat = load_catalogue()
-            warn_unknown_state(work, car_id, cat)
-            res = apply(work, car_id, opts.get("new-id"), "no-install" not in opts, mods_arg(opts), cat)
+            warn_unknown_state(work, car_id, cat, new_id)
+            res = apply(work, car_id, new_id, "no-install" not in opts, mods_arg(opts), cat)
             print("car: %s, new id: %s" % (car_id, res["new_id"]))
             print("applied %d setting(s)" % len(res["applied"]))
             for a in res["applied"]:
@@ -1754,6 +1812,15 @@ def main():
             if res["installed"]:
                 print("installed: %s" % res["installed"])
                 print("backup: %s" % (res["backup"] or "no previous install"))
+        elif cmd == "duplicate":
+            pos, opts = cli_args(("car", "tune", "new-id", "suffix", "mods", "work"), ("draft",))
+            if pos or ("tune" in opts and "draft" in opts):
+                usage()
+            work, car_id = start(opts)
+            src = DRAFT if "draft" in opts else tune_arg(work, car_id, opts)
+            res = duplicate_tune(work, car_id, src, opts.get("new-id"), opts.get("suffix"), mods_arg(opts))
+            print("car: %s, new id: %s" % (car_id, res["id"]))
+            print("name suffix: %s" % res["name_suffix"])
         elif cmd == "doc":
             pos, opts = cli_args(("car", "out", "work"), ("all",))
             if pos or ("all" in opts and ("car" in opts or "out" in opts)):
