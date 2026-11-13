@@ -113,6 +113,10 @@ input[type="checkbox"] { accent-color: var(--color-accent); }
   font: inherit; width: 16em; max-width: 100%; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 6px;
   background: var(--color-bg); color: var(--color-text);
 }
+.dialog .field select {
+  font: inherit; max-width: 100%; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 6px;
+  background: var(--color-bg); color: var(--color-text);
+}
 .dialog .hint { font-size: 13px; color: var(--color-text-muted); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
 .toolbar input[type="search"] {
@@ -143,6 +147,7 @@ button.grouptoggle {
   background: transparent; color: var(--color-text-muted); letter-spacing: inherit; text-align: left; text-transform: inherit;
 }
 button.grouptoggle:focus-visible { outline-offset: -2px; }
+tr.group th.plain { padding: 8px 12px; }
 button.grouptoggle:hover .gname { color: var(--color-accent); }
 .gname { color: var(--color-text); }
 .gcount { text-transform: none; letter-spacing: 0; }
@@ -187,7 +192,7 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 }
 @media (max-width: 1000px) {
   .page { padding: 0 12px 30px; }
-  td, thead th, button.grouptoggle { padding-left: 8px; padding-right: 8px; }
+  td, thead th, button.grouptoggle, tr.group th.plain { padding-left: 8px; padding-right: 8px; }
   .valuewrap input { width: 7em; }
   .toolbar input[type="search"] { min-width: 180px; }
 }
@@ -283,6 +288,60 @@ button.reset { padding: 2px 8px; font-size: 12px; }
       <h2>Tyre Creator</h2>
       <p>Tyres you create here are saved once and can be ticked in the garage list of any modded car in the Car Tuner tab.</p>
     </section>
+
+    <div class="toolbar">
+      <label class="carpick">Tyre
+        <select id="tyre-select" aria-label="Tyre" disabled></select>
+      </label>
+      <button id="btn-tyre-new" class="primary" type="button" disabled>New tyre&hellip;</button>
+      <button id="btn-tyre-rename" type="button" disabled>Rename&hellip;</button>
+      <button id="btn-tyre-delete" type="button" disabled>Delete</button>
+    </div>
+
+    <section id="tyre-dialog" class="panel dialog" role="group" aria-labelledby="tyre-dialog-title" hidden>
+      <h2 id="tyre-dialog-title"></h2>
+      <p id="tyre-dialog-text" hidden></p>
+      <div id="tyre-dialog-name-field" class="field">
+        <label for="tyre-dialog-name">Name</label>
+        <input id="tyre-dialog-name" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="tyre-dialog-source-field" class="field">
+        <label for="tyre-dialog-source">Source tyre (from your installed cars)</label>
+        <select id="tyre-dialog-source"></select>
+      </div>
+      <p id="tyre-dialog-error" class="msg err" role="alert" hidden></p>
+      <div class="actions">
+        <button id="tyre-dialog-ok" class="primary" type="button">OK</button>
+        <button id="tyre-dialog-cancel" type="button">Cancel</button>
+      </div>
+    </section>
+
+    <p id="tyre-error" class="msg err" role="alert" hidden></p>
+    <div id="tyre-notes"></div>
+
+    <section id="tyre-editor" hidden>
+      <div class="namerow">
+        <label class="carpick">Source:
+          <select id="tyre-source" aria-label="Source tyre"></select>
+        </label>
+        <button id="btn-tyre-reset" type="button">Reset all values</button>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <caption class="sr-only">Settings of the selected tyre</caption>
+          <colgroup><col class="c-name"><col class="c-value"><col class="c-default"><col class="c-desc"></colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Variable name</th>
+              <th scope="col">Value</th>
+              <th scope="col">Default (source tyre)</th>
+              <th scope="col">Description</th>
+            </tr>
+          </thead>
+          <tbody id="tyre-rows"></tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -333,6 +392,19 @@ let awaitCreated = null;
 const tabs = [$("tab-car"), $("tab-tyres")];
 const panels = [$("panel-car"), $("panel-tyres")];
 let activeTab = 0;
+// the Tyre Creator: the library and the game tyres it can start from as the server listed them last, the id of the
+// selected tyre (kept while another tab is shown) and the rows of its editor
+let tyres = [];
+let tyreSources = [];
+let tyreId = null;
+let tyreRows = [];
+let tyreLoaded = false;
+let tyreError = "";
+// the open New / Rename / Delete panel: {kind, id, opener, busy}, else null
+let tyreDialog = null;
+// counts the loads of the library, so that a slow answer never replaces a newer one
+let tyreSeq = 0;
+let tyreJobRunning = false;
 
 function storedSelection() {
   const none = { car: null, tune: DRAFT };
@@ -394,7 +466,7 @@ function shownName() {
 
 async function api(path, body, target) {
   if (target && body === undefined) {
-    path += "?" + (target.car ? "car=" + encodeURIComponent(target.car) + "&" : "") + "tune=" + encodeURIComponent(target.tune);
+    path += (path.includes("?") ? "&" : "?") + (target.car ? "car=" + encodeURIComponent(target.car) + "&" : "") + "tune=" + encodeURIComponent(target.tune);
   }
   const opts = body === undefined ? {} : {
     method: "POST",
@@ -546,6 +618,7 @@ function renderButtons() {
   $("init-panel").hidden = !info || baseOk;
   $("tuner").hidden = !baseOk || !tableLoaded;
   $("name-host").hidden = !baseOk || !tableLoaded || !headerRow;
+  renderTyreControls();
 }
 
 function addLine(box, text, cls) {
@@ -698,14 +771,14 @@ function commit(r) {
     if (r.field.checked === (r.data.value === true)) return;
     const on = r.field.checked;
     setMsg(r, "", "");
-    queue = queue.then(() => sendSet(r, on));
+    queue = queue.then(() => r.save(r, on));
     return;
   }
   // the suffix keeps its spaces (the server does not trim it, tune.py "not trimmed")
   const text = r.data.id === "name_suffix" ? r.field.value : r.field.value.trim();
   if (text === r.shown) return;
   setMsg(r, "", "");
-  queue = queue.then(() => sendSet(r, text));
+  queue = queue.then(() => r.save(r, text));
 }
 
 function buildField(r) {
@@ -766,13 +839,14 @@ function buildReset(r) {
   b.setAttribute("aria-label", "Reset " + r.data.label);
   b.addEventListener("click", () => {
     clearTimeout(r.timer);
-    queue = queue.then(() => sendUnset(r));
+    queue = queue.then(() => r.clear(r));
   });
   return b;
 }
 
 function newRow(data, target) {
-  const r = { data: data, target: target, shown: "", timer: null, msgTimer: null, group: null };
+  // save and clear write the row: the settings of a car by default, the tyre rows replace them
+  const r = { data: data, target: target, shown: "", timer: null, msgTimer: null, group: null, save: sendSet, clear: sendUnset };
   r.msg = el("div", "msg");
   r.msg.hidden = true;
   r.msg.setAttribute("role", "alert");
@@ -823,6 +897,7 @@ function buildRow(data, target) {
   wrap.appendChild(r.reset);
   valueCell.appendChild(wrap);
   valueCell.appendChild(r.msg);
+  if (data.applicable === false) valueCell.appendChild(el("div", "msg warn", "Not applicable: " + data.reason));
 
   const descCell = el("td");
   descCell.appendChild(document.createTextNode(data.description));
@@ -1099,6 +1174,330 @@ function switchCar(next) {
   refresh();
 }
 
+/* ---------- tyre creator ---------- */
+
+function tyreEntry() {
+  return tyres.find((t) => t.id === tyreId && !t.error) || null;
+}
+
+function sourceKey(source) {
+  return source.front + "|" + source.rear;
+}
+
+function sourceText(source) {
+  return source.front === source.rear ? source.front : source.front + " + " + source.rear;
+}
+
+// the tyre that is selected when this one is deleted: the next one of the list, else the one before it
+function neighbourOf(id) {
+  const good = tyres.filter((t) => !t.error);
+  const i = good.findIndex((t) => t.id === id);
+  const next = good[i + 1] || good[i - 1];
+  return next ? next.id : null;
+}
+
+function renderTyreControls() {
+  const running = !!info && info.job.state === "running";
+  // a job that ends may have installed a car, so the game tyres are read again
+  if (tyreJobRunning && !running && !$("panel-tyres").hidden) loadTyres(true);
+  tyreJobRunning = running;
+  let whyNew = "";
+  if (running) whyNew = "a job is running";
+  else if (!tyreLoaded) whyNew = tyreError || "the tyre library is not loaded yet";
+  else if (tyreSources.length === 0) whyNew = "install a car first (Car Tuner tab), its game tyres are the sources";
+  let whyEdit = "";
+  if (running) whyEdit = "a job is running";
+  else if (tyreEntry() === null) whyEdit = "select a tyre first";
+  $("btn-tyre-new").disabled = whyNew !== "";
+  $("btn-tyre-new").title = whyNew;
+  for (const id of ["btn-tyre-rename", "btn-tyre-delete"]) {
+    $(id).disabled = whyEdit !== "";
+    $(id).title = whyEdit;
+  }
+  $("tyre-select").disabled = tyres.length === 0;
+  $("tyre-source").disabled = running;
+  $("btn-tyre-reset").disabled = running;
+  const locked = running || (tyreDialog !== null && tyreDialog.busy);
+  for (const id of ["tyre-dialog-name", "tyre-dialog-source", "tyre-dialog-ok"]) $(id).disabled = locked;
+  $("tyre-dialog-cancel").disabled = tyreDialog !== null && tyreDialog.busy;
+  for (const r of tyreRows) {
+    r.field.disabled = running || r.data.applicable === false;
+    r.reset.disabled = running;
+  }
+}
+
+function renderTyres() {
+  const entry = tyreEntry();
+  const select = $("tyre-select");
+  select.replaceChildren();
+  for (const t of tyres) {
+    const o = el("option", "", t.error ? t.id + " (damaged)" : t.name);
+    o.value = t.id;
+    if (t.error) {
+      o.disabled = true;
+      o.title = t.error;
+    }
+    select.appendChild(o);
+  }
+  if (entry) select.value = entry.id;
+  else select.selectedIndex = -1;
+  $("tyre-error").textContent = tyreError;
+  $("tyre-error").hidden = tyreError === "";
+  const notes = $("tyre-notes");
+  notes.replaceChildren();
+  if (tyreLoaded && tyres.length === 0) addLine(notes, "No tyres yet. Press New tyre to create one.", "empty");
+  if (tyreLoaded && tyreSources.length === 0) {
+    addLine(notes, "No game tyres found: install a car in the Car Tuner tab first, its tyres become the sources.", "empty");
+  }
+  $("tyre-editor").hidden = entry === null;
+  if (entry) {
+    const key = sourceKey(entry.source);
+    const box = $("tyre-source");
+    box.replaceChildren();
+    if (!tyreSources.some((s) => s.key === key)) {
+      const gone = el("option", "", sourceText(entry.source) + " (not offered by any installed car)");
+      gone.value = key;
+      gone.disabled = true;
+      box.appendChild(gone);
+    }
+    for (const s of tyreSources) {
+      const o = el("option", "", s.label);
+      o.value = s.key;
+      box.appendChild(o);
+    }
+    box.value = key;
+  }
+  renderTyreControls();
+}
+
+function clearTyreRows() {
+  $("tyre-rows").replaceChildren();
+  tyreRows = [];
+}
+
+function buildTyreGroup(name) {
+  const tr = el("tr", "group");
+  const th = el("th", "plain");
+  th.colSpan = 4;
+  th.scope = "rowgroup";
+  th.appendChild(el("span", "gname", name));
+  tr.appendChild(th);
+  return tr;
+}
+
+// the rows of the server come front and rear mixed: each axle gets its group row and keeps the order of the server
+function buildTyreRows(list, id) {
+  const body = $("tyre-rows");
+  clearTyreRows();
+  for (const axle of ["front", "rear"]) {
+    body.appendChild(buildTyreGroup(axle === "front" ? "Front tyre" : "Rear tyre"));
+    for (const item of list.filter((data) => data.axle === axle)) {
+      const r = buildRow(item, null);
+      r.tyre = id;
+      r.save = sendTyreSet;
+      r.clear = sendTyreUnset;
+      tyreRows.push(r);
+      body.appendChild(r.tr);
+    }
+  }
+}
+
+async function loadTyre() {
+  const id = tyreId;
+  if (!id) {
+    clearTyreRows();
+    renderTyres();
+    return;
+  }
+  try {
+    const res = await api("/api/tyre?id=" + encodeURIComponent(id), undefined, selection);
+    if (id !== tyreId) return;
+    tyreError = "";
+    buildTyreRows(res.rows, id);
+  } catch (e) {
+    if (id !== tyreId) return;
+    clearTyreRows();
+    tyreError = e.message;
+  }
+  renderTyres();
+}
+
+// reload: also read the settings of the selected tyre again, else they are read only when another tyre is selected
+async function loadTyres(reload) {
+  const seq = ++tyreSeq;
+  try {
+    const res = await api("/api/tyres", undefined, selection);
+    if (seq !== tyreSeq) return;
+    tyres = res.tyres;
+    tyreSources = res.sources;
+    tyreLoaded = true;
+    tyreError = "";
+  } catch (e) {
+    if (seq !== tyreSeq) return;
+    tyreError = e.message;
+    renderTyres();
+    return;
+  }
+  const before = tyreId;
+  if (tyreEntry() === null) {
+    const first = tyres.find((t) => !t.error);
+    tyreId = first ? first.id : null;
+  }
+  if (reload || tyreId !== before) await loadTyre();
+  else renderTyres();
+}
+
+function selectTyre() {
+  const id = $("tyre-select").value;
+  if (id === tyreId) return;
+  tyreId = id;
+  tyreError = "";
+  loadTyre();
+}
+
+async function sendTyreSet(r, text) {
+  try {
+    const res = await api("/api/tyre_set", { id: r.tyre, setting: r.data.id, value: text }, selection);
+    showRow(r, res.row, false);
+    setMsg(r, res.warnings.join(" "), "warn");
+    loadTyres(false);
+  } catch (e) {
+    setField(r);
+    setMsg(r, e.message, "err");
+  }
+}
+
+async function sendTyreUnset(r) {
+  try {
+    const res = await api("/api/tyre_unset", { id: r.tyre, setting: r.data.id }, selection);
+    showRow(r, res.row, false);
+    setMsg(r, "", "");
+    loadTyres(false);
+  } catch (e) {
+    setMsg(r, e.message, "err");
+  }
+}
+
+function changeTyreSource() {
+  const entry = tyreEntry();
+  if (!entry) return;
+  const key = $("tyre-source").value;
+  queue = queue.then(async () => {
+    try {
+      await api("/api/tyre_source", { id: entry.id, source: key }, selection);
+      tyreError = "";
+    } catch (e) {
+      tyreError = e.message;
+    }
+    await loadTyres(true);
+  });
+}
+
+function resetTyre() {
+  const entry = tyreEntry();
+  if (!entry || !window.confirm("Reset all values of the tyre " + entry.name + " to those of its source tyre?")) return;
+  queue = queue.then(async () => {
+    try {
+      await api("/api/tyre_reset", { id: entry.id }, selection);
+      tyreError = "";
+    } catch (e) {
+      tyreError = e.message;
+    }
+    await loadTyres(true);
+  });
+}
+
+function showTyreDialogError(text) {
+  $("tyre-dialog-error").textContent = text;
+  $("tyre-dialog-error").hidden = text === "";
+}
+
+function openTyreDialog(kind) {
+  const entry = tyreEntry();
+  const create = kind === "new";
+  const remove = kind === "delete";
+  if (create ? tyreSources.length === 0 : entry === null) return;
+  const opener = tyreDialog ? tyreDialog.opener : document.activeElement;
+  tyreDialog = { kind: kind, id: entry ? entry.id : null, opener: opener, busy: false };
+  $("tyre-dialog-title").textContent = create ? "New tyre" : remove ? "Delete tyre" : "Rename tyre";
+  $("tyre-dialog-text").textContent = remove ? "Delete tyre " + entry.name + "? This cannot be undone." : "";
+  $("tyre-dialog-text").hidden = !remove;
+  $("tyre-dialog-name-field").hidden = remove;
+  $("tyre-dialog-name").value = create || remove ? "" : entry.name;
+  $("tyre-dialog-source-field").hidden = !create;
+  const box = $("tyre-dialog-source");
+  box.replaceChildren();
+  for (const s of tyreSources) {
+    const o = el("option", "", s.label + " \u2014 " + s.cars.join(", "));
+    o.value = s.key;
+    box.appendChild(o);
+  }
+  $("tyre-dialog-ok").textContent = remove ? "Delete" : "OK";
+  showTyreDialogError("");
+  $("tyre-dialog").hidden = false;
+  renderTyreControls();
+  if (remove) {
+    $("tyre-dialog-cancel").focus();
+  } else {
+    $("tyre-dialog-name").focus();
+    $("tyre-dialog-name").select();
+  }
+}
+
+function closeTyreDialog(restoreFocus) {
+  if (!tyreDialog) return;
+  const opener = tyreDialog.opener;
+  tyreDialog = null;
+  $("tyre-dialog").hidden = true;
+  renderTyreControls();
+  if (restoreFocus) {
+    const back = [opener, $("tyre-select"), $("btn-tyre-new")].find((n) => n && document.contains(n) && !n.disabled);
+    (back || $("tab-tyres")).focus();
+  }
+}
+
+async function submitTyreDialog() {
+  if (!tyreDialog || tyreDialog.busy || (info && info.job.state === "running")) return;
+  const mine = tyreDialog;
+  const name = $("tyre-dialog-name").value.trim();
+  const source = $("tyre-dialog-source").value;
+  mine.busy = true;
+  showTyreDialogError("");
+  renderTyreControls();
+  try {
+    if (mine.kind === "new") {
+      const res = await api("/api/tyre_new", { name: name, source: source }, selection);
+      tyreId = res.tyre.id;
+    } else if (mine.kind === "rename") {
+      await api("/api/tyre_rename", { id: mine.id, name: name }, selection);
+    } else {
+      await api("/api/tyre_delete", { id: mine.id }, selection);
+      tyreId = neighbourOf(mine.id);
+    }
+  } catch (e) {
+    mine.busy = false;
+    if (tyreDialog === mine) {
+      showTyreDialogError(e.message);
+      (mine.kind === "delete" ? $("tyre-dialog-cancel") : $("tyre-dialog-name")).focus();
+    }
+    renderTyreControls();
+    return;
+  }
+  await loadTyres(mine.kind !== "rename");
+  if (tyreDialog === mine) closeTyreDialog(true);
+}
+
+function tyreDialogKey(ev) {
+  if (!tyreDialog) return;
+  if (ev.key === "Escape") {
+    ev.preventDefault();
+    if (!tyreDialog.busy) closeTyreDialog(true);
+  } else if (ev.key === "Enter" && ev.target.tagName === "INPUT") {
+    ev.preventDefault();
+    submitTyreDialog();
+  }
+}
+
 /* ---------- tabs ---------- */
 
 function selectTab(i) {
@@ -1108,6 +1507,7 @@ function selectTab(i) {
     tab.tabIndex = k === i ? 0 : -1;
     panels[k].hidden = k !== i;
   });
+  if (tabs[i] === $("tab-tyres")) loadTyres(true);
 }
 
 function tabKey(ev) {
@@ -1141,6 +1541,15 @@ $("btn-collapse-all").addEventListener("click", () => setAllGroups(false));
 $("dialog-ok").addEventListener("click", submitDialog);
 $("dialog-cancel").addEventListener("click", () => closeDialog(true));
 $("dialog").addEventListener("keydown", dialogKey);
+$("tyre-select").addEventListener("change", selectTyre);
+$("btn-tyre-new").addEventListener("click", () => openTyreDialog("new"));
+$("btn-tyre-rename").addEventListener("click", () => openTyreDialog("rename"));
+$("btn-tyre-delete").addEventListener("click", () => openTyreDialog("delete"));
+$("tyre-source").addEventListener("change", changeTyreSource);
+$("btn-tyre-reset").addEventListener("click", resetTyre);
+$("tyre-dialog-ok").addEventListener("click", submitTyreDialog);
+$("tyre-dialog-cancel").addEventListener("click", () => closeTyreDialog(true));
+$("tyre-dialog").addEventListener("keydown", tyreDialogKey);
 $("search").addEventListener("input", applyFilter);
 $("changed-only").addEventListener("change", applyFilter);
 document.addEventListener("visibilitychange", () => {

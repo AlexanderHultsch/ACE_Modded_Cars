@@ -154,8 +154,14 @@ class TestNoInjectionSinks(unittest.TestCase):
 
 
 # server routes the page does not call yet: take a route out of this list when the page starts to use it
-SERVER_ONLY = ("/api/tyres", "/api/tyre", "/api/tyre_new", "/api/tyre_rename", "/api/tyre_source", "/api/tyre_set", "/api/tyre_unset",
-               "/api/tyre_reset", "/api/tyre_delete", "/api/garage", "/api/garage_set", "/api/garage_reset")
+SERVER_ONLY = ("/api/garage", "/api/garage_set", "/api/garage_reset")
+
+
+def called_paths():
+    """The route paths the script writes as plain strings, plus the routes of ts.QUERY_ROUTES, which the script writes with their
+    query string: "/api/tyre?id=" + encodeURIComponent(id). No other route may carry a query string."""
+    paths = set(re.findall(r'"(/api/[^"?]*)"', CODE))
+    return paths | {p for p in re.findall(r'"(/api/[^"?]*)\?id=" \+ encodeURIComponent\(', CODE) if p in ts.QUERY_ROUTES}
 
 
 class TestApiContract(unittest.TestCase):
@@ -166,19 +172,24 @@ class TestApiContract(unittest.TestCase):
         self.assertEqual(len(re.findall(r"XMLHttpRequest|WebSocket|sendBeacon", CODE)), 0)
 
     def test_every_api_path_in_the_script_is_a_route_of_the_server(self):
-        paths = set(re.findall(r'"(/api/[^"?]*)"', CODE))
+        paths = called_paths()
         self.assertTrue(paths)
         self.assertEqual(sorted(paths - set(self.ROUTES)), [])
 
     def test_every_route_of_the_server_is_called_by_the_page(self):
-        paths = set(re.findall(r'"(/api/[^"?]*)"', CODE))
-        self.assertEqual(sorted(set(self.ROUTES) - paths), [])
+        self.assertEqual(sorted(set(self.ROUTES) - called_paths()), [])
 
     def test_get_routes_are_called_without_a_body_and_post_routes_with_one(self):
-        for route in (r for r in ts.GET_ROUTES if r in self.ROUTES):
+        for route in (r for r in ts.GET_ROUTES if r in self.ROUTES and r not in ts.QUERY_ROUTES):
             with self.subTest(route):
                 self.assertRegex(CODE, r'api\("%s", undefined' % route)
                 self.assertNotRegex(CODE, r'(?:api|startJob)\("%s", \{' % route)
+        # a GET route with a query string carries the id of the tyre there and still has no body
+        for route in ts.QUERY_ROUTES:
+            with self.subTest(route):
+                self.assertRegex(CODE, r'api\("%s\?id=" \+ encodeURIComponent\(\w+\), undefined, selection\)' % route)
+                self.assertNotRegex(CODE, r'(?:api|startJob)\("%s"' % route)
+                self.assertNotRegex(CODE, r'(?:api|startJob)\("%s\?id=[^)]*, \{' % route)
         for route in (r for r in ts.POST_ROUTES if r in self.ROUTES):
             with self.subTest(route):
                 self.assertRegex(CODE, r'(?:api|startJob)\("%s", \{' % route)
@@ -198,11 +209,13 @@ class TestApiContract(unittest.TestCase):
 
     def test_every_api_call_of_the_page_passes_the_selection_which_carries_the_tune(self):
         calls = re.findall(r"await api\((.*)\);$", CODE, re.M)
-        self.assertEqual(len(calls), 8, calls)
+        self.assertEqual(len(calls), 17, calls)
         for call in calls:
             with self.subTest(call):
                 self.assertRegex(call, r", (?:want|target|r\.target|selection)$")
-        self.assertEqual(sorted(set(re.findall(r'\b(?:api|startJob)\("(/api/[a-z_]+)"', CODE))), sorted(self.ROUTES))
+        plain = set(re.findall(r'\b(?:api|startJob)\("(/api/[a-z_]+)"', CODE))
+        queried = {r for r in ts.QUERY_ROUTES if re.search(r'\bapi\("%s\?id=" \+ encodeURIComponent\(\w+\), undefined, selection\)' % r, CODE)}
+        self.assertEqual(sorted(plain | queried), sorted(self.ROUTES))
         self.assertEqual(re.findall(r"async function api\((.*?)\) \{", CODE), ["path, body, target"])
 
     def test_the_bodies_of_apply_and_duplicate_use_the_fields_of_the_server(self):
@@ -218,7 +231,7 @@ class TestApiContract(unittest.TestCase):
         self.assertIn('const suffix = $("dialog-suffix").value || undefined;', body)
 
     def test_the_routes_of_the_page_are_the_routes_of_the_server(self):
-        self.assertEqual(set(re.findall(r'"(/api/[^"?]*)"', CODE)), set(self.ROUTES))
+        self.assertEqual(called_paths(), set(self.ROUTES))
 
     def test_the_state_fields_the_page_reads_are_sent_by_the_server(self):
         sent = quoted_words(ts.api_state, ts.installed_info, ts.modded_cars, ts.tune_proposals) | set(ts.JOB)
@@ -228,9 +241,11 @@ class TestApiContract(unittest.TestCase):
         self.assertEqual(sorted(read - sent), [])
 
     def test_the_row_fields_the_page_reads_are_sent_by_the_server(self):
-        sent = quoted_words(ts.row_json)
+        # the rows of the tyre editor come from tune.tyre_rows: its quoted keys and its keyword arguments
+        sent = quoted_words(ts.row_json, ts.tune.tyre_rows) | set(re.findall(r"\b(\w+)=", inspect.getsource(ts.tune.tyre_rows)))
         read = set(re.findall(r"\b(?:data|d)\.(\w+)", CODE)) - {"error"}
-        self.assertTrue({"id", "label", "type", "value", "default", "changed", "choices", "ui", "copy_values"} <= read, sorted(read))
+        self.assertTrue({"id", "label", "type", "value", "default", "changed", "choices", "ui", "copy_values", "axle", "applicable",
+                         "reason"} <= read, sorted(read))
         self.assertEqual(sorted(read - sent), [])
 
     def test_the_page_polls_in_the_documented_rhythm(self):
@@ -334,9 +349,10 @@ class TestTexts(unittest.TestCase):
         for label in ("Extract stock car", "changed only", "reset", "Reset all"):
             self.assertIn(label, README)
 
-    def test_the_table_has_the_four_documented_columns_in_order(self):
+    def test_the_tables_have_the_four_documented_columns_in_order(self):
         heads = re.findall(r'<th scope="col">(.*?)</th>', MARKUP)
-        self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Description"])
+        self.assertEqual(heads, ["Variable name", "Value", "Default (for the selected car)", "Description",
+                                 "Variable name", "Value", "Default (source tyre)", "Description"])
 
     def test_the_dialog_tells_the_id_rules_of_the_server(self):
         body = function_body("openDialog")
@@ -802,11 +818,11 @@ class TestTabs(unittest.TestCase):
                 self.assertIn('id="%s"' % ident, self.CAR_PANEL)
                 self.assertNotIn('id="%s"' % ident, self.TYRES_PANEL)
 
-    def test_the_tyre_panel_is_a_placeholder_with_a_heading_and_one_paragraph(self):
+    def test_the_tyre_panel_keeps_its_heading_and_its_first_paragraph(self):
         self.assertIn("<h2>Tyre Creator</h2>", self.TYRES_PANEL)
-        self.assertEqual(re.findall(r"<p\b[^>]*>(.*?)</p>", self.TYRES_PANEL),
-                         ["Tyres you create here are saved once and can be ticked in the garage list of any modded car in the Car Tuner tab."])
-        self.assertEqual(re.findall(r'\bid="([^"]+)"', self.TYRES_PANEL), ["panel-tyres"])
+        self.assertEqual(re.findall(r"<p\b[^>]*>(.*?)</p>", self.TYRES_PANEL)[0],
+                         "Tyres you create here are saved once and can be ticked in the garage list of any modded car in the Car Tuner tab.")
+        self.assertTrue(self.TYRES_PANEL.split("<section", 1)[1].startswith(' class="panel">\n      <h2>Tyre Creator</h2>'))
 
     def test_the_header_holds_the_title_only_and_the_tab_strip_follows_it(self):
         header = re.search(r'<header class="bar">.*?</header>', MARKUP, re.S).group(0)
@@ -869,6 +885,249 @@ class TestTabs(unittest.TestCase):
     def test_the_tab_rules_come_after_the_general_button_rules_so_that_they_win_the_hover_tie(self):
         self.assertLess(STYLE.index("button:hover:not(:disabled)"), STYLE.index('button[role="tab"]:hover'))
         self.assertLess(STYLE.index('button[role="tab"]:hover'), STYLE.index('button[role="tab"][aria-selected="true"]'))
+
+
+class TestTyreCreator(unittest.TestCase):
+    PANEL = MARKUP[MARKUP.index('id="panel-tyres"'):]
+
+    @staticmethod
+    def tag(ident):
+        return re.search(r'<[a-z]+\b[^>]*\bid="%s"[^>]*>' % ident, MARKUP).group(0)
+
+    def test_the_toolbar_has_the_selector_and_the_three_buttons(self):
+        bar = re.search(r'<div class="toolbar">.*?</div>', self.PANEL, re.S).group(0)
+        self.assertIn('<select id="tyre-select" aria-label="Tyre"', bar)
+        self.assertIn('<button id="btn-tyre-new" class="primary" type="button" disabled>New tyre&hellip;</button>', bar)
+        self.assertIn('<button id="btn-tyre-rename" type="button" disabled>Rename&hellip;</button>', bar)
+        self.assertIn('<button id="btn-tyre-delete" type="button" disabled>Delete</button>', bar)
+        self.assertLess(bar.index("tyre-select"), bar.index("btn-tyre-new"))
+        self.assertLess(bar.index("btn-tyre-new"), bar.index("btn-tyre-rename"))
+        self.assertLess(bar.index("btn-tyre-rename"), bar.index("btn-tyre-delete"))
+
+    def test_the_dialog_is_a_hidden_labelled_group_with_a_name_a_source_an_alert_and_two_buttons(self):
+        panel = re.search(r'<section id="tyre-dialog".*?</section>', self.PANEL, re.S).group(0)
+        first = panel.split("\n")[0]
+        for part in ('class="panel dialog"', 'role="group"', 'aria-labelledby="tyre-dialog-title"'):
+            self.assertIn(part, first)
+        self.assertTrue(first.endswith("hidden>"), first)
+        self.assertIn('<h2 id="tyre-dialog-title"></h2>', panel)
+        self.assertRegex(panel, r'<label for="tyre-dialog-name">Name</label>\s*<input id="tyre-dialog-name"[^>]*type="text"')
+        self.assertRegex(panel, r'<label for="tyre-dialog-source">Source tyre \(from your installed cars\)</label>\s*<select id="tyre-dialog-source">')
+        self.assertIn('<p id="tyre-dialog-error" class="msg err" role="alert" hidden></p>', panel)
+        self.assertIn('<button id="tyre-dialog-ok" class="primary" type="button">OK</button>', panel)
+        self.assertIn('<button id="tyre-dialog-cancel" type="button">Cancel</button>', panel)
+        self.assertIn('<p id="tyre-dialog-text" hidden></p>', panel)
+
+    def test_the_editor_is_hidden_until_a_tyre_is_selected_and_has_the_source_the_reset_button_and_its_own_table(self):
+        self.assertRegex(self.tag("tyre-editor"), r"\bhidden>$")
+        editor = re.search(r'<section id="tyre-editor".*?</section>', self.PANEL, re.S).group(0)
+        self.assertRegex(editor, r'<label class="carpick">Source:\s*<select id="tyre-source" aria-label="Source tyre"></select>')
+        self.assertIn('<button id="btn-tyre-reset" type="button">Reset all values</button>', editor)
+        self.assertIn('<tbody id="tyre-rows"></tbody>', editor)
+        self.assertIn('<caption class="sr-only">Settings of the selected tyre</caption>', editor)
+        self.assertEqual(re.findall(r'<th scope="col">(.*?)</th>', editor), ["Variable name", "Value", "Default (source tyre)", "Description"])
+        self.assertNotIn('id="rows"', self.PANEL)
+
+    def test_the_error_line_is_a_visible_alert_of_the_panel_outside_the_dialog(self):
+        self.assertIn('<p id="tyre-error" class="msg err" role="alert" hidden></p>', self.PANEL)
+        self.assertLess(self.PANEL.index('id="tyre-dialog"'), self.PANEL.index('id="tyre-error"'))
+        body = function_body("renderTyres")
+        self.assertIn('$("tyre-error").textContent = tyreError;', body)
+        self.assertIn('$("tyre-error").hidden = tyreError === "";', body)
+        self.assertEqual(CODE.count('setAttribute("role", "alert")'), 1)
+
+    def test_every_tyre_route_is_called_with_the_fields_of_the_server(self):
+        calls = {
+            "/api/tyre_new": r'api\("/api/tyre_new", \{ name: name, source: source \}, selection\)',
+            "/api/tyre_rename": r'api\("/api/tyre_rename", \{ id: mine\.id, name: name \}, selection\)',
+            "/api/tyre_source": r'api\("/api/tyre_source", \{ id: entry\.id, source: key \}, selection\)',
+            "/api/tyre_set": r'api\("/api/tyre_set", \{ id: r\.tyre, setting: r\.data\.id, value: text \}, selection\)',
+            "/api/tyre_unset": r'api\("/api/tyre_unset", \{ id: r\.tyre, setting: r\.data\.id \}, selection\)',
+            "/api/tyre_reset": r'api\("/api/tyre_reset", \{ id: entry\.id \}, selection\)',
+            "/api/tyre_delete": r'api\("/api/tyre_delete", \{ id: mine\.id \}, selection\)',
+        }
+        for route, call in calls.items():
+            with self.subTest(route):
+                self.assertIn(route, ts.POST_ROUTES)
+                self.assertEqual(len(re.findall(call, CODE)), 1)
+                fields = set(re.findall(r'\b(\w+):', re.search(r'api\("%s", (\{[^}]*\})' % route, CODE).group(1)))
+                handler = inspect.getsource(ts.POST_ROUTES[route])
+                self.assertEqual(fields, set(re.findall(r'body\.get\("(\w+)"\)', handler)))
+        self.assertEqual(len(re.findall(r'api\("/api/tyres", undefined, selection\)', CODE)), 1)
+        self.assertEqual(len(re.findall(r'api\("/api/tyre\?id=" \+ encodeURIComponent\(id\), undefined, selection\)', CODE)), 1)
+        self.assertEqual(ts.QUERY_ROUTES, ("/api/tyre",))
+        self.assertIn("(path.includes(\"?\") ? \"&\" : \"?\")", function_body("api"))
+
+    def test_the_selected_tyre_is_remembered_in_a_variable_and_falls_back_to_the_first_valid_one(self):
+        self.assertRegex(CODE, r"(?m)^let tyreId = null;")
+        self.assertNotIn("tyreId", function_body("storeSelection") + function_body("storedSelection"))
+        body = function_body("loadTyres")
+        self.assertIn("if (tyreEntry() === null) {", body)
+        self.assertIn("const first = tyres.find((t) => !t.error);", body)
+        self.assertIn("tyreId = first ? first.id : null;", body)
+        self.assertIn("if (reload || tyreId !== before) await loadTyre();", body)
+        self.assertIn("tyres.find((t) => t.id === tyreId && !t.error) || null", function_body("tyreEntry"))
+        self.assertIn("if (seq !== tyreSeq) return;", body)
+
+    def test_the_library_is_loaded_when_the_tab_is_shown_after_every_write_and_when_a_job_ends(self):
+        self.assertIn('if (tabs[i] === $("tab-tyres")) loadTyres(true);', function_body("selectTab"))
+        self.assertIn("loadTyres(false);", function_body("sendTyreSet"))
+        self.assertIn("loadTyres(false);", function_body("sendTyreUnset"))
+        self.assertIn("await loadTyres(true);", function_body("changeTyreSource"))
+        self.assertIn("await loadTyres(true);", function_body("resetTyre"))
+        self.assertIn("await loadTyres(mine.kind !== \"rename\");", function_body("submitTyreDialog"))
+        body = function_body("renderTyreControls")
+        self.assertIn('if (tyreJobRunning && !running && !$("panel-tyres").hidden) loadTyres(true);', body)
+        self.assertIn("renderTyreControls();", function_body("renderButtons"))
+        self.assertEqual(re.findall(r"setTimeout\([^;]*[Tt]yre", CODE), [])
+        self.assertEqual(len(re.findall(r"setInterval\(", CODE)), 0)
+
+    def test_the_rows_are_loaded_when_a_tyre_is_selected_and_after_a_source_change_or_a_reset(self):
+        self.assertIn('$("tyre-select").addEventListener("change", selectTyre);', CODE)
+        body = function_body("selectTyre")
+        self.assertIn("tyreId = id;", body)
+        self.assertIn("loadTyre();", body)
+        self.assertIn('$("tyre-source").addEventListener("change", changeTyreSource);', CODE)
+        self.assertIn('$("btn-tyre-reset").addEventListener("click", resetTyre);', CODE)
+        self.assertIn("buildTyreRows(res.rows, id);", function_body("loadTyre"))
+
+    def test_the_empty_states_are_text_lines_not_hidden_controls(self):
+        body = function_body("renderTyres")
+        self.assertIn('if (tyreLoaded && tyres.length === 0) addLine(notes, "No tyres yet. Press New tyre to create one.", "empty");', body)
+        self.assertIn('"No game tyres found: install a car in the Car Tuner tab first, its tyres become the sources."', body)
+        self.assertIn("if (tyreLoaded && tyreSources.length === 0) {", body)
+        self.assertNotRegex(body, r'btn-tyre-new"\)\.hidden')
+        self.assertRegex(MARKUP, r'<div id="tyre-notes"></div>')
+
+    def test_new_is_off_without_a_source_or_while_a_job_runs_and_rename_and_delete_without_a_tyre_or_while_a_job_runs(self):
+        body = function_body("renderTyreControls")
+        self.assertIn('const running = !!info && info.job.state === "running";', body)
+        self.assertIn('if (running) whyNew = "a job is running";', body)
+        self.assertIn('else if (tyreSources.length === 0) whyNew = "install a car first (Car Tuner tab), its game tyres are the sources";', body)
+        self.assertIn('if (running) whyEdit = "a job is running";', body)
+        self.assertIn('else if (tyreEntry() === null) whyEdit = "select a tyre first";', body)
+        self.assertIn('$("btn-tyre-new").disabled = whyNew !== "";', body)
+        self.assertIn('$("btn-tyre-new").title = whyNew;', body)
+        self.assertIn('for (const id of ["btn-tyre-rename", "btn-tyre-delete"]) {', body)
+        self.assertIn('$(id).disabled = whyEdit !== "";', body)
+        self.assertIn('$("tyre-source").disabled = running;', body)
+        self.assertIn('$("btn-tyre-reset").disabled = running;', body)
+        self.assertIn('for (const id of ["tyre-dialog-name", "tyre-dialog-source", "tyre-dialog-ok"]) $(id).disabled = locked;', body)
+        self.assertIn("r.field.disabled = running || r.data.applicable === false;", body)
+        self.assertIn("r.reset.disabled = running;", body)
+
+    def test_the_options_are_the_names_the_damaged_files_are_not_selectable_and_the_sources_are_labelled(self):
+        body = function_body("renderTyres")
+        self.assertIn('el("option", "", t.error ? t.id + " (damaged)" : t.name)', body)
+        self.assertIn("o.disabled = true;", body)
+        self.assertIn('el("option", "", s.label)', body)
+        self.assertIn('sourceText(entry.source) + " (not offered by any installed car)"', body)
+        self.assertIn("gone.disabled = true;", body)
+        self.assertIn("box.value = key;", body)
+        self.assertIn('$("tyre-editor").hidden = entry === null;', body)
+        self.assertIn('tyres.filter((t) => !t.error)', function_body("neighbourOf"))
+
+    def test_the_rows_get_a_group_row_per_axle_in_the_order_of_the_server(self):
+        body = function_body("buildTyreRows")
+        self.assertIn('for (const axle of ["front", "rear"]) {', body)
+        self.assertIn('buildTyreGroup(axle === "front" ? "Front tyre" : "Rear tyre")', body)
+        self.assertIn("list.filter((data) => data.axle === axle)", body)
+        self.assertIn("buildRow(item, null)", body)
+        self.assertIn("r.save = sendTyreSet;", body)
+        self.assertIn("r.clear = sendTyreUnset;", body)
+        self.assertIn("r.tyre = id;", body)
+        group = function_body("buildTyreGroup")
+        self.assertNotIn("button", group)
+        self.assertNotIn("expanded", group)
+        self.assertIn('el("tr", "group")', group)
+        self.assertIn('th.scope = "rowgroup";', group)
+        self.assertIn("tr.group th.plain", STYLE)
+
+    def test_the_tyre_rows_share_the_builders_of_the_car_table(self):
+        self.assertIn("r.save(r, text)", function_body("commit"))
+        self.assertIn("r.save(r, on)", function_body("commit"))
+        self.assertIn("r.clear(r)", function_body("buildReset"))
+        self.assertIn("save: sendSet, clear: sendUnset", function_body("newRow"))
+        self.assertIn("Array.isArray(d.choices) && d.choices.length", function_body("buildField"))
+        row = function_body("buildRow")
+        self.assertIn('el("span", "badge", "unverified")', row)
+        self.assertIn("if (!data.verified) {", row)
+        self.assertIn('if (data.applicable === false) valueCell.appendChild(el("div", "msg warn", "Not applicable: " + data.reason));', row)
+        self.assertIn('r.tr.classList.toggle("changed", data.changed);', function_body("showRow"))
+        self.assertIn("showRow(r, res.row, false);", function_body("sendTyreSet"))
+        self.assertIn("showRow(r, res.row, false);", function_body("sendTyreUnset"))
+        self.assertNotIn("applyFilter", function_body("buildTyreRows"))
+
+    def test_a_row_shows_the_server_text_of_a_refused_value_and_the_warnings(self):
+        body = function_body("sendTyreSet")
+        self.assertIn('setMsg(r, res.warnings.join(" "), "warn");', body)
+        self.assertIn("setField(r);", body)
+        self.assertIn('setMsg(r, e.message, "err");', body)
+        self.assertIn('setMsg(r, e.message, "err");', function_body("sendTyreUnset"))
+        self.assertIn('setMsg(r, "", "");', function_body("sendTyreUnset"))
+
+    def test_the_dialog_serves_new_rename_and_delete_with_its_confirm_text(self):
+        body = function_body("openTyreDialog")
+        self.assertIn('"New tyre" : remove ? "Delete tyre" : "Rename tyre"', body)
+        self.assertIn('"Delete tyre " + entry.name + "? This cannot be undone."', body)
+        self.assertIn('$("tyre-dialog-ok").textContent = remove ? "Delete" : "OK";', body)
+        self.assertIn('$("tyre-dialog-name-field").hidden = remove;', body)
+        self.assertIn('$("tyre-dialog-source-field").hidden = !create;', body)
+        self.assertIn('s.label + " \\u2014 " + s.cars.join(", ")', body)
+        self.assertIn("if (create ? tyreSources.length === 0 : entry === null) return;", body)
+
+    def test_the_dialog_stays_open_with_the_message_of_the_server_when_a_write_is_refused(self):
+        body = function_body("submitTyreDialog")
+        failure = body[body.index("} catch (e) {"):body.index("await loadTyres(")]
+        self.assertIn("showTyreDialogError(e.message);", failure)
+        self.assertNotIn("closeTyreDialog", failure)
+        self.assertIn("mine.busy = false;", failure)
+        self.assertIn("return;", failure)
+        self.assertIn("tyreId = res.tyre.id;", body)
+        self.assertIn("tyreId = neighbourOf(mine.id);", body)
+        self.assertIn("if (tyreDialog === mine) closeTyreDialog(true);", body)
+        self.assertIn('$("tyre-dialog-error").textContent = text;', function_body("showTyreDialogError"))
+        self.assertIn('if (!tyreDialog || tyreDialog.busy || (info && info.job.state === "running")) return;', body)
+
+    def test_enter_confirms_and_escape_cancels_and_the_focus_goes_into_the_dialog_and_back(self):
+        key = function_body("tyreDialogKey")
+        self.assertIn('ev.key === "Escape"', key)
+        self.assertIn("if (!tyreDialog.busy) closeTyreDialog(true);", key)
+        self.assertIn('ev.key === "Enter" && ev.target.tagName === "INPUT"', key)
+        self.assertIn("submitTyreDialog();", key)
+        self.assertIn('$("tyre-dialog").addEventListener("keydown", tyreDialogKey);', CODE)
+        opening = function_body("openTyreDialog")
+        self.assertIn('$("tyre-dialog-name").focus();', opening)
+        self.assertIn('$("tyre-dialog-cancel").focus();', opening)
+        self.assertIn("const opener = tyreDialog ? tyreDialog.opener : document.activeElement;", opening)
+        closing = function_body("closeTyreDialog")
+        self.assertIn("if (restoreFocus) {", closing)
+        self.assertIn('[opener, $("tyre-select"), $("btn-tyre-new")].find((n) => n && document.contains(n) && !n.disabled);', closing)
+        self.assertIn('(back || $("tab-tyres")).focus();', closing)
+
+    def test_the_new_buttons_are_wired_and_reset_all_asks_first(self):
+        for kind, button in (("new", "btn-tyre-new"), ("rename", "btn-tyre-rename"), ("delete", "btn-tyre-delete")):
+            with self.subTest(kind):
+                self.assertIn('$("%s").addEventListener("click", () => openTyreDialog("%s"));' % (button, kind), CODE)
+        self.assertIn('$("tyre-dialog-ok").addEventListener("click", submitTyreDialog);', CODE)
+        self.assertIn('$("tyre-dialog-cancel").addEventListener("click", () => closeTyreDialog(true));', CODE)
+        self.assertIn("window.confirm(", function_body("resetTyre"))
+
+    def test_writes_to_the_library_go_through_the_one_queue_of_the_edits(self):
+        for name in ("changeTyreSource", "resetTyre"):
+            with self.subTest(name):
+                self.assertIn("queue = queue.then(async () => {", function_body(name))
+
+    def test_the_tab_neither_polls_nor_adds_a_second_fetch(self):
+        self.assertEqual(len(re.findall(r"\bfetch\(", CODE)), 1)
+        self.assertEqual(len(re.findall(r"\bpollTimer = setTimeout\(", CODE)), 1)
+
+    def test_the_tyre_name_and_the_source_text_enter_the_page_as_text(self):
+        for name in ("renderTyres", "openTyreDialog", "buildTyreGroup"):
+            with self.subTest(name):
+                body = function_body(name)
+                self.assertIn("textContent" if name == "openTyreDialog" else "el(", body)
+                self.assertNotRegex(body, r"\.html\b|innerHTML")
 
 
 class TestStartBat(unittest.TestCase):
