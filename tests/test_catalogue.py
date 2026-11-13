@@ -342,7 +342,14 @@ class TestCatalogueData(unittest.TestCase):
                     "steer_ratio_min", "steer_ratio_max", "steer_rod_ratio", "brake_bias", "brake_bias_min",
                     "brake_bias_max", "brake_bias_hw", "brake_torque", "steer_lock_deg", "arb_front", "arb_rear",
                     "arb_min_front", "arb_max_front", "arb_min_rear", "arb_max_rear", "spring_front", "spring_rear",
-                    "spring_min_front", "spring_max_front", "spring_min_rear"):
+                    "spring_min_front", "spring_max_front", "spring_min_rear", "spring_max_rear",
+                    "ride_height_front", "ride_height_rear", "collar_front", "collar_rear",
+                    "bump_stop_up_rate_front", "bump_stop_up_rate_rear", "bump_stop_down_rate_front",
+                    "bump_stop_down_rate_rear", "bump_stop_up_range_front", "bump_stop_up_range_rear",
+                    "bump_stop_down_range_front", "bump_stop_down_range_rear", "damper_front_slow_bump",
+                    "damper_front_fast_bump", "damper_front_slow_rebound", "damper_front_fast_rebound",
+                    "damper_rear_slow_bump", "damper_rear_fast_bump", "damper_rear_slow_rebound",
+                    "damper_rear_fast_rebound", "coilover_spring_front", "coilover_spring_rear"):
             with self.subTest(sid):
                 self.assertNotIn("Kunos documentation:", BY_ID[sid]["description"])
 

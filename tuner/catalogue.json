@@ -596,7 +596,7 @@
     },
     {
       "id": "spring_max_rear", "group": "Springs & anti-roll", "label": "Rear spring rate max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest rear wheel rate allowed (both wheels).",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[2].wheel_rate.max"},
@@ -605,7 +605,7 @@
     },
     {
       "id": "ride_height_front", "group": "Ride height & bump stops", "label": "Front ride height", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: target ride height of the front axle (setup aero.front_target_height). The spring collar positions (collar_front) realise the target height, so change them together; the effect on the handling is not confirmed. Kunos documentation: the collar positions of the setup are computed by the editor's Auto Setup from the ride height, and the ride height will become a result of other settings.",
+      "description": "The collar positions of the setup are computed by the editor's Auto Setup from the ride height, and the ride height will become a result of other settings. This is the default setup: target ride height of the front axle (setup aero.front_target_height). The spring collar positions (collar_front) realise the target height, so change them together; the effect on the handling is not confirmed.",
       "verified": false, "min": 30, "max": 300,
       "targets": [
         {"file": "@setup", "path": "aero.front_target_height"}
@@ -613,7 +613,7 @@
     },
     {
       "id": "ride_height_rear", "group": "Ride height & bump stops", "label": "Rear ride height", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: target ride height of the rear axle (setup aero.rear_target_height). The spring collar positions (collar_rear) realise the target height, so change them together; the effect on the handling is not confirmed. Kunos documentation: the collar positions of the setup are computed by the editor's Auto Setup from the ride height, and the ride height will become a result of other settings.",
+      "description": "The collar positions of the setup are computed by the editor's Auto Setup from the ride height, and the ride height will become a result of other settings. This is the default setup: target ride height of the rear axle (setup aero.rear_target_height). The spring collar positions (collar_rear) realise the target height, so change them together; the effect on the handling is not confirmed.",
       "verified": false, "min": 30, "max": 300,
       "targets": [
         {"file": "@setup", "path": "aero.rear_target_height"}
@@ -621,7 +621,7 @@
     },
     {
       "id": "collar_front", "group": "Ride height & bump stops", "label": "Front spring collar position", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: position of the front spring collars (setup aero.collar_positions_mm, both front wheels), the values that realise the target ride height. Kunos documentation: the collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. If you change them, change them together with ride_height_front.",
+      "description": "The collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. This is the default setup: position of the front spring collars (setup aero.collar_positions_mm, both front wheels), the values that realise the target ride height. If you change them, change them together with ride_height_front.",
       "verified": false, "min": 0, "max": 300, "advanced": true,
       "targets": [
         {"file": "@setup", "path": "aero.collar_positions_mm[0]"},
@@ -630,7 +630,7 @@
     },
     {
       "id": "collar_rear", "group": "Ride height & bump stops", "label": "Rear spring collar position", "kind": "value", "type": "float", "unit": "mm",
-      "description": "Default setup: position of the rear spring collars (setup aero.collar_positions_mm, both rear wheels), the values that realise the target ride height. Kunos documentation: the collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. If you change them, change them together with ride_height_rear.",
+      "description": "The collar positions are computed by the editor's Auto Setup from the ride height and should not be adjusted manually. This is the default setup: position of the rear spring collars (setup aero.collar_positions_mm, both rear wheels), the values that realise the target ride height. If you change them, change them together with ride_height_rear.",
       "verified": false, "min": 0, "max": 300, "advanced": true,
       "targets": [
         {"file": "@setup", "path": "aero.collar_positions_mm[2]"},
@@ -639,7 +639,7 @@
     },
     {
       "id": "bump_stop_up_rate_front", "group": "Ride height & bump stops", "label": "Front bump stop up rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the front axle (both wheels). Kunos documentation: bump stop up is the compression direction and its force is the bump stop spring rate; the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "Bump stop up is the compression direction and its force is the bump stop spring rate; the setup overrides the bump stop force (rate) of the coilover file. This is the default setup: rate (stiffness) of the \"up\" bump stop of the front axle (both wheels). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_up.rate"},
@@ -648,7 +648,7 @@
     },
     {
       "id": "bump_stop_up_rate_rear", "group": "Ride height & bump stops", "label": "Rear bump stop up rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"up\" bump stop of the rear axle (both wheels). Kunos documentation: bump stop up is the compression direction and its force is the bump stop spring rate; the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "Bump stop up is the compression direction and its force is the bump stop spring rate; the setup overrides the bump stop force (rate) of the coilover file. This is the default setup: rate (stiffness) of the \"up\" bump stop of the rear axle (both wheels). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_up.rate"},
@@ -657,7 +657,7 @@
     },
     {
       "id": "bump_stop_down_rate_front", "group": "Ride height & bump stops", "label": "Front bump stop down rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the front axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Kunos documentation: the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "The setup overrides the bump stop force (rate) of the coilover file. This is the default setup: rate (stiffness) of the \"down\" bump stop of the front axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_down.rate"},
@@ -666,7 +666,7 @@
     },
     {
       "id": "bump_stop_down_rate_rear", "group": "Ride height & bump stops", "label": "Rear bump stop down rate", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: rate (stiffness) of the \"down\" bump stop of the rear axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Kunos documentation: the setup overrides the bump stop force (rate) of the coilover file. Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
+      "description": "The setup overrides the bump stop force (rate) of the coilover file. This is the default setup: rate (stiffness) of the \"down\" bump stop of the rear axle (both wheels), the stop at the end of the wheel travel in that direction (assumed). Higher is stiffer; the unit is not confirmed, so none is shown. Effect in the game not confirmed.",
       "verified": false, "min": 0, "max": 10000,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_down.rate"},
@@ -675,7 +675,7 @@
     },
     {
       "id": "bump_stop_up_range_front", "group": "Ride height & bump stops", "label": "Front bump stop up range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"up\" bump stop of the front axle (both wheels) engages. Kunos documentation: bump stop up is the compression direction and its range is the distance from the rest position to the bump stop; the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "Bump stop up is the compression direction and its range is the distance from the rest position to the bump stop; the setup overrides the bump stop range of the coilover file. This is the default setup: travel at which the \"up\" bump stop of the front axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_up.range"},
@@ -684,7 +684,7 @@
     },
     {
       "id": "bump_stop_up_range_rear", "group": "Ride height & bump stops", "label": "Rear bump stop up range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"up\" bump stop of the rear axle (both wheels) engages. Kunos documentation: bump stop up is the compression direction and its range is the distance from the rest position to the bump stop; the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "Bump stop up is the compression direction and its range is the distance from the rest position to the bump stop; the setup overrides the bump stop range of the coilover file. This is the default setup: travel at which the \"up\" bump stop of the rear axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_up.range"},
@@ -693,7 +693,7 @@
     },
     {
       "id": "bump_stop_down_range_front", "group": "Ride height & bump stops", "label": "Front bump stop down range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"down\" bump stop of the front axle (both wheels) engages. Kunos documentation: the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "The setup overrides the bump stop range of the coilover file. This is the default setup: travel at which the \"down\" bump stop of the front axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].bump_stop_down.range"},
@@ -702,7 +702,7 @@
     },
     {
       "id": "bump_stop_down_range_rear", "group": "Ride height & bump stops", "label": "Rear bump stop down range", "kind": "value", "type": "float", "unit": "",
-      "description": "Default setup: travel at which the \"down\" bump stop of the rear axle (both wheels) engages. Kunos documentation: the setup overrides the bump stop range of the coilover file. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
+      "description": "The setup overrides the bump stop range of the coilover file. This is the default setup: travel at which the \"down\" bump stop of the rear axle (both wheels) engages. The unit is not confirmed, probably metres (same magnitude as the coilover bump stop range); stock values can be negative. Effect in the game not confirmed.",
       "verified": false, "min": -0.2, "max": 0.3,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].bump_stop_down.range"},
@@ -711,7 +711,7 @@
     },
     {
       "id": "damper_front_slow_bump", "group": "Dampers", "label": "Front damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel moves up slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].slow_bump"},
@@ -720,7 +720,7 @@
     },
     {
       "id": "damper_front_fast_bump", "group": "Dampers", "label": "Front damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the front axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].fast_bump"},
@@ -729,7 +729,7 @@
     },
     {
       "id": "damper_front_slow_rebound", "group": "Dampers", "label": "Front damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel moves down slowly (body roll and pitch) on the front axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].slow_rebound"},
@@ -738,7 +738,7 @@
     },
     {
       "id": "damper_front_fast_rebound", "group": "Dampers", "label": "Front damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the front axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the front axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[0].fast_rebound"},
@@ -747,7 +747,7 @@
     },
     {
       "id": "damper_rear_slow_bump", "group": "Dampers", "label": "Rear damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves up slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel moves up slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].slow_bump"},
@@ -756,7 +756,7 @@
     },
     {
       "id": "damper_rear_fast_bump", "group": "Dampers", "label": "Rear damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel is pushed up quickly (bumps and kerbs) on the rear axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].fast_bump"},
@@ -765,7 +765,7 @@
     },
     {
       "id": "damper_rear_slow_rebound", "group": "Dampers", "label": "Rear damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel moves down slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel moves down slowly (body roll and pitch) on the rear axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].slow_rebound"},
@@ -774,7 +774,7 @@
     },
     {
       "id": "damper_rear_fast_rebound", "group": "Dampers", "label": "Rear damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the rear axle (both wheels). Higher is firmer. Kunos documentation: cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values.",
+      "description": "Cars with active dampers ignore the setup damper values, and cars with racing damper tables use a click number (a range such as 1 to 50) instead of force values. This is the default setup: damper force when the wheel drops quickly (after bumps and kerbs) on the rear axle (both wheels). Higher is firmer.",
       "verified": true, "min": 0, "max": 30000,
       "targets": [
         {"file": "@setup", "path": "dampers[2].fast_rebound"},
@@ -783,7 +783,7 @@
     },
     {
       "id": "coilover_spring_front", "group": "Suspension (physical)", "label": "Front coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Spring rate of the front coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup (.carsetup) overrides the spring rate of the coilover file, but the value still matters for the simulation inside that file.",
+      "description": "The setup (.carsetup) overrides the spring rate of the coilover file, but the value still matters for the simulation inside that file. This is the spring rate of the front coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. It is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@coilover_front", "path": "springRate"},
@@ -792,7 +792,7 @@
     },
     {
       "id": "coilover_spring_rear", "group": "Suspension (physical)", "label": "Rear coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Spring rate of the rear coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Kunos documentation: the setup (.carsetup) overrides the spring rate of the coilover file, but the value still matters for the simulation inside that file.",
+      "description": "The setup (.carsetup) overrides the spring rate of the coilover file, but the value still matters for the simulation inside that file. This is the spring rate of the rear coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. It is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@coilover_rear", "path": "springRate"},
