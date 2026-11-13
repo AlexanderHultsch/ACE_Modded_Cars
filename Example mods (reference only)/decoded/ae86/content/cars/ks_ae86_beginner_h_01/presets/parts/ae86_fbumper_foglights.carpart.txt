@@ -1,7 +1,0 @@
-2: "GT-Apex Sports Fog Lights"
-3: 4
-4: 1
-5: "content\cars\ks_toyota_ae86_sprinter_trueno\meshes\sports\toyota_ae86_sprinter_trueno_ext_foglights.mesh"
-14: "GT-Apex Sports Fog Lights"
-53: ""
-105: "Toyota"

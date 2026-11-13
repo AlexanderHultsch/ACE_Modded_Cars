@@ -1,8 +1,0 @@
-2: "Paper Cup"
-3: 304
-4: 1
-5: "content\cars\ks_ae86_beginner_h_01\meshes\accessories\ae86_paper_cup.mesh"
-14: "Paper Cup"
-53: ""
-105: "Hina"
-200: 1

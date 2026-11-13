@@ -390,7 +390,7 @@
     },
     {
       "id": "steer_rod_ratio", "group": "Steering & brakes (setup)", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
-      "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022; Hina's drift E46 uses 0.0025). Effect in the game not confirmed.",
+      "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022). Effect in the game not confirmed.",
       "verified": false, "min": 0.0005, "max": 0.005,
       "targets": [
         {"file": "@car", "path": "controls.linearSteerRodRatio"}
@@ -763,7 +763,7 @@
     },
     {
       "id": "coilover_spring_front", "group": "Suspension (physical)", "label": "Front coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Spring rate of the front coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Spring rate of the front coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@coilover_front", "path": "springRate"},
@@ -772,7 +772,7 @@
     },
     {
       "id": "coilover_spring_rear", "group": "Suspension (physical)", "label": "Rear coilover spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Spring rate of the rear coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Spring rate of the rear coilover (CoiloverData.springRate), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@coilover_rear", "path": "springRate"},
@@ -781,7 +781,7 @@
     },
     {
       "id": "coilover_damper_front_slow_bump", "group": "Suspension (physical)", "label": "Front coilover damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements upwards of the front coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for slow wheel movements upwards of the front coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.slow.bump"},
@@ -790,7 +790,7 @@
     },
     {
       "id": "coilover_damper_front_fast_bump", "group": "Suspension (physical)", "label": "Front coilover damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements upwards of the front coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for fast wheel movements upwards of the front coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.fast.bump"},
@@ -799,7 +799,7 @@
     },
     {
       "id": "coilover_damper_front_slow_rebound", "group": "Suspension (physical)", "label": "Front coilover damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements downwards of the front coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for slow wheel movements downwards of the front coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.slow.rebound"},
@@ -808,7 +808,7 @@
     },
     {
       "id": "coilover_damper_front_fast_rebound", "group": "Suspension (physical)", "label": "Front coilover damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements downwards of the front coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for fast wheel movements downwards of the front coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_front", "path": "damper.fast.rebound"},
@@ -817,7 +817,7 @@
     },
     {
       "id": "coilover_damper_rear_slow_bump", "group": "Suspension (physical)", "label": "Rear coilover damper slow bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements upwards of the rear coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for slow wheel movements upwards of the rear coilover (CoiloverData.damper.slow.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.slow.bump"},
@@ -826,7 +826,7 @@
     },
     {
       "id": "coilover_damper_rear_fast_bump", "group": "Suspension (physical)", "label": "Rear coilover damper fast bump", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements upwards of the rear coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for fast wheel movements upwards of the rear coilover (CoiloverData.damper.fast.bump), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.fast.bump"},
@@ -835,7 +835,7 @@
     },
     {
       "id": "coilover_damper_rear_slow_rebound", "group": "Suspension (physical)", "label": "Rear coilover damper slow rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for slow wheel movements downwards of the rear coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for slow wheel movements downwards of the rear coilover (CoiloverData.damper.slow.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.slow.rebound"},
@@ -844,7 +844,7 @@
     },
     {
       "id": "coilover_damper_rear_fast_rebound", "group": "Suspension (physical)", "label": "Rear coilover damper fast rebound", "kind": "value", "type": "float", "unit": "Ns/m",
-      "description": "Physical damper rate for fast wheel movements downwards of the rear coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical damper rate for fast wheel movements downwards of the rear coilover (CoiloverData.damper.fast.rebound), written to the coilover file and the car's inline copy. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 30000,
       "targets": [
         {"file": "@coilover_rear", "path": "damper.fast.rebound"},
@@ -853,7 +853,7 @@
     },
     {
       "id": "arb_stiffness_front", "group": "Suspension (physical)", "label": "Front anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Physical stiffness of the front anti-roll bar (suspensions.arbFront.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical stiffness of the front anti-roll bar (suspensions.arbFront.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 200000, "create_missing": true,
       "targets": [
         {"file": "@car", "path": "suspensions.arbFront.stiffness"}
@@ -861,7 +861,7 @@
     },
     {
       "id": "arb_stiffness_rear", "group": "Suspension (physical)", "label": "Rear anti-roll bar stiffness (physical)", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Physical stiffness of the rear anti-roll bar (suspensions.arbRear.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed; Hina's drift mod changed both consistently.",
+      "description": "Physical stiffness of the rear anti-roll bar (suspensions.arbRear.stiffness, stored in the .car only); cars that do not store it show it as absent and create it when you set it. This is the physical value in the car data; the setup values (spring_front, spring_rear, damper_*, arb_front, arb_rear) are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 200000, "create_missing": true,
       "targets": [
         {"file": "@car", "path": "suspensions.arbRear.stiffness"}

@@ -1,9 +1,0 @@
-1: (f32) 0.0182
-2: (f32) 500
-3 {
-  1: "content\cars\hdc_datsun_240z_01\data\UpShiftProfile.curve"
-  2: "content\cars\hdc_datsun_240z_01\data\downShiftProfile.curve"
-  4: (f32) 2000
-  5: (f32) 2500
-  6: 1
-}

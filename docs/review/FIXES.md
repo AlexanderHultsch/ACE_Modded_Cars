@@ -1,8 +1,10 @@
 # Fix plan for the 2026-11-12 review (decisions, rules, status)
 
+Owner decision of 2026-11-13 (Alex), which overrides the earlier decision to leave third-party data as is: "From now on we have nothing to do with other mods; we build our own program." All third-party mod material (reference data, comparison document, names, credits and numbers taken from a third-party mod) was removed from the current files of the repository on 2026-11-13. The git history is not rewritten. The findings R3-024, R4-003 and R4-004 are obsolete because of this.
+
 Findings: `R1.md` .. `R5.md` in this folder (IDs like R1-005). Owner decisions of 2026-11-12 (Alex):
 
-- Fix all findings, except the Hina-data items R3-024, R4-003, R4-004 (D3: leave as is).
+- Fix all findings, except R3-024, R4-003, R4-004 (D3; obsolete since 2026-11-13, see above).
 - Findings R5-A-* about `pbedit`, `make_testkit`, the old lever `tune.py`, the old `tests/` and branch docs are moot: those files are not in this tree (only `refgraph` and the working contract are ported from the old branch).
 - D5, usage convention for ALL tools: wrong or missing arguments print the usage block (first paragraph after the one-line docstring title) on stdout and exit 2 (as `kspkg.py` does today); runtime errors are `error: ...` on stderr, exit 1.
 
@@ -71,7 +73,7 @@ All findings are fixed except the items under "Not applied / decisions" below. S
 
 ## Not applied / decisions
 
-- R3-024, R4-003, R4-004 (Hina's data in the repo and in the history): owner decision, leave as is.
+- R3-024, R4-003, R4-004 (third-party data in the repo): obsolete, the material was removed from the repository on 2026-11-13 (owner decision); the git history is not rewritten.
 - R4-033 (start file for other Python installs): not applied; the owner chose Python 3.12 per user (`%LOCALAPPDATA%\Programs\Python\Python312\`), and the start file cannot be tested in the cloud.
 - R3-027 (the 19 thermal curve choices duplicated in the front and rear setting): not applied; the finding recommends no change unless a family is added (a schema change would be an owner decision).
 - R3-013, R1-029 (several reads and writes of the car tree per Apply): not applied; the findings recommend no change before measuring on the PC.

@@ -1,4 +1,0 @@
-3 {
-  1: "content\cars\hdc_rx7_fd_01\data\parts\hdc_rx7_fd_01_tuned.gearbox"
-}
-201: 535

@@ -1,5 +1,0 @@
-7 {
-  1: "content\cars\hdc_datsun_240z_01\data\tuning\hdc_datsun_240z_01_g_nose_front.coilover"
-  4: "content\cars\hdc_datsun_240z_01\data\tuning\hdc_datsun_240z_01_g_nose_rear.coilover"
-}
-201: 502

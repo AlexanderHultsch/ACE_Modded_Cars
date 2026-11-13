@@ -1,4 +1,0 @@
-3 {
-  1: "content\cars\ks_ae86_beginner_h_01\data\ks_ae86_beginner_h_01.gearbox"
-}
-201: 535

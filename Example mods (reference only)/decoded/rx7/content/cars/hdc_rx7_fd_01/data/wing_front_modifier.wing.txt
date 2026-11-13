@@ -1,9 +1,0 @@
-2: "REAR"
-3: (f32) 1
-4: (f32) 1
-6 {
-  3: (f32) 1.2
-}
-7: "content\cars\hdc_rx7_fd_01\data\wing_front_AOA_CL.curve"
-8: "content\cars\hdc_rx7_fd_01\data\wing_body_AOA_CD.curve"
-12: (f32) 1

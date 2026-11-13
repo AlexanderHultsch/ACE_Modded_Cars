@@ -49,8 +49,7 @@ Tested cars: **BMW M3 E46 CSL**, **Toyota GR86**, **Mazda RX-7 FD**, **Alfa Rome
 
 - [docs/TUNER_SPEC.md](docs/TUNER_SPEC.md): state of the project (what works, what is verified, what is open).
 - [docs/HANDOVER.md](docs/HANDOVER.md): notes for continuing the work in a new session, local or cloud.
-- `Example mods (reference only)/`: text dumps of the driving data of six drift cars by other authors, for research only.
 
 ## Credits and rights
 
-Not affiliated with KUNOS Simulazioni; requires a legal copy of Assetto Corsa EVO. Car data, field names and game files belong to Kunos and stay out of this repository. The reference dumps in `Example mods (reference only)/` come from Hina's Drift Club 1.4 by Hina (OverTake.gg), all rights with the author, removed on request. Do not publish tuned versions of Kunos' or Hina's cars.
+Not affiliated with KUNOS Simulazioni; requires a legal copy of Assetto Corsa EVO. Car data, field names and game files belong to Kunos and stay out of this repository. Do not publish tuned versions of Kunos' cars.

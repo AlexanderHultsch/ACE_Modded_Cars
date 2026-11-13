@@ -1,4 +1,0 @@
-1: "S2000 Hard Top"
-10: "content\cars\hdc_honda_s2000_ap1_01\presets\parts\s2000_ext_hardtop.carpart"
-10: "content\cars\hdc_honda_s2000_ap1_01\presets\parts\s2000_int_hardtop.carpart"
-105: "Honda"

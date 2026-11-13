@@ -1,7 +1,0 @@
-2: "GT-Apex Kouki Lights Trim Right Side"
-3: 6
-4: 1
-5: "content\cars\ks_toyota_ae86_sprinter_trueno\meshes\kouki\toyota_ae86_sprinter_trueno_ext_kouki_light_r.mesh"
-14: "GT-Apex Kouki Lights Trim Right Side"
-53: ""
-105: "Toyota"

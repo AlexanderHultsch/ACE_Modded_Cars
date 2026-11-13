@@ -10,6 +10,6 @@ Project: local tuner for Assetto Corsa EVO cars (drift focus): read a car's data
 - Usage convention for all tools: usage block on stdout, exit code 2 (as `kspkg.py`); runtime errors as `error: ...` on stderr, exit 1.
 - Vendor data stays out of git: `schemas/`, the work folder, `*.kspkg`, game and SDK files. Test with scratch folders (`--work`, `--mods`); never touch the real work folder, mods folder or game folder.
 - Do not use `Nenkai/ACEvo.Package` (its AGENTS.md prohibits AI use).
-- Do not publish tuned derivatives of Kunos' or Hina's cars. Hina's data in the repo stays as it is (decision of Alex, 2026-11-12).
+- Do not publish tuned derivatives of Kunos' cars. From now on we have nothing to do with other mods, we build our own program (decision of Alex, 2026-11-13): no other mod's data or credits in the repository.
 - Do not delete cars or rewrite git history without Alex's explicit go-ahead.
 - Game tests run on Alex's Windows PC; mods folder `%USERPROFILE%\Saved Games\ACE\mods\`. Always back up packages before replacing them.

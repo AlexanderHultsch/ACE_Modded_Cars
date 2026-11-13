@@ -1,6 +1,0 @@
-3: (f32) 1
-4: (f32) 1.77
-6: ""
-7: "content\cars\hdc_rx7_fd_01\data\wing_body_AOA_CL.curve"
-8: "content\cars\hdc_rx7_fd_01\data\wing_body_AOA_CD.curve"
-11: (f32) 1
