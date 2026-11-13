@@ -16,7 +16,7 @@ import time
 import unittest
 from unittest import mock
 
-from support import FakeCar, mini_catalogue, mini_setting, run_tool, tmp
+from support import ROOT, FakeCar, mini_catalogue, mini_setting, run_tool, tmp
 
 import clone_car
 import tune
@@ -293,7 +293,7 @@ class TestRoutes(ServerCase):
         self.assertEqual((a.status, a.json), (202, {"job": "started"}))
 
     def test_unknown_paths_are_404_json(self):
-        for path in ("/api/nothing", "/index.html", "/api/state/", "/favicon.ico", "/api/set", "/api"):
+        for path in ("/api/nothing", "/index.html", "/api/state/", "/favicon.svg", "/api/set", "/api"):
             with self.subTest(path):
                 r = self.get(path)
                 self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
@@ -426,6 +426,80 @@ class TestBasePath(ServerCase):
         self.assertIn('"GET /api/state HTTP/1.1" 404 -', self.err.getvalue())
 
 
+STATIC = {"apple-touch-icon.png": "image/png", "icon-192.png": "image/png", "icon-512.png": "image/png", "favicon.png": "image/png",
+          "favicon.ico": "image/x-icon", "manifest.webmanifest": "application/manifest+json"}
+
+
+class TestStaticFiles(ServerCase):
+    def file(self, name):
+        return (ROOT / "tuner" / "web" / name).read_bytes()
+
+    def test_the_table_holds_exactly_the_six_files_of_the_web_folder(self):
+        self.assertEqual({k: v[1] for k, v in ts.STATIC_FILES.items()}, {"/" + k: v for k, v in STATIC.items()})
+        self.assertEqual({k: v[0].name for k, v in ts.STATIC_FILES.items()}, {"/" + k: k for k in STATIC})
+        for path, _ in ts.STATIC_FILES.values():
+            self.assertEqual(path.parent, ts.INDEX.parent)
+            self.assertTrue(path.is_file(), path)
+
+    def test_each_file_is_served_below_the_base_path_with_its_content_type_and_bytes(self):
+        for name, ctype in STATIC.items():
+            with self.subTest(name):
+                r = self.get("/" + name)
+                self.assertEqual((r.status, r.headers.get("Content-Type"), r.data), (200, ctype, self.file(name)))
+                self.assertEqual(r.headers.get("Content-Length"), str(len(r.data)))
+                self.assertEqual(r.headers.get_all("Cache-Control"), ["no-store"])
+                self.assertGreater(len(r.data), 100)
+
+    def test_the_answers_carry_the_framing_headers_and_no_cors_headers(self):
+        for name in STATIC:
+            with self.subTest(name):
+                r = self.get("/" + name)
+                self.assertEqual(r.headers.get("X-Frame-Options"), "DENY")
+                self.assertIn("frame-ancestors 'none'", r.headers.get("Content-Security-Policy", ""))
+                self.assertEqual([h for h in r.headers if h.lower().startswith("access-control")], [])
+
+    def test_a_query_is_ignored(self):
+        self.assertEqual(self.get("/icon-192.png?v=2").data, self.file("icon-192.png"))
+
+    def test_every_other_file_name_is_404_json(self):
+        for path in ("/ACESCT/secret.txt", "/ACESCT/../x", "/ACESCT/icon-192.png/extra", "/ACESCT/ICON-192.PNG", "/ACESCT/icon-192.png/",
+                     "/ACESCT//icon-192.png", "/ACESCT/%69con-192.png", "/ACESCT/icon-192.png%00", "/ACESCT/..%2ficon-192.png",
+                     "/ACESCT/../tuner/web/icon-192.png", "/ACESCT/icons/icon-192.png", "/ACESCT/manifest.json", "/ACESCT/favicon.svg",
+                     "/ACESCT/icon-180.png", "/ACESCT/web/icon-192.png", "/ACESCT/icon-192.png.bak", "/ACESCT/index.html",
+                     "/ACESCT/make_icons.py", "/icon-192.png", "/favicon.ico", "/manifest.webmanifest", "/apple-touch-icon.png"):
+            with self.subTest(path):
+                r = self.get(path, prefix=False)
+                self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
+
+    def test_the_host_is_checked(self):
+        for name in STATIC:
+            with self.subTest(name):
+                r = self.get("/" + name, host="evil.example")
+                self.assertEqual((r.status, r.json), (403, {"error": "forbidden host"}))
+                self.assertEqual(self.get("/" + name, host=False).status, 403)
+        self.assertEqual(self.get("/icon-192.png", host="localhost:%d" % self.port).status, 200)
+
+    def test_a_post_is_404(self):
+        for name in STATIC:
+            with self.subTest(name):
+                r = self.post("/" + name)
+                self.assertEqual((r.status, r.json), (404, {"error": "not found"}))
+
+    def test_head_is_405_as_for_the_page(self):
+        r = self.request("HEAD", "/icon-192.png")
+        self.assertEqual((r.status, r.headers.get("Allow"), r.data), (405, "GET, POST", b""))
+
+    def test_a_missing_file_is_a_500_json_error(self):
+        with mock.patch.dict(ts.STATIC_FILES, {"/icon-192.png": (self.d / "gone.png", "image/png")}):
+            r = self.get("/icon-192.png")
+        self.assertEqual(r.status, 500)
+        self.assertEqual(set(r.json), {"error"})
+
+    def test_the_page_is_still_html_and_json_is_still_json(self):
+        self.assertEqual(self.get("/").headers.get("Content-Type"), "text/html; charset=utf-8")
+        self.assertEqual(self.get("/api/nothing").headers.get("Content-Type"), "application/json; charset=utf-8")
+
+
 class ForeignHandler(ts.Handler):
     """A Handler whose client always comes from a public address."""
     @property
@@ -456,6 +530,13 @@ class TestForeignClient(ServerCase):
         r = self.get("/api/state", host="evil.example")
         self.assertEqual((r.status, r.json), (403, {"error": "forbidden client address"}))
         self.assertEqual(self.get("/api/state", host=False).json, {"error": "forbidden client address"})
+
+    def test_a_public_client_gets_no_static_file(self):
+        for name in STATIC:
+            with self.subTest(name):
+                r = self.get("/" + name)
+                self.assertEqual((r.status, r.json), (403, {"error": "forbidden client address"}))
+                self.assertNotEqual(r.data, (ROOT / "tuner" / "web" / name).read_bytes())
 
 
 # -------------------------------------------------------------------------------------------------- request checks

@@ -87,8 +87,13 @@ class TestStructure(unittest.TestCase):
 
     def test_the_page_loads_nothing_from_outside(self):
         self.assertEqual(re.findall(r"https?://", HTML), [])
-        self.assertEqual(re.findall(r"\b(?:src|href)=", MARKUP), [])
-        self.assertEqual(re.findall(r"<link|@import|url\(", HTML), [])
+        self.assertEqual(re.findall(r"\bsrc=", MARKUP), [])
+        self.assertEqual(re.findall(r"@import|url\(", HTML), [])
+        hrefs = re.findall(r'\bhref="([^"]*)"', MARKUP)
+        self.assertEqual(hrefs, ["favicon.png", "favicon.ico", "apple-touch-icon.png", "manifest.webmanifest"])
+        self.assertEqual(len(re.findall(r"<link\b", HTML)), len(hrefs))
+        for href in hrefs:
+            self.assertRegex(href, r"^[\w.-]+$")
 
     def test_brackets_of_the_script_balance(self):
         code = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', CODE)
@@ -98,6 +103,46 @@ class TestStructure(unittest.TestCase):
     def test_all_dom_ids_are_unique(self):
         ids = dom_ids()
         self.assertEqual(len(ids), len(set(ids)))
+
+
+class TestHead(unittest.TestCase):
+    HEAD = re.search(r"<head>\n(.*?)</head>", HTML, re.S).group(1)
+    BG = re.search(r"--color-bg: (#[0-9a-f]{6});", STYLE).group(1)
+
+    def test_the_head_is_ascii_and_holds_one_title_and_one_viewport(self):
+        self.HEAD.encode("ascii")
+        self.assertEqual(self.HEAD.count("<title>"), 1)
+        self.assertEqual(self.HEAD.count('name="viewport"'), 1)
+
+    def test_the_icon_links_are_relative_to_the_page(self):
+        for tag in ('<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">',
+                    '<link rel="icon" href="favicon.ico" sizes="any">',
+                    '<link rel="apple-touch-icon" href="apple-touch-icon.png">',
+                    '<link rel="manifest" href="manifest.webmanifest">'):
+            with self.subTest(tag):
+                self.assertEqual(self.HEAD.count(tag + "\n"), 1)
+
+    def test_the_icon_files_are_served_by_the_server(self):
+        for name in re.findall(r'<link [^>]*href="([^"]+)"', self.HEAD):
+            with self.subTest(name):
+                self.assertIn("/" + name, ts.STATIC_FILES)
+
+    def test_the_theme_colour_is_the_dark_background_of_the_page(self):
+        self.assertEqual(self.BG, "#0e1013")
+        self.assertIn('<meta name="theme-color" content="%s">\n' % self.BG, self.HEAD)
+
+    def test_the_page_can_be_added_to_the_home_screen_as_an_app(self):
+        for tag in ('<meta name="apple-mobile-web-app-capable" content="yes">',
+                    '<meta name="mobile-web-app-capable" content="yes">',
+                    '<meta name="apple-mobile-web-app-title" content="ACE Tuner">',
+                    '<meta name="apple-mobile-web-app-status-bar-style" content="black">'):
+            with self.subTest(tag):
+                self.assertEqual(self.HEAD.count(tag + "\n"), 1)
+
+    def test_the_head_ends_with_the_style_and_has_no_script(self):
+        self.assertNotIn("<script", self.HEAD)
+        self.assertEqual(self.HEAD.count("<style>"), 1)
+        self.assertTrue(self.HEAD.index("<title>") < self.HEAD.index("<link") < self.HEAD.index("<style>"))
 
 
 class TestDomIds(unittest.TestCase):
@@ -194,7 +239,7 @@ class TestApiContract(unittest.TestCase):
     def test_api_requests_are_relative_to_the_page_below_the_base_path(self):
         self.assertIn('res = await fetch(path.replace(/^\//, ""), opts);', function_body("api"))
         self.assertEqual(re.findall(r"\bfetch\((\w+)", CODE), ["path"])
-        self.assertEqual(re.findall(r"\b(?:href|src|action)\s*=|EventSource|location\.|window\.open|<(?:a|link|img|form|iframe)\b", HTML), [])
+        self.assertEqual(re.findall(r"\b(?:href|src|action)\s*=|EventSource|location\.|window\.open|<(?:a|link|img|form|iframe)\b", re.sub(r'<link rel="[a-z-]+"[^>]*>', "", HTML)), [])
 
     def test_the_page_sends_the_headers_the_server_demands(self):
         body = function_body("api")
@@ -1627,6 +1672,7 @@ class TestStartBat(unittest.TestCase):
     def test_the_port_is_the_default_port_of_the_server_and_the_readme(self):
         self.assertEqual(set(re.findall(r"(?:--port |127\.0\.0\.1:|PORT=)(\d+)", BAT)), {str(ts.DEFAULT_PORT)})
         self.assertEqual(ts.DEFAULT_PORT, 8080)
+        self.assertIn("http://127.0.0.1:%d%s/" % (ts.DEFAULT_PORT, ts.BASE_PATH), README)
 
     def test_it_looks_for_the_python_the_readme_documents(self):
         path = re.search(r'set "PY=(.*?python\.exe)"', BAT).group(1)

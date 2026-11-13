@@ -5,3 +5,5 @@
 *.kspkg binary
 *.gz binary
 *.exe binary
+*.png binary
+*.ico binary

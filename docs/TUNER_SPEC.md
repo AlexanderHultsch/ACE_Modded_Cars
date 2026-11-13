@@ -82,6 +82,10 @@ A modded car is a stock car plus its own tuned-car id, its own saved values and 
 - **No deletion in the page:** to remove a modded car delete its folder `<work>\<stock id>\tunes\<id>` and its `<id>.kspkg` in the mods folder by hand (the default one: `<work>\<stock id>\tune_state.json` and `build\<id>`).
 - **Status:** tested on synthetic data only (cloud). The checks on the real work folder and in the game are open ([HANDOVER.md](HANDOVER.md) section 0, rows 16-19).
 
+## 4f. Website icon and home screen
+
+The page has an icon (a rev counter in the page's dark colours, drawn by `tools/make_icons.py` from the page's CSS colours; run `python tools\make_icons.py` to redraw) in `tuner/web/`: `apple-touch-icon.png` (180 px, for the iPhone home screen), `icon-192.png`, `icon-512.png`, `favicon.png` (32 px), `favicon.ico` and `manifest.webmanifest` (name, colours, start URL `/ACESCT/`, standalone). The server serves exactly these six files under `/ACESCT/<name>` from a fixed whitelist; the page head links them and carries the iOS web-app tags (`apple-mobile-web-app-capable`, title "ACE Tuner", black status bar). A test keeps the committed PNGs equal (as decoded pixels) to the generator output. Not tried on a real iPhone yet.
+
 ## 4e. Range for base cars
 
 The Car Tuner table has a column "Range for base cars": the lowest and the highest default of the setting over all game cars installed in the work folder. It is a soft border (information only; values outside stay allowed) and carries no car names, counts or tooltip.

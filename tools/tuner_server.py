@@ -7,8 +7,11 @@ Serves tuner/web/index.html at http://127.0.0.1:<port>/ACESCT/ (default port 808
 devices of the home network, at http://<address of the PC>:<port>/ACESCT/; --bind <address> (default 0.0.0.0, all IPv4
 addresses of the PC; 127.0.0.1 serves this PC only) is the address the server listens on. Everything is served below the
 fixed base path /ACESCT: GET /ACESCT redirects (301) to /ACESCT/, GET / redirects (302) to /ACESCT/, every other path
-outside /ACESCT/ is a 404. The routes below are written without that prefix; the server answers them at /ACESCT/api/...
-(for example GET /ACESCT/api/state). A small JSON API:
+outside /ACESCT/ is a 404. Next to the page, GET /ACESCT/<name> serves six static files of tuner/web from a fixed table
+(no other file, no directory access): apple-touch-icon.png, icon-192.png, icon-512.png, favicon.png (image/png),
+favicon.ico (image/x-icon) and manifest.webmanifest (application/manifest+json); they are the website icon of the page
+(browser tab, Add to Home Screen) and are made by tools/make_icons.py. The routes below are written without that prefix;
+the server answers them at /ACESCT/api/... (for example GET /ACESCT/api/state). A small JSON API:
   GET  /api/state       work folder, base car, game running, installed package, background job; every car of the game
                         (id, label, display_name, extracted, tested, new_id, installed) and the number of applicable and
                         hidden settings of the car (null while the base is missing or being extracted); the selected
@@ -99,6 +102,13 @@ import kspkg  # noqa: E402
 import tune  # noqa: E402
 
 INDEX = tune.REPO / "tuner" / "web" / "index.html"
+WEB = INDEX.parent
+STATIC_FILES = {"/apple-touch-icon.png": (WEB / "apple-touch-icon.png", "image/png"),
+                "/icon-192.png": (WEB / "icon-192.png", "image/png"),
+                "/icon-512.png": (WEB / "icon-512.png", "image/png"),
+                "/favicon.png": (WEB / "favicon.png", "image/png"),
+                "/favicon.ico": (WEB / "favicon.ico", "image/x-icon"),
+                "/manifest.webmanifest": (WEB / "manifest.webmanifest", "application/manifest+json")}
 DEFAULT_PORT = 8080
 DEFAULT_BIND = "0.0.0.0"
 BASE_PATH = "/ACESCT"
@@ -747,6 +757,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with open(INDEX, "rb") as f:
                 return 200, f.read()
         path = path[len(BASE_PATH):] if path.startswith(BASE_PATH + "/") else None
+        if method == "GET" and path in STATIC_FILES:
+            file, ctype = STATIC_FILES[path]
+            with open(file, "rb") as f:
+                return 200, (f.read(), ctype)
         route = (GET_ROUTES if method == "GET" else POST_ROUTES).get(path)
         if route is None:
             raise ApiError(404, "not found")
@@ -784,7 +798,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         http.server.BaseHTTPRequestHandler.end_headers(self)
 
     def send_payload(self, status, payload, headers=None):
-        if isinstance(payload, bytes):
+        if isinstance(payload, tuple):
+            data, ctype = payload
+        elif isinstance(payload, bytes):
             data, ctype = payload, "text/html; charset=utf-8"
         else:
             data, ctype = json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8"
