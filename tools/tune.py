@@ -2092,16 +2092,8 @@ def garage_choices(work, car_id, tune=None):
             "missing": list(dict.fromkeys(k for k in saved or [] if k not in known))}
 
 
-def set_garage(work, car_id, keys, tune=None):
-    """Tick exactly the tyres in keys (own:<tyre id> of a library tyre, stock:<front>|<rear> of car_stock_tyres) and store
-    them in the state in the fixed order; returns {keys, start}. All stock tyres and no own tyre is the default: the entry
-    is removed and the result has default True."""
-    if not isinstance(keys, list):
-        raise ValueError("the tyre keys must be a list, got %r" % (keys,))
-    if not keys:
-        raise ValueError("tick at least one tyre")
-    entries = garage_entries(work, car_id)
-    stock = [e["key"] for e in entries if e["kind"] == "stock"]
+def check_garage_keys(work, car_id, keys, stock):
+    """Check the keys of a selection in their order: text, listed once, a library tyre (own) or a stock tyre of stock."""
     for key in keys:
         if not isinstance(key, str):
             raise ValueError("a tyre key must be text, got %r" % (key,))
@@ -2114,6 +2106,19 @@ def set_garage(work, car_id, keys, tune=None):
             load_tyre(work, parsed[1])
         elif key not in stock:
             raise ValueError("unknown stock tyre %s of %s, garage lists the tyres of the car" % (parsed[1], car_id))
+
+
+def set_garage(work, car_id, keys, tune=None):
+    """Tick exactly the tyres in keys (own:<tyre id> of a library tyre, stock:<front>|<rear> of car_stock_tyres) and store
+    them in the state in the fixed order; returns {keys, start}. All stock tyres and no own tyre is the default: the entry
+    is removed and the result has default True."""
+    if not isinstance(keys, list):
+        raise ValueError("the tyre keys must be a list, got %r" % (keys,))
+    if not keys:
+        raise ValueError("tick at least one tyre")
+    entries = garage_entries(work, car_id)
+    stock = [e["key"] for e in entries if e["kind"] == "stock"]
+    check_garage_keys(work, car_id, keys, stock)
     order = {e["key"]: i for i, e in enumerate(entries)}
     keys = sorted(keys, key=lambda k: order[k])
     state = load_state(work, car_id, tune)
@@ -2133,6 +2138,17 @@ def reset_garage(work, car_id, tune=None):
     if removed:
         save_state(work, car_id, state, tune)
     return {"removed": removed}
+
+
+def tyre_source_files(src_root, src_car, src, tyre_id):
+    """The files (front, rear) of the source of a library tyre in the base src_root of the extracted car src_car."""
+    files = {}
+    for axle in ("front", "rear"):
+        try:
+            files[axle] = car_path(car_root_of(src_root, src_car), shared_rel(src_root, src[axle]))
+        except ValueError as e:
+            raise ValueError("garage: tyre %s: %s" % (tyre_id, e)) from None
+    return files
 
 
 def garage_selection(work, car_id, state):
@@ -2167,16 +2183,26 @@ def garage_selection(work, car_id, state):
                              "source" % (rest, source_label(src["front"], src["rear"])))
         src_car = offer["cars"][0]
         src_root = base_dir(work, src_car)
-        files = {}
-        for axle in ("front", "rear"):
-            try:
-                files[axle] = car_path(car_root_of(src_root, src_car), shared_rel(src_root, src[axle]))
-            except ValueError as e:
-                raise ValueError("garage: tyre %s: %s" % (rest, e)) from None
+        files = tyre_source_files(src_root, src_car, src, rest)
         chosen[key] = {"key": key, "kind": "own", "label": tyre["name"], "id": rest, "tyre": tyre, "files": files,
                        "source": (game_path_key(src["front"]), game_path_key(src["rear"]))}
     order = {e["key"]: i for i, e in enumerate(garage_entries(work, car_id))}
     return sorted(chosen.values(), key=lambda e: order[e["key"]])
+
+
+def tyre_target_paths(obj, s, t, entry):
+    """The paths of a target t of the setting s in the source file obj; None for an optional target the file cannot take."""
+    try:
+        paths = expand_path(obj, t["path"], bool(s.get("create_missing")))
+        if not paths:
+            raise ValueError("%s: the list has no elements" % t["path"])
+        for path in paths:
+            get_value(obj, path, bool(s.get("create_missing")))
+    except ValueError as e:
+        if t.get("optional"):
+            return None
+        raise ValueError("garage: tyre %s: %s cannot be written into the source file: %s" % (entry["id"], s["id"], e)) from None
+    return paths
 
 
 def tyre_values_into(obj, entry, axle, cat):
@@ -2196,16 +2222,9 @@ def tyre_values_into(obj, entry, axle, cat):
         for t in s["targets"]:
             if t["file"] != "@tyre_" + axle:
                 continue
-            try:
-                paths = expand_path(obj, t["path"], bool(s.get("create_missing")))
-                if not paths:
-                    raise ValueError("%s: the list has no elements" % t["path"])
-                for path in paths:
-                    get_value(obj, path, bool(s.get("create_missing")))
-            except ValueError as e:
-                if t.get("optional"):
-                    continue
-                raise ValueError("garage: tyre %s: %s cannot be written into the source file: %s" % (entry["id"], s["id"], e)) from None
+            paths = tyre_target_paths(obj, s, t, entry)
+            if paths is None:
+                continue
             for path in paths:
                 put_value(obj, path, v)
 
