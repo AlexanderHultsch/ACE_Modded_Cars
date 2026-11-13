@@ -1333,9 +1333,8 @@ def build_tyre(root, car_id, new_id, car_root, role, items, cache, counts=None):
         axle, new_text, stock_text, in_car, in_presets)
 
 
-def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None, game=DEFAULT_GAME):
-    cat = catalogue or load_catalogue()
-    new_id = new_id or new_id_for(car_id)
+def check_target(work, car_id, new_id, install, mods_dir):
+    """Checks that need no catalogue: base car, ids and tune. Returns (base folder, mods folder or None)."""
     root = base_dir(work, car_id)
     if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
         raise ValueError("no base car in %s, run init first" % root)
@@ -1345,6 +1344,11 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     if (not is_default_tune(car_id, new_id) and not os.path.isdir(kspkg.long_path(tune_dir(work, car_id, new_id)))
             and list_tunes(work, car_id)):
         raise ValueError("%s is not a modded car of %s, create it with duplicate first" % (new_id, car_id))
+    return root, mods
+
+
+def changed_settings(work, car_id, new_id, cat):
+    """Returns (rows, changed): every row and the (setting, row) pairs that differ from the default; refuses unusable changes."""
     rows = effective_rows(work, car_id, cat, hidden=True, tune=new_id)
     changed = [(s, r) for s, r in zip(cat["settings"], rows) if r["changed"]]
     bad = ["%s (%s)" % (s["id"], r["reason"]) for s, r in changed if not r["applicable"]]
@@ -1354,6 +1358,13 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         for t in r["targets"] if s["kind"] == "value" else []:
             if t["resolved"] and t["file"][1:] in TYRE_ROLES and not t["rel"].startswith(SHARED):
                 raise ValueError("%s: the tyre file is inside the car folder, not supported yet" % t["file"])
+    return rows, changed
+
+
+def apply_plan(work, car_id, new_id, install, mods_dir, cat):
+    """Everything apply needs, checked before anything is built: root, mods, rows, changed, info and garage (plan or None)."""
+    root, mods = check_target(work, car_id, new_id, install, mods_dir)
+    rows, changed = changed_settings(work, car_id, new_id, cat)
     info = load_stock_info(work, car_id)
     if info is None and car_id != load_cars()["default"]:
         raise ValueError("stock info missing, run init with the game installed")
@@ -1364,7 +1375,12 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         raise ValueError("name suffix %s is already used by %s" % (name_suffix, owner))
     state = load_state(work, car_id, new_id)
     garage = garage_plan(work, car_id, new_id, state, cat) if TYRE_KEY in state else None
-    out_dir = os.path.join(build_dir(work, car_id), new_id)
+    return {"root": root, "mods": mods, "rows": rows, "changed": changed, "info": info, "garage": garage}
+
+
+def build_partial(work, car_id, new_id, out_dir, plan, cat, game):
+    """Clone the car under the new id into <out_dir>.partial (an old one is removed first). Returns (folder, meta values, notes)."""
+    root, rows, info = plan["root"], plan["rows"], plan["info"]
     # the build always starts from the pristine base, in <new_id>.partial: the previous build of this id stays until the new one is complete
     part = out_dir + ".partial"
     if os.path.exists(kspkg.long_path(part)):
@@ -1386,7 +1402,39 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         if not str(e).startswith("self-check failed"):
             raise
         raise ValueError("clone self-check failed:\n" + log.getvalue().rstrip()) from None
-    car_root = car_root_of(part, new_id)
+    return part, meta, notes
+
+
+def scale_curve_file(s, r, car_id, new_id, part, car_root):
+    """Write the scaled curve of a curve_scale setting into the build; returns its path below the car folder."""
+    text, _ = get_value(load_msg(car_path(car_root, renamed(r["targets"][0]["rel"], car_id, new_id)))[0],
+                        s["curve_from"]["path"])
+    path = curve_path(part, text)
+    curve, name = load_msg(path)
+    scale_curve(curve, r["value"])
+    save_msg(path, name, curve)
+    return os.path.relpath(path, car_root).replace(os.sep, "/")
+
+
+def flag_edits(s, r, car_id, new_id, item, edits):
+    for t in r["targets"]:
+        if t["resolved"] and not (t["absent"] and s["value"] == 0):
+            edits.setdefault(renamed(t["rel"], car_id, new_id), []).append((item, t["path"], s["value"]))
+
+
+def value_edits(s, r, car_id, new_id, item, edits, tyre_edits):
+    v = to_f32(r["value"]) if s["type"] == "float" else r["value"]
+    if s.get("choice_values"):
+        v = s["choice_values"][v]
+    for t in r["targets"]:
+        if t["resolved"] and t["file"][1:] in TYRE_ROLES:
+            tyre_edits.setdefault(t["file"][1:], []).append((item, t["path"], v))
+        elif t["resolved"]:
+            edits.setdefault(renamed(t["rel"], car_id, new_id), []).append((item, t["path"], v))
+
+
+def collect_edits(car_id, new_id, changed, part, car_root):
+    """Returns (edits by file, tyre edits by role, applied list) of the changed settings; writes the scaled curve files."""
     edits, tyre_edits, applied = {}, {}, []
     # flags last: a flag wins over a value on the same field
     for s, r in sorted(changed, key=lambda sr: sr[0]["kind"] == "flag"):
@@ -1396,26 +1444,16 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
             item["files"].append(new_id + "." + clone_car.MODDED_TYPE if s["handler"] == "name_suffix"
                                  else "/".join(clone_car.LOC_PATH))
         elif s["kind"] == "curve_scale":
-            text, _ = get_value(load_msg(car_path(car_root, renamed(r["targets"][0]["rel"], car_id, new_id)))[0],
-                                s["curve_from"]["path"])
-            path = curve_path(part, text)
-            curve, name = load_msg(path)
-            scale_curve(curve, r["value"])
-            save_msg(path, name, curve)
-            item["files"].append(os.path.relpath(path, car_root).replace(os.sep, "/"))
+            item["files"].append(scale_curve_file(s, r, car_id, new_id, part, car_root))
         elif s["kind"] == "flag":
-            for t in r["targets"]:
-                if t["resolved"] and not (t["absent"] and s["value"] == 0):
-                    edits.setdefault(renamed(t["rel"], car_id, new_id), []).append((item, t["path"], s["value"]))
+            flag_edits(s, r, car_id, new_id, item, edits)
         else:
-            v = to_f32(r["value"]) if s["type"] == "float" else r["value"]
-            if s.get("choice_values"):
-                v = s["choice_values"][v]
-            for t in r["targets"]:
-                if t["resolved"] and t["file"][1:] in TYRE_ROLES:
-                    tyre_edits.setdefault(t["file"][1:], []).append((item, t["path"], v))
-                elif t["resolved"]:
-                    edits.setdefault(renamed(t["rel"], car_id, new_id), []).append((item, t["path"], v))
+            value_edits(s, r, car_id, new_id, item, edits, tyre_edits)
+    return edits, tyre_edits, applied
+
+
+def write_edits(car_root, edits):
+    """Write the value edits into the files of the build."""
     for rel, items in edits.items():
         path = car_path(car_root, rel)
         obj, name = load_msg(path)
@@ -1424,6 +1462,11 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
             if rel not in item["files"]:
                 item["files"].append(rel)
         save_msg(path, name, obj)
+
+
+def write_tyres(root, car_id, new_id, car_root, garage, tyre_edits):
+    """The garage step and the per-car tyre step of the build. Returns their notes for the build log."""
+    notes = []
     cache = {}
     if garage:
         notes += write_garage(root, car_id, new_id, car_root, garage, cache)
@@ -1433,20 +1476,43 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
         if garage and not sum(counts):
             raise ValueError("tyre settings are changed but the stock starting tyre of the car is not ticked in the garage, "
                              "tick it or reset the tyre values")
+    return notes
+
+
+def pack_build(work, new_id, part, out_dir):
+    """Pack the .partial folder and put it in place of the previous build. Returns the path of the package."""
     # kspkg and clone_car print their progress: keep it out of this command's output
     with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
         kspkg.cmd_pack(part, os.path.join(part, new_id + ".kspkg"))
     if os.path.exists(kspkg.long_path(out_dir)):
         remove_tree(work, out_dir)
     os.rename(kspkg.long_path(part), kspkg.long_path(out_dir))
-    pkg = os.path.join(out_dir, new_id + ".kspkg")
+    return os.path.join(out_dir, new_id + ".kspkg")
+
+
+def install_package(work, pkg, mods):
+    """Install the package into the mods folder with a backup of the previous one. Returns (backup, installed path)."""
+    # kspkg and clone_car print their progress: keep it out of this command's output
+    with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
+        backup = clone_car.install(pkg, mods, os.path.join(work, "backups"))
+    return backup, os.path.join(mods, os.path.basename(pkg))
+
+
+def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None, game=DEFAULT_GAME):
+    cat = catalogue or load_catalogue()
+    new_id = new_id or new_id_for(car_id)
+    plan = apply_plan(work, car_id, new_id, install, mods_dir, cat)
+    out_dir = os.path.join(build_dir(work, car_id), new_id)
+    part, meta, notes = build_partial(work, car_id, new_id, out_dir, plan, cat, game)
+    car_root = car_root_of(part, new_id)
+    edits, tyre_edits, applied = collect_edits(car_id, new_id, plan["changed"], part, car_root)
+    write_edits(car_root, edits)
+    notes += write_tyres(plan["root"], car_id, new_id, car_root, plan["garage"], tyre_edits)
+    pkg = pack_build(work, new_id, part, out_dir)
     result = {"new_id": new_id, "tune": new_id, "name_suffix": meta["name_suffix"], "build_dir": out_dir, "package": pkg, "size": os.path.getsize(pkg),
               "applied": applied, "notes": notes, "installed": None, "backup": None}
     if install:
-        # kspkg and clone_car print their progress: keep it out of this command's output
-        with _stdout_lock, contextlib.redirect_stdout(io.StringIO()):
-            result["backup"] = clone_car.install(pkg, mods, os.path.join(work, "backups"))
-        result["installed"] = os.path.join(mods, os.path.basename(pkg))
+        result["backup"], result["installed"] = install_package(work, pkg, plan["mods"])
     return result
 
 

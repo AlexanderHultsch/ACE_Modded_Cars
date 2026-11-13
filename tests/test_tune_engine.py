@@ -13,7 +13,7 @@ import threading
 import unittest
 from unittest import mock
 
-from support import ROOT, FakeCar, mini_catalogue, mini_setting, run_tool, tmp
+from support import FakeCar, mini_catalogue, mini_setting, run_tool, tmp
 
 import car_json
 import clone_car
