@@ -265,11 +265,51 @@ class TestCssClasses(unittest.TestCase):
     def test_every_custom_property_that_is_used_is_defined(self):
         self.assertEqual(sorted(set(re.findall(r"var\((--[\w-]+)\)", STYLE)) - set(re.findall(r"(--[\w-]+):", STYLE))), [])
 
-    def test_the_dark_theme_only_redefines_properties_of_the_light_one(self):
-        light_css, dark_css = STYLE.split("@media (prefers-color-scheme: dark)")[:2]
-        light = set(re.findall(r"(--[\w-]+):", light_css))
-        dark = set(re.findall(r"(--[\w-]+):", dark_css.split("* { box-sizing")[0]))
-        self.assertTrue(dark and dark <= light, sorted(dark - light))
+
+class TestDarkTheme(unittest.TestCase):
+    TOKENS = {"--color-bg": "#0e1013", "--color-bg-alt": "#16191f", "--color-bg-elevated": "#1c2028", "--color-text": "#e8eaed",
+              "--color-text-muted": "#9aa1ac", "--color-border": "#2a2f38", "--color-accent": "#4f8cff",
+              "--color-accent-contrast": "#0e1013"}
+    ROOT_RULE = re.search(r":root \{(.*?)\n\}", STYLE, re.S).group(1)
+    OUTSIDE_ROOT = STYLE.replace(ROOT_RULE, "")
+    ALLOWED = {"transparent", "inherit", "currentColor", "none"}
+
+    def test_the_tokens_of_the_site_are_defined_on_root_with_their_exact_values(self):
+        for name, value in self.TOKENS.items():
+            with self.subTest(name):
+                self.assertRegex(self.ROOT_RULE, r"%s: %s;" % (re.escape(name), re.escape(value)))
+        self.assertRegex(self.ROOT_RULE, r'--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;')
+        self.assertRegex(self.ROOT_RULE, r'--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;')
+
+    def test_the_page_is_dark_only(self):
+        self.assertIn("color-scheme: dark;", self.ROOT_RULE)
+        self.assertNotIn("light", re.sub(r"color-scheme: dark;", "", STYLE))
+        self.assertNotIn("prefers-color-scheme", STYLE)
+
+    def test_colours_are_written_only_in_the_root_rule(self):
+        self.assertEqual(re.findall(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(", self.OUTSIDE_ROOT), [])
+
+    def test_every_colour_and_background_value_is_a_token_or_on_the_allowed_list(self):
+        found = re.findall(r"(?:^|[;{\s])((?:background|color|border(?:-[a-z]+)*-color|outline-color|accent-color))\s*:\s*([^;}]+)", self.OUTSIDE_ROOT)
+        self.assertTrue(len(found) > 40, len(found))
+        for prop, value in found:
+            with self.subTest(prop + ": " + value):
+                self.assertTrue(re.fullmatch(r"var\(--[\w-]+\)", value.strip()) or value.strip() in self.ALLOWED, value)
+
+    def test_borders_and_outlines_use_tokens_for_their_colour(self):
+        for prop, value in re.findall(r"(?:^|[;{\s])((?:border(?:-(?:top|right|bottom|left))?|outline)):\s*([^;}]+)", self.OUTSIDE_ROOT):
+            with self.subTest(prop + ": " + value):
+                self.assertRegex(value, r"^(?:0|none|\S+ solid (?:var\(--[\w-]+\)|currentColor))$")
+
+    def test_the_font_stacks_come_from_the_tokens(self):
+        self.assertIn("font: 15px/1.45 var(--font-sans);", STYLE)
+        self.assertIn(".mono { font-family: var(--font-mono); }", STYLE)
+
+    def test_the_primary_button_is_accent_filled_with_the_contrast_text(self):
+        self.assertIn("button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-contrast); }", STYLE)
+
+    def test_the_focus_ring_is_two_pixels_of_the_accent(self):
+        self.assertIn("outline: 2px solid var(--color-accent); outline-offset: 1px;", STYLE)
 
 
 class TestTexts(unittest.TestCase):
@@ -315,9 +355,8 @@ class TestAccessibility(unittest.TestCase):
         self.assertIn("button:focus-visible, input:focus-visible, select:focus-visible", STYLE)
         self.assertIn("[hidden] { display: none !important; }", STYLE)
 
-    def test_the_page_follows_the_system_colour_scheme(self):
-        self.assertIn("color-scheme: light dark;", STYLE)
-        self.assertIn("@media (prefers-color-scheme: dark)", STYLE)
+    def test_the_native_controls_follow_the_dark_theme(self):
+        self.assertIn("color-scheme: dark;", STYLE)
 
     def test_render_status_skips_the_rebuild_when_nothing_changed(self):
         body = function_body("renderStatus")
@@ -336,6 +375,104 @@ class TestAccessibility(unittest.TestCase):
 
     def test_the_suggested_range_is_available_to_screen_readers(self):
         self.assertIn('setAttribute("aria-description"', function_body("buildField"))
+
+
+class TestCollapsibleGroups(unittest.TestCase):
+    def test_a_group_header_is_a_toggle_button_inside_the_rowgroup_cell(self):
+        body = function_body("buildGroup")
+        self.assertIn('th.scope = "rowgroup";', body)
+        self.assertIn('el("button", "grouptoggle")', body)
+        self.assertIn('g.btn.type = "button";', body)
+        self.assertIn('g.btn.setAttribute("aria-expanded", "false");', body)
+        self.assertIn('th.appendChild(g.btn);', body)
+        self.assertIn('el("span", "gname", name)', body)
+        self.assertIn('chev.setAttribute("aria-hidden", "true");', body)
+        self.assertIn('g.btn.addEventListener("click", () => toggleGroup(g));', body)
+        self.assertIn("buildGroup(data.group)", function_body("buildTable"))
+
+    def test_the_toggle_controls_the_rows_of_its_group(self):
+        body = function_body("buildTable")
+        self.assertIn('r.tr.id = "row-" + rows.length;', body)
+        self.assertIn('g.btn.setAttribute("aria-controls", g.rows.map((r) => r.tr.id).join(" "));', body)
+
+    def test_the_chevron_is_css_only_and_rotates_with_aria_expanded(self):
+        self.assertRegex(STYLE, r"\.chev \{[^}]*border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;[^}]*transform: rotate\(-45deg\);")
+        self.assertIn('.grouptoggle[aria-expanded="true"] .chev { transform: rotate(45deg); }', STYLE)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", STYLE)
+        self.assertNotRegex(CODE, r"\\u25|&#x?2[0-9a-f]+;")
+
+    def test_every_group_starts_collapsed(self):
+        self.assertRegex(CODE, r"(?m)^const expanded = new Set\(\);")
+        self.assertIn("expanded.has(g.name)", function_body("applyFilter"))
+        self.assertNotRegex(CODE, r"expanded = new Set\([^)]")
+
+    def test_toggling_flips_the_remembered_state_and_applies_it(self):
+        body = function_body("toggleGroup")
+        self.assertIn("if (!expanded.delete(g.name)) expanded.add(g.name);", body)
+        self.assertIn("applyFilter();", body)
+
+    def test_the_rows_of_a_collapsed_group_are_hidden_not_removed(self):
+        body = function_body("applyFilter")
+        self.assertIn("r.tr.hidden = !(open && r.match);", body)
+        self.assertNotIn("remove(", body)
+
+    def test_the_count_names_the_settings_and_the_changed_ones_and_follows_the_rows(self):
+        body = function_body("applyFilter")
+        self.assertIn('"(" + g.rows.length + (g.rows.length === 1 ? " setting, " : " settings, ") + changed + " changed)"', body)
+        self.assertIn("if (r.data.changed) changed += 1;", body)
+        self.assertIn("if (refilter) applyFilter();", function_body("showRow"))
+
+    def test_the_expanded_state_is_kept_by_edits_polls_and_a_table_rebuild_and_cleared_by_a_switch(self):
+        self.assertIn("expanded.clear();", function_body("switchCar"))
+        for name in ("buildTable", "clearTable", "showRow", "refresh", "loadSettings", "resetAll", "sendSet"):
+            with self.subTest(name):
+                self.assertNotIn("expanded.clear()", function_body(name))
+                self.assertNotIn("new Set", function_body(name))
+        self.assertEqual(len(re.findall(r"expanded\.clear\(\)", CODE)), 2)
+
+    def test_a_filter_opens_the_groups_with_matches_without_changing_the_remembered_state(self):
+        body = function_body("applyFilter")
+        self.assertIn('const filtering = q !== "" || changedOnly;', body)
+        self.assertIn("const open = filtering ? any : expanded.has(g.name);", body)
+        self.assertIn("g.tr.hidden = !any;", body)
+        self.assertNotIn("expanded.add", body)
+        self.assertNotIn("expanded.delete", body)
+        self.assertIn('$("search").addEventListener("input", applyFilter);', CODE)
+        self.assertIn('$("changed-only").addEventListener("change", applyFilter);', CODE)
+
+    def test_the_filter_message_logic_is_unchanged(self):
+        self.assertIn('$("empty").hidden = visible > 0 || rows.length === 0;', function_body("applyFilter"))
+        self.assertIn("if (any) visible += 1;", function_body("applyFilter"))
+
+    def test_expand_all_and_collapse_all_are_buttons_next_to_the_filters_and_wired(self):
+        bar = re.search(r'<div class="toolbar">.*?</div>', MARKUP, re.S).group(0)
+        self.assertRegex(bar, r'(?s)id="changed-only".*<button id="btn-expand-all" type="button">Expand all</button>\s*'
+                              r'<button id="btn-collapse-all" type="button">Collapse all</button>\s*<span class="spacer">')
+        self.assertIn('$("btn-expand-all").addEventListener("click", () => setAllGroups(true));', CODE)
+        self.assertIn('$("btn-collapse-all").addEventListener("click", () => setAllGroups(false));', CODE)
+        body = function_body("setAllGroups")
+        self.assertIn("for (const g of groups) expanded.add(g.name);", body)
+        self.assertIn("expanded.clear();", body)
+        self.assertIn("applyFilter();", body)
+
+    def test_a_message_in_a_row_opens_its_group(self):
+        self.assertIn("if (text) revealGroup(r);", function_body("setMsg"))
+        body = function_body("revealGroup")
+        self.assertIn("groups.includes(r.group)", body)
+        self.assertIn("expanded.add(r.group.name);", body)
+        self.assertIn("applyFilter();", body)
+        self.assertIn("r.group = current;", function_body("buildTable"))
+        self.assertIn("group: null", function_body("newRow"))
+
+    def test_the_toggles_announce_nothing_through_a_live_region(self):
+        for name in ("buildGroup", "toggleGroup", "setAllGroups", "revealGroup", "applyFilter"):
+            with self.subTest(name):
+                self.assertNotIn("aria-live", function_body(name))
+                self.assertNotIn("role", function_body(name))
+        self.assertEqual(CODE.count('setAttribute("role", "alert")'), 1)
+
+    def test_the_group_toggle_has_a_visible_focus_ring_inside_its_cell(self):
+        self.assertIn("button.grouptoggle:focus-visible { outline-offset: -2px; }", STYLE)
 
 
 class TestPolling(unittest.TestCase):

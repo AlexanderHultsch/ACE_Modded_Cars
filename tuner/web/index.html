@@ -6,57 +6,34 @@
 <title>ACE - Simple Car Tuner</title>
 <style>
 :root {
-  color-scheme: light dark;
-  --bg: #f4f6f9;
-  --panel: #ffffff;
-  --text: #1c2430;
-  --muted: #667085;
-  --border: #d9dee7;
-  --head-bg: #eef1f6;
-  --accent: #1f6feb;
-  --accent-text: #ffffff;
-  --changed-bg: #fff6dc;
-  --ok-bg: #e7f6ec;
-  --ok-text: #14532d;
-  --err-bg: #fdecec;
-  --err-text: #8a1c1c;
-  --warn-text: #b45309;
-  --badge-bg: #e4e7ec;
-  --amber-bg: #fde9b8;
-  --amber-text: #7a4a03;
-  --focus: #1f6feb;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #11151b;
-    --panel: #1a2029;
-    --text: #e6eaf0;
-    --muted: #98a2b3;
-    --border: #2d3643;
-    --head-bg: #232b37;
-    --accent: #3b82f6;
-    --accent-text: #ffffff;
-    --changed-bg: #3a3115;
-    --ok-bg: #12301f;
-    --ok-text: #9be3b4;
-    --err-bg: #3b1a1a;
-    --err-text: #f5a3a3;
-    --warn-text: #f0b429;
-    --badge-bg: #2d3643;
-    --amber-bg: #4a3a12;
-    --amber-text: #f0c35c;
-    --focus: #7db0ff;
-  }
+  color-scheme: dark;
+  --color-bg: #0e1013;
+  --color-bg-alt: #16191f;
+  --color-bg-elevated: #1c2028;
+  --color-text: #e8eaed;
+  --color-text-muted: #9aa1ac;
+  --color-border: #2a2f38;
+  --color-accent: #4f8cff;
+  --color-accent-contrast: #0e1013;
+  --color-accent-hover: #78a6ff;
+  --color-accent-tint: rgba(79, 140, 255, 0.14);
+  --color-ok: #5ec27a;
+  --color-ok-tint: rgba(94, 194, 122, 0.12);
+  --color-error: #ff8f8f;
+  --color-error-tint: rgba(255, 107, 107, 0.12);
+  --color-warning: #f2b94b;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: 15px/1.45 var(--font-sans);
 }
-.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; }
+.mono { font-family: var(--font-mono); }
 .page { max-width: 1280px; margin: 0 auto; padding: 0 20px 40px; }
 .bar {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
@@ -64,77 +41,82 @@ body {
 }
 .bar h1 { margin: 0; font-size: 22px; }
 .title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
-.carpick { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.carpick { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-text-muted); }
 .carpick select {
-  font: inherit; padding: 6px 8px; max-width: 100%; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--panel); color: var(--text);
+  font: inherit; padding: 6px 8px; max-width: 100%; border: 1px solid var(--color-border); border-radius: 6px;
+  background: var(--color-bg-elevated); color: var(--color-text);
 }
-.untested { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.untested { margin: 0 0 8px; font-size: 13px; color: var(--color-text-muted); }
 .namerow {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 10px; padding: 4px 0;
   border-radius: 6px;
 }
-.namerow.changed { background: var(--changed-bg); padding: 4px 8px; }
-.namerow .label { font-size: 13px; color: var(--muted); }
+.namerow.changed { background: var(--color-accent-tint); padding: 4px 8px; }
+.namerow .label { font-size: 13px; color: var(--color-text-muted); }
 .namefield { display: inline-flex; align-items: center; gap: 2px; }
 .stockname { font-weight: 600; white-space: pre; }
 .namefield input {
-  font: inherit; width: 9em; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--panel); color: var(--text);
+  font: inherit; width: 9em; padding: 3px 6px; border: 1px solid var(--color-border); border-radius: 6px;
+  background: var(--color-bg); color: var(--color-text);
 }
 .namerow .msg { flex: 1 0 100%; margin-top: 0; }
-.tunenote { font-size: 13px; color: var(--muted); }
+.tunenote { font-size: 13px; color: var(--color-text-muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button {
   font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
-  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  border: 1px solid var(--color-border); background: var(--color-bg-elevated); color: var(--color-text);
 }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button:hover:not(:disabled) { border-color: var(--color-accent); }
+button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-contrast); }
+button.primary:hover:not(:disabled) { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: 2px solid var(--focus); outline-offset: 1px;
+  outline: 2px solid var(--color-accent); outline-offset: 1px;
 }
+input[type="checkbox"] { accent-color: var(--color-accent); }
+::placeholder { color: var(--color-text-muted); opacity: 1; }
 .strip {
-  display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 8px 12px; margin-bottom: 12px;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 8px 12px; margin-bottom: 12px;
+  background: var(--color-bg-alt); border: 1px solid var(--color-border); border-radius: 8px; font-size: 13px;
 }
-.strip .label { color: var(--muted); margin-right: 6px; }
-.strip .ok { color: var(--ok-text); }
-.strip .bad { color: var(--err-text); }
-.strip .warn { color: var(--warn-text); }
-.strip .note { flex: 1 0 100%; color: var(--muted); }
+.strip > span:not(.note) { padding: 2px 10px; background: var(--color-bg-elevated); border-radius: 6px; }
+.strip .label { color: var(--color-text-muted); margin-right: 6px; }
+.strip .ok { color: var(--color-ok); }
+.strip .bad { color: var(--color-error); }
+.strip .warn { color: var(--color-warning); }
+.strip .note { flex: 1 0 100%; color: var(--color-text-muted); }
 .panel {
-  margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--panel);
+  margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: 8px;
+  background: var(--color-bg-alt);
 }
 .panel h2 { margin: 0 0 6px; font-size: 15px; }
 .panel pre {
   margin: 6px 0 0; padding: 8px 10px; max-height: 220px; overflow: auto; white-space: pre-wrap;
-  background: var(--head-bg); border-radius: 6px; font-size: 12.5px;
+  background: var(--color-bg-elevated); color: var(--color-text); border-radius: 6px; font-size: 12.5px;
 }
-.panel.ok { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-text); }
-.panel.err { background: var(--err-bg); color: var(--err-text); border-color: var(--err-text); }
+.panel.ok { background: var(--color-ok-tint); color: var(--color-ok); border-color: var(--color-ok); }
+.panel.err { background: var(--color-error-tint); color: var(--color-error); border-color: var(--color-error); }
 .panel ul { margin: 4px 0 8px; padding-left: 20px; }
 .panel p { margin: 6px 0; }
 .dialog .field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0; }
 .dialog .field label { min-width: 12em; }
 .dialog .field input {
-  font: inherit; width: 16em; max-width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--panel); color: var(--text);
+  font: inherit; width: 16em; max-width: 100%; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 6px;
+  background: var(--color-bg); color: var(--color-text);
 }
-.dialog .hint { font-size: 13px; color: var(--muted); }
+.dialog .hint { font-size: 13px; color: var(--color-text-muted); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
 .toolbar input[type="search"] {
-  font: inherit; padding: 7px 10px; min-width: 260px; border: 1px solid var(--border);
-  border-radius: 6px; background: var(--panel); color: var(--text);
+  font: inherit; padding: 7px 10px; min-width: 260px; border: 1px solid var(--color-border);
+  border-radius: 6px; background: var(--color-bg-alt); color: var(--color-text);
 }
 .toolbar label { display: flex; align-items: center; gap: 6px; }
 .toolbar .spacer { flex: 1; }
-.tablewrap { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.tablewrap { border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg-alt); }
 table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 thead th {
   position: sticky; top: 0; z-index: 2; text-align: left; font-size: 13px; padding: 9px 12px;
-  background: var(--head-bg); border-bottom: 1px solid var(--border);
+  background: var(--color-bg-elevated); border-bottom: 1px solid var(--color-border);
 }
 thead th:first-child { border-top-left-radius: 8px; }
 thead th:last-child { border-top-right-radius: 8px; }
@@ -142,41 +124,61 @@ col.c-name { width: 22%; }
 col.c-value { width: 23%; }
 col.c-default { width: 17%; }
 col.c-desc { width: 38%; }
-td { padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+td { padding: 9px 12px; vertical-align: top; border-bottom: 1px solid var(--color-border); overflow-wrap: anywhere; }
 tr.group th {
-  text-align: left; padding: 8px 12px; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase;
-  color: var(--muted); background: var(--head-bg); border-bottom: 1px solid var(--border);
+  padding: 0; text-align: left; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase;
+  background: var(--color-bg-elevated); border-bottom: 1px solid var(--color-border);
 }
-tr.changed td { background: var(--changed-bg); }
+button.grouptoggle {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border: 0; border-radius: 0;
+  background: transparent; color: var(--color-text-muted); letter-spacing: inherit; text-align: left; text-transform: inherit;
+}
+button.grouptoggle:focus-visible { outline-offset: -2px; }
+button.grouptoggle:hover .gname { color: var(--color-accent); }
+.gname { color: var(--color-text); }
+.gcount { text-transform: none; letter-spacing: 0; }
+.chev {
+  flex: none; width: 7px; height: 7px; margin: 0 3px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); transition: transform 0.15s;
+}
+.grouptoggle[aria-expanded="true"] .chev { transform: rotate(45deg); }
+tr.changed td { background: var(--color-accent-tint); }
 .name b { display: block; }
-.name .id { display: block; font-size: 12px; color: var(--muted); }
+.name .id { display: block; font-size: 12px; color: var(--color-text-muted); }
 .valuewrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .valuewrap input, .valuewrap select {
-  font: inherit; width: 8.5em; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
-  background: var(--panel); color: var(--text);
+  font: inherit; width: 8.5em; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 6px;
+  background: var(--color-bg); color: var(--color-text);
 }
 .valuewrap select { width: auto; max-width: 100%; }
 .valuewrap label.flag { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .valuewrap input[type="checkbox"] { width: auto; padding: 0; margin: 0; }
-.unit { color: var(--muted); font-size: 13px; }
+.unit { color: var(--color-text-muted); font-size: 13px; }
 button.reset { padding: 2px 8px; font-size: 12px; }
 .msg { margin-top: 4px; font-size: 12.5px; }
-.msg.warn { color: var(--warn-text); }
-.msg.err { color: var(--err-text); }
+.msg.warn { color: var(--color-warning); }
+.msg.err { color: var(--color-error); }
 .badge {
-  display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 10px; font-size: 11.5px;
-  background: var(--badge-bg); color: var(--muted); cursor: help; white-space: nowrap;
+  display: inline-block; margin-left: 6px; padding: 0 7px; border: 1px solid var(--color-border); border-radius: 10px;
+  font-size: 11.5px; background: transparent; color: var(--color-text-muted); cursor: help; white-space: nowrap;
 }
-.badge.amber { display: block; width: fit-content; margin: 4px 0 0; white-space: normal; background: var(--amber-bg); color: var(--amber-text); }
+.badge.amber {
+  display: block; width: fit-content; margin: 4px 0 0; white-space: normal; border-color: var(--color-accent);
+  color: var(--color-accent);
+}
 .default { font-size: 13.5px; }
-.empty { padding: 18px 14px; color: var(--muted); }
+.empty { padding: 18px 14px; color: var(--color-text-muted); }
 .sr-only {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); border: 0;
 }
+@media (prefers-reduced-motion: reduce) {
+  .chev { transition: none; }
+}
 @media (max-width: 1000px) {
   .page { padding: 0 12px 30px; }
-  td, thead th, tr.group th { padding-left: 8px; padding-right: 8px; }
+  td, thead th, button.grouptoggle { padding-left: 8px; padding-right: 8px; }
   .valuewrap input { width: 7em; }
   .toolbar input[type="search"] { min-width: 180px; }
 }
@@ -233,6 +235,8 @@ button.reset { padding: 2px 8px; font-size: 12px; }
     <div class="toolbar">
       <input id="search" type="search" placeholder="Search id, name or description" aria-label="Search settings">
       <label><input id="changed-only" type="checkbox"> changed only</label>
+      <button id="btn-expand-all" type="button">Expand all</button>
+      <button id="btn-collapse-all" type="button">Collapse all</button>
       <span class="spacer"></span>
       <button id="btn-reset-all" type="button">Reset all</button>
     </div>
@@ -279,6 +283,8 @@ let serverError = "";
 let localError = "";
 let rows = [];
 let groups = [];
+// names of the groups the user opened; every group starts collapsed, the set is cleared when another car is selected
+const expanded = new Set();
 let headerRow = null;
 let tableLoaded = false;
 // edits are sent one at a time in the order they were made
@@ -607,6 +613,7 @@ function setMsg(r, text, kind) {
   r.msg.textContent = text;
   r.msg.className = "msg" + (text ? " " + kind : "");
   r.msg.hidden = !text;
+  if (text) revealGroup(r);
   if (text && kind === "err") r.msgTimer = setTimeout(() => setMsg(r, "", ""), 8000);
 }
 
@@ -729,7 +736,7 @@ function buildReset(r) {
 }
 
 function newRow(data, target) {
-  const r = { data: data, target: target, shown: "", timer: null, msgTimer: null };
+  const r = { data: data, target: target, shown: "", timer: null, msgTimer: null, group: null };
   r.msg = el("div", "msg");
   r.msg.hidden = true;
   r.msg.setAttribute("role", "alert");
@@ -824,37 +831,82 @@ function buildTable(list, target) {
     if (!current || current.name !== data.group) {
       current = groups.find((g) => g.name === data.group);
       if (!current) {
-        const tr = el("tr", "group");
-        const th = el("th", "", data.group);
-        th.colSpan = 4;
-        th.scope = "rowgroup";
-        tr.appendChild(th);
-        body.appendChild(tr);
-        current = { name: data.group, tr: tr, rows: [] };
+        current = buildGroup(data.group);
+        body.appendChild(current.tr);
         groups.push(current);
       }
     }
     const r = buildRow(data, target);
+    r.group = current;
+    r.tr.id = "row-" + rows.length;
     current.rows.push(r);
     rows.push(r);
     const after = current.rows.length > 1 ? current.rows[current.rows.length - 2].tr : current.tr;
     body.insertBefore(r.tr, after.nextSibling);
   }
+  for (const g of groups) g.btn.setAttribute("aria-controls", g.rows.map((r) => r.tr.id).join(" "));
+  applyFilter();
+}
+
+function buildGroup(name) {
+  const g = { name: name, tr: el("tr", "group"), rows: [] };
+  const th = el("th");
+  th.colSpan = 4;
+  th.scope = "rowgroup";
+  g.btn = el("button", "grouptoggle");
+  g.btn.type = "button";
+  g.btn.setAttribute("aria-expanded", "false");
+  const chev = el("span", "chev");
+  chev.setAttribute("aria-hidden", "true");
+  g.count = el("span", "gcount");
+  g.btn.append(chev, el("span", "gname", name), g.count);
+  g.btn.addEventListener("click", () => toggleGroup(g));
+  th.appendChild(g.btn);
+  g.tr.appendChild(th);
+  return g;
+}
+
+function toggleGroup(g) {
+  if (!expanded.delete(g.name)) expanded.add(g.name);
+  applyFilter();
+}
+
+function setAllGroups(open) {
+  if (open) {
+    for (const g of groups) expanded.add(g.name);
+  } else {
+    expanded.clear();
+  }
+  applyFilter();
+}
+
+// a message in a collapsed group would stay invisible: open the group
+function revealGroup(r) {
+  if (!r.group || !groups.includes(r.group) || expanded.has(r.group.name)) return;
+  expanded.add(r.group.name);
   applyFilter();
 }
 
 function applyFilter() {
   const q = $("search").value.trim().toLowerCase();
   const changedOnly = $("changed-only").checked;
+  const filtering = q !== "" || changedOnly;
   let visible = 0;
   for (const g of groups) {
     let any = false;
+    let changed = 0;
     for (const r of g.rows) {
-      const show = (!q || r.hay.includes(q)) && (!changedOnly || r.data.changed);
-      r.tr.hidden = !show;
-      if (show) any = true;
+      r.match = (!q || r.hay.includes(q)) && (!changedOnly || r.data.changed);
+      if (r.match) any = true;
+      if (r.data.changed) changed += 1;
     }
+    // a filter opens the groups with matches for as long as it is set, without touching the remembered state
+    const open = filtering ? any : expanded.has(g.name);
+    for (const r of g.rows) r.tr.hidden = !(open && r.match);
     g.tr.hidden = !any;
+    g.btn.setAttribute("aria-expanded", open ? "true" : "false");
+    const text = "(" + g.rows.length + (g.rows.length === 1 ? " setting, " : " settings, ") + changed + " changed)";
+    if (g.count.textContent !== text) g.count.textContent = text;
     if (any) visible += 1;
   }
   $("empty").hidden = visible > 0 || rows.length === 0;
@@ -1000,6 +1052,7 @@ function switchCar(next) {
   if (!next || sameSelection(next, selection)) return;
   selection = next;
   storeSelection(next);
+  expanded.clear();
   awaitCreated = null;
   closeDialog(false);
   tableLoaded = false;
@@ -1018,6 +1071,8 @@ $("btn-apply").addEventListener("click", () => {
 $("btn-duplicate").addEventListener("click", () => openDialog("duplicate"));
 $("btn-init").addEventListener("click", () => startJob("/api/init", {}));
 $("btn-reset-all").addEventListener("click", resetAll);
+$("btn-expand-all").addEventListener("click", () => setAllGroups(true));
+$("btn-collapse-all").addEventListener("click", () => setAllGroups(false));
 $("dialog-ok").addEventListener("click", submitDialog);
 $("dialog-cancel").addEventListener("click", () => closeDialog(true));
 $("dialog").addEventListener("keydown", dialogKey);
