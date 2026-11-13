@@ -4,6 +4,14 @@ Read this first in a new session, then [TUNER_SPEC.md](TUNER_SPEC.md) (state of 
 
 ## 0a. Current state and next task (2026-11-13, after the page and tyre work)
 
+### Start here (before anything else)
+
+1. **Update the clone and the remote.** GitHub reports that the repository moved: run `git remote set-url origin https://github.com/AlexanderHultsch/ACE_Simple-Car-Tuner.git`, then `git fetch origin`, `git checkout main` and `git pull`. All cloud work is on `main`; the cloud branch `claude/exciting-ramanujan-i0haq5` is not used any more.
+2. **Back up the real data first, before running any tool or the tuner:** the whole work folder `%USERPROFILE%\ace_modded_cars_work` (it holds Alex's drift setup: `ks_bmw_m3_e46_csl\tune_state.json`, `ks_bmw_m3_e46_csl\tunes\<id>\tune_state.json`, `ks_bmw_m3_e46_csl\build\` and `backups\`) and the packages `ax_*.kspkg` in `%USERPROFILE%\Saved Games\ACE\mods\`. Nothing in the repository holds the tuning values; the cloud session never had the real files.
+3. **Open request of Alex: save the drift setup under its own name** (the BMW setup he calls "Ben e3...Drift": the name was cut off in his message, ask him for the exact name). Copy `tune_state.json` to a named file (suggested: folder `setups\` in the repository, file `<name>.json`) and keep a copy of the built `.kspkg` outside git. Decide with Alex whether the values go into the public repository (they are his own tuning data, not a car package; `CLAUDE.md` forbids publishing tuned derivatives of Kunos' cars, so never put a `.kspkg` into git) or stay private. Optional follow-up, needs a plan and Alex's OK: a "save setup as..." / "load setup" function in the tuner so named setups live in their own folder instead of one `tune_state.json` per car.
+4. Run the tests (`python -m unittest discover -s tests`, 1652 expected) and read sections 0 and 3 (the working contract is in `docs/working-contract.md`).
+5. Then do the verification below.
+
 **Code state:** everything is on `main` (placeholder; `git log -1` gives the commit). The cloud branch `claude/exciting-ramanujan-i0haq5` is no longer used: work goes to `main`. A leftover local branch such as `review-pc` is the local session's own business (check `git branch --no-merged main` before deleting it). Suite: 1652 tests (`python -m unittest discover -s tests`), runs without game data.
 
 **What is new (details: `docs/TUNER_SPEC.md` sections 4b, 4c and 4d, `README.md`):**
