@@ -338,7 +338,11 @@ class TestCatalogueData(unittest.TestCase):
                     "throttle_lag_up", "throttle_lag_dn", "coast_scale", "turbo_boost_1", "turbo_boost_2",
                     "max_turbo_boost", "autoshift_up_rpm", "gear_up_time", "gear_dn_time", "auto_cut_off_time",
                     "diff_power_max", "diff_coast_max", "diff_preload_max", "diff_type", "diff_hw_preload",
-                    "diff_hw_bias_power", "diff_hw_bias_coast"):
+                    "diff_hw_bias_power", "diff_hw_bias_coast", "diff_hw_power", "diff_hw_coast", "steer_ratio",
+                    "steer_ratio_min", "steer_ratio_max", "steer_rod_ratio", "brake_bias", "brake_bias_min",
+                    "brake_bias_max", "brake_bias_hw", "brake_torque", "steer_lock_deg", "arb_front", "arb_rear",
+                    "arb_min_front", "arb_max_front", "arb_min_rear", "arb_max_rear", "spring_front", "spring_rear",
+                    "spring_min_front", "spring_max_front", "spring_min_rear"):
             with self.subTest(sid):
                 self.assertNotIn("Kunos documentation:", BY_ID[sid]["description"])
 

@@ -33,7 +33,7 @@
     },
     {
       "id": "display_power_ps", "group": "Display", "label": "Displayed power", "kind": "value", "type": "float", "unit": "PS",
-      "description": "Numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. This is the power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. The file stores the unit as HORSEPOWER_US.",
+      "description": "Displayed power is the power figure the game shows for the car. Numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. This is the power value on the car's spec sheet (car_specs POWER of the mechanical preset). Display text only, it does not change the engine: use power_scale for that. The file stores the unit as HORSEPOWER_US.",
       "verified": false, "min": 0, "max": 2000,
       "targets": [
         {"file": "@mech_preset", "path": "car_specs.items[key=CarSpecs_KeyEnum_POWER].value"}
@@ -41,7 +41,7 @@
     },
     {
       "id": "display_torque_nm", "group": "Display", "label": "Displayed torque", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. This is the torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine.",
+      "description": "Displayed torque is the torque figure the game shows for the car. Numeric specs appear in the main menu car selection and in the technical specs at the bottom of the mechanical presets, and are display values. This is the torque value on the car's spec sheet (car_specs TORQUE of the mechanical preset). Display text only, it does not change the engine.",
       "verified": false, "min": 0, "max": 2000,
       "targets": [
         {"file": "@mech_preset", "path": "car_specs.items[key=CarSpecs_KeyEnum_TORQUE].value"}
@@ -368,7 +368,7 @@
     },
     {
       "id": "diff_hw_power", "group": "Differential (hardware)", "label": "Diff lock power (hardware)", "kind": "value", "type": "float", "unit": "",
-      "description": "Lock factor under power of the differential model (DifferentialData.power). Kunos documentation: the power and coast locking is a decimal multiplier of the input torque (1.0 = 100%); the range 0 (open) to 1 (locked) is assumed. Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "The power and coast locking is a decimal multiplier of the input torque (1.0 = 100%); the range 0 (open) to 1 (locked) is assumed. This is the lock factor under power of the differential model (DifferentialData.power). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 1, "create_missing": true,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.power"},
@@ -377,7 +377,7 @@
     },
     {
       "id": "diff_hw_coast", "group": "Differential (hardware)", "label": "Diff lock coast (hardware)", "kind": "value", "type": "float", "unit": "",
-      "description": "Lock factor on coast of the differential model (DifferentialData.coast). Kunos documentation: the power and coast locking is a decimal multiplier of the input torque (1.0 = 100%); the range 0 (open) to 1 (locked) is assumed. Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical differential model parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
+      "description": "The power and coast locking is a decimal multiplier of the input torque (1.0 = 100%); the range 0 (open) to 1 (locked) is assumed. This is the lock factor on coast of the differential model (DifferentialData.coast). Stock values differ per car; a car that does not store the field shows it as absent (created when you set it). These are the physical parameters of the drivetrain file; the setup values diff_power_default, diff_coast_default and diff_preload_default are the in-game setup defaults. Which layer the game uses is not confirmed.",
       "verified": false, "min": 0, "max": 1, "create_missing": true,
       "targets": [
         {"file": "@drivetrain", "path": "differential_data.coast"},
@@ -386,7 +386,7 @@
     },
     {
       "id": "steer_ratio", "group": "Steering", "label": "Steering ratio", "kind": "value", "type": "float", "unit": ":1",
-      "description": "Default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle. Kunos documentation: the steer ratio should match the real car, and must be negative if the steering arm is behind the wheel centre.",
+      "description": "The steer ratio should match the real car, and must be negative if the steering arm is behind the wheel centre. This is the default setup: steering wheel angle divided by front wheel angle. A lower number means quicker steering and less wheel turning for the same front wheel angle.",
       "verified": true, "min": -30, "max": 30,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.steer_ratio"}
@@ -394,7 +394,7 @@
     },
     {
       "id": "steer_ratio_min", "group": "Steering", "label": "Steering ratio min", "kind": "value", "type": "float", "unit": ":1",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest steering ratio allowed (quickest steering). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the lowest steering ratio allowed (quickest steering).",
       "verified": false, "min": 5, "max": 30,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.steer_ratio.min"}
@@ -402,7 +402,7 @@
     },
     {
       "id": "steer_ratio_max", "group": "Steering", "label": "Steering ratio max", "kind": "value", "type": "float", "unit": ":1",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest steering ratio allowed (slowest steering). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest steering ratio allowed (slowest steering).",
       "verified": false, "min": 5, "max": 30,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.steer_ratio.max"}
@@ -410,7 +410,7 @@
     },
     {
       "id": "steer_rod_ratio", "group": "Steering", "label": "Steering rod ratio", "kind": "value", "type": "float", "unit": "",
-      "description": "Steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022). Kunos documentation: the linear steer rod ratio matches the steering wheel lock to the tyre lock. Effect in the game not confirmed.",
+      "description": "The linear steer rod ratio matches the steering wheel lock to the tyre lock. This is the steering rod ratio of the car (SteerControlsData.linearSteerRodRatio, stored in the .car only): front wheel angle per steering movement. Raising it gives more front wheel angle for the same hand movement (BMW stock 0.0017, the other tested cars 0.001975 to 0.0022). Effect in the game not confirmed.",
       "verified": false, "min": 0.0005, "max": 0.005,
       "targets": [
         {"file": "@car", "path": "controls.linearSteerRodRatio"}
@@ -427,7 +427,7 @@
     },
     {
       "id": "brake_bias", "group": "Brakes", "label": "Brake bias front", "kind": "value", "type": "float", "unit": "%",
-      "description": "Default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner. Kunos documentation: the Front Bias of the brake file is overwritten by the setup (and by the cockpit adjustment when the car has one).",
+      "description": "The Front Bias of the brake file is overwritten by the setup (and by the cockpit adjustment when the car has one). This is the default setup: share of the braking force sent to the front axle. Lowering it moves braking to the rear, which makes the rear lock up and rotate sooner.",
       "verified": true, "min": 0, "max": 100,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.brakes.front_bias"}
@@ -435,7 +435,7 @@
     },
     {
       "id": "brake_bias_min", "group": "Brakes", "label": "Brake bias min", "kind": "value", "type": "float", "unit": "%",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front brake bias allowed. The stock file does not store this field, so it reads as 0. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the lowest front brake bias allowed. The stock file does not store this field, so it reads as 0.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.brakes.front_bias.min"}
@@ -443,7 +443,7 @@
     },
     {
       "id": "brake_bias_max", "group": "Brakes", "label": "Brake bias max", "kind": "value", "type": "float", "unit": "%",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front brake bias allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest front brake bias allowed.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.brakes.front_bias.max"}
@@ -451,7 +451,7 @@
     },
     {
       "id": "brake_bias_hw", "group": "Brakes", "label": "Brake bias front (brake file)", "kind": "value", "type": "float", "unit": "%",
-      "description": "Front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Kunos documentation: this Front Bias is overwritten by the setup (and by the cockpit adjustment when the car has one). Most cars store a percentage (for example 68), some store a fraction (for example 0.75); which of the two the game reads is not confirmed.",
+      "description": "The Front Bias of the brake file is overwritten by the setup (and by the cockpit adjustment when the car has one). This is the front brake bias stored in the brake file (BrakesData.frontBias), written to the brake file and the car's inline copy; the setup default brake_bias is separate. Most cars store a percentage (for example 68), some store a fraction (for example 0.75); which of the two the game reads is not confirmed.",
       "verified": false, "min": 0, "max": 100,
       "targets": [
         {"file": "@brakes", "path": "frontBias"},
@@ -478,7 +478,7 @@
     },
     {
       "id": "brake_torque", "group": "Brakes", "label": "Total brake torque", "kind": "value", "type": "float", "unit": "Nm",
-      "description": "Total braking torque of the brake system (BrakesData.totalTorque). Raising it makes the brakes stronger. Kunos documentation: Total Torque is the total brake capacity, split front and rear by the current bias.",
+      "description": "Total Torque is the total brake capacity, split front and rear by the current bias. This is the total braking torque of the brake system (BrakesData.totalTorque). Raising it makes the brakes stronger.",
       "verified": true, "min": 500, "max": 10000,
       "targets": [
         {"file": "@brakes", "path": "totalTorque"},
@@ -487,7 +487,7 @@
     },
     {
       "id": "steer_lock_deg", "group": "Steering", "label": "Steering lock", "kind": "value", "type": "float", "unit": "deg",
-      "description": "Steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed. Kunos documentation: Steer lock is the angle from the centre to the maximum lock, so the total range is twice this value. Raising it allows more wheel rotation, and with it more front wheel angle.",
+      "description": "Steer lock is the angle from the centre to the maximum lock, so the total range is twice this value. This is the steering lock of the car (SteerControlsData.steer_lock, stored in the .car only). Assumed to be degrees of steering wheel rotation, not confirmed. Raising it allows more wheel rotation, and with it more front wheel angle.",
       "verified": false, "min": 90, "max": 1440,
       "targets": [
         {"file": "@car", "path": "controls.steer_lock"}
@@ -503,7 +503,7 @@
     },
     {
       "id": "arb_front", "group": "Springs & anti-roll", "label": "Front anti-roll bar", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: stiffness of the front anti-roll bar. Stiffer means less body roll at the front and more understeer. Kunos documentation: the setup overwrites the anti-roll bars of the car file, unless ARB controllers are defined.",
+      "description": "The setup overwrites the anti-roll bars of the car file, unless ARB controllers are defined. This is the default setup: stiffness of the front anti-roll bar. Stiffer means less body roll at the front and more understeer.",
       "verified": true, "min": 0, "max": 200000,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.arbs[0]"}
@@ -511,7 +511,7 @@
     },
     {
       "id": "arb_rear", "group": "Springs & anti-roll", "label": "Rear anti-roll bar", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: stiffness of the rear anti-roll bar. Stiffer means less body roll at the rear and more oversteer. Kunos documentation: the setup overwrites the anti-roll bars of the car file, unless ARB controllers are defined.",
+      "description": "The setup overwrites the anti-roll bars of the car file, unless ARB controllers are defined. This is the default setup: stiffness of the rear anti-roll bar. Stiffer means less body roll at the rear and more oversteer.",
       "verified": true, "min": 0, "max": 200000,
       "targets": [
         {"file": "@setup", "path": "mechanical_balance.arbs[1]"}
@@ -519,7 +519,7 @@
     },
     {
       "id": "arb_min_front", "group": "Springs & anti-roll", "label": "Front anti-roll bar min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the lowest front anti-roll bar stiffness allowed.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[0].min"}
@@ -527,7 +527,7 @@
     },
     {
       "id": "arb_max_front", "group": "Springs & anti-roll", "label": "Front anti-roll bar max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest front anti-roll bar stiffness allowed.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[0].max"}
@@ -535,7 +535,7 @@
     },
     {
       "id": "arb_min_rear", "group": "Springs & anti-roll", "label": "Rear anti-roll bar min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the lowest rear anti-roll bar stiffness allowed.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[1].min"}
@@ -543,7 +543,7 @@
     },
     {
       "id": "arb_max_rear", "group": "Springs & anti-roll", "label": "Rear anti-roll bar max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest rear anti-roll bar stiffness allowed. Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest rear anti-roll bar stiffness allowed.",
       "verified": false, "min": 0, "max": 200000,
       "targets": [
         {"file": "@limits", "path": "mechanical_balance.arbs[1].max"}
@@ -551,7 +551,7 @@
     },
     {
       "id": "spring_front", "group": "Springs & anti-roll", "label": "Front spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: wheel rate of the front springs (both wheels). Stiffer means less body roll and dive at the front and more understeer. Kunos documentation: the setup overrides the spring rate of the coilover file.",
+      "description": "The setup overrides the spring rate of the coilover file. This is the default setup: wheel rate of the front springs (both wheels). Stiffer means less body roll and dive at the front and more understeer.",
       "verified": true, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@setup", "path": "suspensions[0].wheel_rate"},
@@ -560,7 +560,7 @@
     },
     {
       "id": "spring_rear", "group": "Springs & anti-roll", "label": "Rear spring rate", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Default setup: wheel rate of the rear springs (both wheels). Stiffer means less body roll and squat at the rear and more oversteer. Kunos documentation: the setup overrides the spring rate of the coilover file.",
+      "description": "The setup overrides the spring rate of the coilover file. This is the default setup: wheel rate of the rear springs (both wheels). Stiffer means less body roll and squat at the rear and more oversteer.",
       "verified": true, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@setup", "path": "suspensions[2].wheel_rate"},
@@ -569,7 +569,7 @@
     },
     {
       "id": "spring_min_front", "group": "Springs & anti-roll", "label": "Front spring rate min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest front wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the lowest front wheel rate allowed (both wheels).",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[0].wheel_rate.min"},
@@ -578,7 +578,7 @@
     },
     {
       "id": "spring_max_front", "group": "Springs & anti-roll", "label": "Front spring rate max", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Highest front wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the highest front wheel rate allowed (both wheels).",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[0].wheel_rate.max"},
@@ -587,7 +587,7 @@
     },
     {
       "id": "spring_min_rear", "group": "Springs & anti-roll", "label": "Rear spring rate min", "kind": "value", "type": "float", "unit": "N/m",
-      "description": "Setup limit (range offered in the in-game setup screen, effect on the game not yet tested). Lowest rear wheel rate allowed (both wheels). Kunos documentation: a setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value.",
+      "description": "A setup value outside its limits is forced to the limit, which can make the car dysfunctional; even hidden options need limits that allow the setup value. This is a setup limit (range offered in the in-game setup screen, effect on the game not yet tested): the lowest rear wheel rate allowed (both wheels).",
       "verified": false, "min": 5000, "max": 500000,
       "targets": [
         {"file": "@limits", "path": "suspensions[2].wheel_rate.min"},
