@@ -1,6 +1,6 @@
 # Drift tuner: state of the project
 
-Updated 2026-11-13. The tuner works for five cars and is pushed to GitHub. What it does and how to use it: [README.md](README.md). Every setting per car: [settings/](settings/). Notes for continuing in a new session: [HANDOVER.md](HANDOVER.md).
+Updated 2026-11-13. The tuner works for five cars and is pushed to GitHub. What it does and how to use it: [README.md](README.md) (overview) and [USER_GUIDE.md](USER_GUIDE.md) (details). Every setting per car: [settings/](settings/). Notes for continuing in a new session: [HANDOVER.md](HANDOVER.md).
 
 ## 1. Summary
 
@@ -12,7 +12,7 @@ Updated 2026-11-13. The tuner works for five cars and is pushed to GitHub. What 
 | Tuner | **Built.** 143 settings in the catalogue in 18 groups with descriptions, 136-142 applicable per tested car; local web page (dark theme, two tabs Car Tuner and Tyre Creator, collapsible setting categories that show their description when open, a box "show advanced settings") with car selector (Modded Cars, Installed Cars, Other Cars) and the install button; Create modded car…, Apply (update this car) and Duplicate…; several modded cars per stock car; backup on every install. |
 | Own tyres | **Built, cloud-tested only:** a tyre library (Tyre Creator tab) and a garage tyre selection per modded car (Apply writes it into the package), section 4d. Tested with synthetic files only; not run on the real game files, not tried in the game. |
 | Verified against the real game files | **All five cars:** extracted from the game, defaults resolved, unchanged build equals stock apart from the id rename, edits change exactly the expected values in every copy, codec check has no failures, no stock id remains in the packages. |
-| Tests | 1682 tests in `tests/` (stdlib `unittest`, `python -m unittest discover -s tests`), run in the cloud without game data; they cover the tools, the settings engine, the catalogue, the server and the page on synthetic car trees. The review of 2026-11-12 is fixed except the items listed in [review/FIXES.md](review/FIXES.md). |
+| Tests | 1782 tests in `tests/` (stdlib `unittest`, `python -m unittest discover -s tests`), run in the cloud without game data; they cover the tools, the settings engine, the catalogue, the server and the page on synthetic car trees. The review of 2026-11-12 is fixed except the items listed in [review/FIXES.md](review/FIXES.md). |
 | Verified in the game | BMW only so far (laptop): the car appears and loads, physics log identical to stock, the +20 hp display value shows in the selector. Effects of edits on driving are **not tested yet**; the other four cars have not been loaded in the game. |
 
 ## 2. What exists
@@ -130,7 +130,7 @@ Own tyres in two parts: a library of tyres shared by all cars (Tyre Creator tab)
 - **Real game files, all five cars:** extraction, `defaults` (exit 0; applicable/hidden with the 143-setting catalogue: BMW 137/6, GR86 138/5, RX-7 136/7, Giulia 142/1, Porsche 137/6), unchanged builds equal stock apart from the rename (all files identical, two added files: registration and localization), real edits (limiter, power curve scale, fuel) change exactly the expected values in all copies, `car_json.py check` no failures, no entry of any package contains the stock id, both copies written (for example the Giulia's turbo boost in the engine file, the `.turbo` file and the `.car`).
 - **Web page** (before the dark theme, tabs and tyre work of November 2026): car selector, per-car rows, hidden-settings line, "copies differ" badge, install button for cars not yet pulled, edit/reset, apply and numbered copies (scratch folders, browser pane). The newer page parts were tested in the cloud only.
 - **BMW in the game (laptop):** loads, physics identical to stock, display values show. The laptop renderer crashes for every car (Intel UHD 128 MB).
-- **Cloud test suite:** `python -m unittest discover -s tests` (1682 tests) checks the tools, the settings engine and catalogue, the server routes and the page, and that the three documents agree with the catalogue (setting counts). It cannot cover the game files (extraction from `content.kspkg`, defaults and builds of the real cars), Windows behaviour (long paths, game detection, the start file, console handling) or timings; those, and everything about the game itself, need the PC (see [HANDOVER.md](HANDOVER.md) section 7 and [review/FIXES.md](review/FIXES.md)).
+- **Cloud test suite:** `python -m unittest discover -s tests` (1782 tests) checks the tools, the settings engine and catalogue, the server routes and the page, and that the three documents agree with the catalogue (setting counts). It cannot cover the game files (extraction from `content.kspkg`, defaults and builds of the real cars), Windows behaviour (long paths, game detection, the start file, console handling) or timings; those, and everything about the game itself, need the PC (see [HANDOVER.md](HANDOVER.md) section 7 and [review/FIXES.md](review/FIXES.md)).
 
 ## 6. Open and unverified
 

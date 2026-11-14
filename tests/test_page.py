@@ -13,6 +13,7 @@ import tuner_server as ts
 HTML = (ROOT / "tuner" / "web" / "index.html").read_text(encoding="utf-8")
 BAT = (ROOT / "start_tuner.bat").read_text(encoding="ascii")
 README = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+USER_GUIDE = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
 STYLE = re.search(r"<style>(.*?)</style>", HTML, re.S).group(1)
 SCRIPT = re.search(r"<script>(.*?)</script>", HTML, re.S).group(1)
 MARKUP = re.sub(r"<style>.*?</style>|<script>.*?</script>", "", HTML, flags=re.S)
@@ -383,10 +384,34 @@ class TestTexts(unittest.TestCase):
         self.assertEqual(re.search(r"<title>(.*?)</title>", HTML).group(1), TITLE)
         self.assertEqual(re.search(r"<h1[^>]*>(.*?)</h1>", MARKUP).group(1), TITLE)
 
-    def test_the_readme_uses_the_same_name(self):
-        self.assertTrue(README.startswith("# " + TITLE), README[:60])
+    def test_the_readme_and_the_user_guide_use_the_same_name(self):
+        self.assertTrue(README.startswith("# " + TITLE + "\n"), README[:60])
+        self.assertTrue(USER_GUIDE.startswith("# " + TITLE + ": user guide\n"), USER_GUIDE[:60])
 
-    def test_the_buttons_carry_the_labels_the_readme_names(self):
+    def test_the_readme_is_short_and_links_to_the_user_guide(self):
+        self.assertLessEqual(len(README.splitlines()), 60)
+        self.assertIn("](USER_GUIDE.md)", README)
+
+    def test_the_readme_screenshot_is_a_jpeg_in_the_docs_folder(self):
+        m = re.search(r"!\[[^\]]*\]\((images/screenshot\.jpg)\)", README)
+        self.assertIsNotNone(m)
+        shot = ROOT / "docs" / m.group(1)
+        self.assertTrue(shot.is_file(), shot)
+        self.assertEqual(shot.read_bytes()[:3], b"\xff\xd8\xff")
+
+    def test_the_readme_has_dropped_the_tested_cars_and_the_modded_car_passages(self):
+        self.assertNotIn("Tested cars:", README)
+        self.assertNotIn("A tuned copy of a car is a modded car", README)
+
+    def test_relative_links_of_the_readme_and_the_user_guide_resolve_under_docs(self):
+        for name, text in (("README.md", README), ("USER_GUIDE.md", USER_GUIDE)):
+            for target in re.findall(r"\]\(([^)\s]+)\)", text):
+                if re.match(r"(?:https?:|mailto:|#)", target):
+                    continue
+                with self.subTest(file=name, target=target):
+                    self.assertTrue((ROOT / "docs" / target.split("#")[0]).is_file())
+
+    def test_the_buttons_carry_the_labels_the_user_guide_names(self):
         for label in ("Create modded car&hellip;", "Duplicate&hellip;", "Install car (pull game files)", "Reset all"):
             with self.subTest(label):
                 self.assertIn(">%s</button>" % label, MARKUP)
@@ -394,7 +419,7 @@ class TestTexts(unittest.TestCase):
         self.assertIn('el("button", "reset", "reset")', CODE)
         for label in ("Install car (pull game files)", "Tyre Creator", "Garage tyres", "Expand all", "changed only",
                       "show advanced settings", "reset", "Reset all", "Create modded car", "Duplicate"):
-            self.assertIn(label, README)
+            self.assertIn(label, USER_GUIDE)
 
     def test_the_tables_have_the_documented_columns_in_order(self):
         heads = [h.replace("<br>", " ") for h in re.findall(r'<th scope="col">(.*?)</th>', MARKUP)]
@@ -1730,15 +1755,15 @@ class TestStartBat(unittest.TestCase):
         self.assertRegex(BAT, r'"%PY%" -I tools\\tuner_server\.py --port (?:\d+|%PORT%)')
         self.assertIn("--port", ts.__doc__)
 
-    def test_the_port_is_the_default_port_of_the_server_and_the_readme(self):
+    def test_the_port_is_the_default_port_of_the_server_and_the_user_guide(self):
         self.assertEqual(set(re.findall(r"(?:--port |127\.0\.0\.1:|PORT=)(\d+)", BAT)), {str(ts.DEFAULT_PORT)})
         self.assertEqual(ts.DEFAULT_PORT, 8080)
-        self.assertIn("http://127.0.0.1:%d%s/" % (ts.DEFAULT_PORT, ts.BASE_PATH), README)
+        self.assertIn("http://127.0.0.1:%d%s/" % (ts.DEFAULT_PORT, ts.BASE_PATH), USER_GUIDE)
 
-    def test_it_looks_for_the_python_the_readme_documents(self):
+    def test_it_looks_for_the_python_the_user_guide_documents(self):
         path = re.search(r'set "PY=(.*?python\.exe)"', BAT).group(1)
         self.assertEqual(path, r"%LOCALAPPDATA%\Programs\Python\Python312\python.exe")
-        self.assertIn(path.rsplit("\\", 1)[0] + "\\", README)
+        self.assertIn(path.rsplit("\\", 1)[0] + "\\", USER_GUIDE)
 
     def test_a_missing_python_stops_with_a_message_and_exit_code_1(self):
         self.assertIn('if not exist "%PY%" (', BAT)
