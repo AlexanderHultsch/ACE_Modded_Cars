@@ -13,6 +13,7 @@ Pick a car, change what matters to the way it drives, and take your own version 
 - **Always know where you stand.** Next to every value you see the car's stock default, the range found across the cars of the game and a plain-English description based on the official documentation.
 - **Your own cars next to the originals.** Make as many modded cars as you like. They appear in the game's car list right beside the stock car, which is never touched.
 - **Your own tyres.** Create tyre compounds and choose which ones a car offers in the garage.
+- **A turbo for cars without one.** Give a car the turbo setup of another car and tune its boost (experimental, not tested in the game yet).
 - **Safe by design.** Every install keeps a backup of the previous version, so you can always go back.
 - **On your phone, too.** Open the tuner from your phone or tablet on the same Wi-Fi and add it to your iPhone home screen like an app.
 - **One double-click to start.** Run `start_tuner.bat` and the tuner opens in your browser.
