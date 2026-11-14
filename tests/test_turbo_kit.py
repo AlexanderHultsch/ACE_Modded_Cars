@@ -85,6 +85,10 @@ class World(unittest.TestCase):
             f.write(data if isinstance(data, str) else json.dumps(data))
         return path
 
+    def base_as_kit(self):
+        """The kit root is out of scope of these tests (tests/test_turbo_build.py builds it): a car with a saved kit reads base."""
+        self.patch(tune, "kit_root", lambda work, car_id, donor: tune.base_dir(work, car_id))
+
     def drop_base(self, *car_ids):
         for car_id in car_ids:
             shutil.rmtree(tune.base_dir(self.work, car_id))
@@ -125,6 +129,7 @@ class TestStateKey(World):
         self.assertEqual(tune.unknown_state_ids(self.work, "ks_x", self.cat, "ax01"), [])
 
     def test_the_key_is_no_row_and_not_shown(self):
+        self.base_as_kit()
         tune.save_state(self.work, "ks_x", {KEY: KIT_B})
         for hidden in (False, True):
             self.assertNotIn(KEY, [r["id"] for r in tune.effective_rows(self.work, "ks_x", self.cat, hidden=hidden)])
@@ -134,6 +139,7 @@ class TestStateKey(World):
             self.assertNotIn("_turbo", out)
 
     def test_the_key_is_never_an_applied_setting(self):
+        self.base_as_kit()
         tune.save_state(self.work, "ks_x", {KEY: KIT_B})
         plan = tune.apply_plan(self.work, "ks_x", "ax_x", False, None, self.cat)
         self.assertEqual(plan["changed"], [])
@@ -142,6 +148,7 @@ class TestStateKey(World):
         self.assertEqual([s["id"] for s, _ in plan["changed"]], ["limiter"])
 
     def test_set_and_unset_of_settings_keep_the_key_and_the_key_cannot_be_set_or_unset(self):
+        self.base_as_kit()
         tune.save_state(self.work, "ks_x", {KEY: KIT_B})
         tune.set_value(self.work, "ks_x", "limiter", "8000", self.cat)
         self.assertEqual(self.state(), {KEY: KIT_B, "limiter": 8000})

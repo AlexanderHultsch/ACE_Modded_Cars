@@ -2910,7 +2910,7 @@ class TestCommands(CarCase):
 
     def test_show_opens_the_catalogue_once(self):
         self.patch(tune, "load_catalogue", REAL_LOAD_CATALOGUE)
-        self.patch(tune, "resolve_defaults", lambda work, car, cat=None, game=None, hidden=False: [
+        self.patch(tune, "resolve_defaults", lambda work, car, cat=None, game=None, hidden=False, **_: [
             {"id": s["id"], "applicable": True, "reason": None, "default": tune.zero(s), "unit": s["unit"], "group": s["group"],
              "targets": [], "absent": False, "consistent": True, "copies_differ": False} for s in (cat or tune.load_catalogue())["settings"]])
         opened = []
@@ -2961,7 +2961,7 @@ class TestUsageText(unittest.TestCase):
         commands = [line.split()[2] for line in self.usage_lines()]
         self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "duplicate", "doc", "tyres", "tyre-sources",
                                     "tyre-new", "tyre-show", "tyre-set", "tyre-unset", "tyre-delete", "garage", "garage-set", "garage-reset", "turbo-donors",
-                                    "turbo-add", "turbo-remove", "ranges"])
+                                    "turbo-add", "turbo-remove", "turbo-kit", "ranges"])
         self.assertEqual(list(tune.COMMANDS), commands)
         for cmd in commands:
             self.assertEqual(tune.COMMANDS[cmd].__name__, "cmd_" + cmd.replace("-", "_"))

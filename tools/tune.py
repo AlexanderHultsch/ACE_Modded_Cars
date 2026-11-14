@@ -23,6 +23,7 @@ usage:
   python tools/tune.py turbo-donors [--car ID] [--work <dir>]
   python tools/tune.py turbo-add    <donor> [--tune ID | --draft] [--car ID] [--work <dir>]
   python tools/tune.py turbo-remove [--tune ID | --draft] [--car ID] [--work <dir>]
+  python tools/tune.py turbo-kit    [--tune ID | --draft] [--car ID] [--work <dir>]
   python tools/tune.py ranges       [--work <dir>]
 
 --car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
@@ -136,6 +137,16 @@ files that are all present in its base; turbo_parts reads the files, their numbe
 turbo-donors: lists the donors (car id, name, kind: no turbo / single turbo / twin turbo / <n> turbos, boost in bar); with --car it adds the
           kit the car has chosen in its default tune ("chosen: <donor>" or "no turbo kit chosen"). It extracts nothing.
 turbo-add:    chooses the donor for a car that has no turbo itself and has been extracted; turbo-remove removes the choice.
+Kit root (library functions kit_root, root_for): a car with a saved kit is read and built from <work>/<car>/kit/<donor>/, a complete tree like base
+for that one car and donor: base linked file by file (hard links, copied where the file system refuses), the donor's turbo files added as
+data/kit_turbo_<n>.turbo (turbos_to_load of the engine points at them, written like the donor's entries with the car's own id), and every
+top-level engine field whose name has "turbo", "boost" or "bov" in it copied from the donor's engine file, the same fields of the inline
+engine block of the .car when the donor's .car has one and the car's too. A patched file is always written as a new file, never into a
+link, so base stays as it is. kit.json in the kit root names what was added and copied and the size and time of every file the kit depends
+on; a kit whose inputs changed is built again on the next use (a failed build leaves no kit). root_for(work, car, tune) is the kit root of a
+tune whose state has "_turbo" and base otherwise; resolve_defaults reads it for a tune, set, show and apply use it, the turbo settings of
+the catalogue then resolve against the donor's values, and apply builds from it and adds the notes "note: turbo kit: ...".
+turbo-kit:    builds or refreshes the kit root of the tune (or draft) and prints it with the kind of kit, the files and the engine and .car fields.
 ranges:       the soft borders for the settings page (library functions compute_ranges, write_ranges, load_ranges): reads the
           defaults of every car with an extracted base in the work folder (every <work>/<car>/base) and writes the lowest and
           highest default of every numeric setting (kind value, type int or float; a field a car does not store does not
@@ -251,6 +262,9 @@ TYRE_UNAVAILABLE = "shared tyre files not extracted"
 TYRES_DIR = "tyres"
 TYRE_KEY = "_tyres"
 TURBO_KEY = "_turbo"
+KIT_DIR = "kit"
+KIT_JSON = "kit.json"
+KIT_WORDS = ("turbo", "boost", "bov")
 TYRE_ID = re.compile(r"[a-z0-9_]{1,24}")
 TYRE_ID_MAX = 24
 TYRE_NAME_MAX = 40
@@ -267,6 +281,7 @@ _resolved = {}
 _ranges_lock = threading.Lock()
 _ranges_loaded = {}
 _stdout_lock = threading.Lock()
+_kit_lock = threading.Lock()
 
 
 def schema():
@@ -612,7 +627,7 @@ def set_value(work, car_id, setting_id, text, catalogue=None, tune=None):
     cat = catalogue or load_catalogue()
     s = find_setting(cat, setting_id)
     v = coerce(s, text)
-    row = resolve_defaults(work, car_id, dict(cat, settings=[s]), hidden=True)[0]
+    row = resolve_defaults(work, car_id, dict(cat, settings=[s]), hidden=True, tune=new_id_for(car_id) if tune is None else tune)[0]
     if not row["applicable"]:
         raise ValueError("%s is not applicable to %s: %s" % (setting_id, car_id, row["reason"]))
     state = load_state(work, car_id, tune)
@@ -1213,15 +1228,18 @@ def forget_resolved(work, car_id):
             del _resolved[key]
 
 
-def resolve_stamp(work, car_id):
+def resolve_stamp(work, car_id, root=None):
     # init rewrites every .car file when it extracts, so their (mtime_ns, size) changes whenever what resolve_defaults reads can have changed
+    root = root or base_dir(work, car_id)
     try:
-        data = find_ci(car_root_of(base_dir(work, car_id), car_id), "data")
+        data = find_ci(car_root_of(root, car_id), "data")
         paths = [os.path.join(data, n) for n in sorted(os.listdir(kspkg.long_path(data))) if n.lower().endswith(".car")]
         paths.append(stock_info_path(work, car_id))
-        return [(st.st_mtime_ns, st.st_size) if st else None for st in map(stat_or_none, paths)]
+        stamp = [(st.st_mtime_ns, st.st_size) if st else None for st in map(stat_or_none, paths)]
     except (ValueError, OSError):
         return None
+    info = kit_info(root) if root != base_dir(work, car_id) else None
+    return stamp if info is None else stamp + [info["stamp"]]
 
 
 def stat_or_none(path):
@@ -1231,31 +1249,32 @@ def stat_or_none(path):
         return None
 
 
-def resolve_defaults(work, car_id, catalogue=None, game=DEFAULT_GAME, hidden=False):
+def resolve_defaults(work, car_id, catalogue=None, game=DEFAULT_GAME, hidden=False, tune=None):
     """Every setting with its default; hidden=False keeps only the settings applicable to the car, hidden=True
     returns all of them, each with applicable and reason (None when applicable). The resolved rows are cached per
-    (work, car, catalogue) while resolve_stamp is unchanged (not when the tyre files or the stock info could not be
-    read); the caller gets its own copy."""
+    (work, car, root, catalogue) while resolve_stamp is unchanged (not when the tyre files or the stock info could not be
+    read); the caller gets its own copy. tune None reads the stock car (base); a tune id or DRAFT reads root_for of
+    that tune, the kit root when its state has a turbo kit."""
     cat = catalogue or load_catalogue()
-    root = base_dir(work, car_id)
+    root = base_dir(work, car_id) if tune is None else root_for(work, car_id, tune)
     if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
         raise ValueError("no base car in %s, run init first" % root)
-    key, stamp = (work, car_id, json.dumps(cat, sort_keys=True)), resolve_stamp(work, car_id)
+    key, stamp = (work, car_id, root, json.dumps(cat, sort_keys=True)), resolve_stamp(work, car_id, root)
     with _resolve_lock:
         hit = _resolved.get(key)
     if hit and stamp is not None and hit[0] == stamp:
         rows = copy.deepcopy(hit[1])
     else:
-        rows, cacheable = resolve_rows(work, car_id, cat, game)
-        if cacheable and stamp is not None and resolve_stamp(work, car_id) == stamp:
+        rows, cacheable = resolve_rows(work, car_id, cat, game, root)
+        if cacheable and stamp is not None and resolve_stamp(work, car_id, root) == stamp:
             with _resolve_lock:
                 _resolved[key] = (stamp, copy.deepcopy(rows))
     return rows if hidden else [r for r in rows if r["applicable"]]
 
 
-def resolve_rows(work, car_id, cat, game):
-    """All rows of resolve_defaults and whether they may be cached."""
-    root = base_dir(work, car_id)
+def resolve_rows(work, car_id, cat, game, root=None):
+    """All rows of resolve_defaults and whether they may be cached; root is base unless a kit root is given."""
+    root = root or base_dir(work, car_id)
     car_root = car_root_of(root, car_id)
     info = stock_name = stock_variant = None
     if any("default_template" in s for s in cat["settings"]):
@@ -1265,7 +1284,7 @@ def resolve_rows(work, car_id, cat, game):
     cache, rows, tyre_error = {}, [], None
     if any(t["file"].startswith("@tyre_") for s in cat["settings"] for t in s.get("targets", [])):
         try:
-            ensure_tyre_files(work, car_id, game, cache)
+            ensure_tyre_files(work, car_id, game, cache if root == base_dir(work, car_id) else None)
         except (ValueError, OSError) as e:
             tyre_error = str(e)
     for s in cat["settings"]:
@@ -1313,7 +1332,7 @@ def resolve_rows(work, car_id, cat, game):
 def effective_rows(work, car_id, catalogue=None, hidden=False, tune=None):
     cat = catalogue or load_catalogue()
     state = load_state(work, car_id, tune)
-    rows = resolve_defaults(work, car_id, cat, hidden=hidden)
+    rows = resolve_defaults(work, car_id, cat, hidden=hidden, tune=new_id_for(car_id) if tune is None else tune)
     for row in rows:
         s = find_setting(cat, row["id"])
         row["value"] = coerce(s, state[s["id"]]) if s["id"] in state else row["default"]
@@ -1387,7 +1406,8 @@ def build_tyre(root, car_id, new_id, car_root, role, items, cache, counts=None):
 
 
 def check_target(work, car_id, new_id, install, mods_dir):
-    """Checks that need no catalogue: base car, ids and tune. Returns (base folder, mods folder or None)."""
+    """Checks that need no catalogue: base car, ids and tune. Returns (root_for of the tune, mods folder or None); a turbo
+    kit is built or refreshed here, before anything else is written."""
     root = base_dir(work, car_id)
     if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
         raise ValueError("no base car in %s, run init first" % root)
@@ -1397,7 +1417,7 @@ def check_target(work, car_id, new_id, install, mods_dir):
     if (not is_default_tune(car_id, new_id) and not os.path.isdir(kspkg.long_path(tune_dir(work, car_id, new_id)))
             and list_tunes(work, car_id)):
         raise ValueError("%s is not a modded car of %s, create it with duplicate first" % (new_id, car_id))
-    return root, mods
+    return root_for(work, car_id, new_id), mods
 
 
 def changed_settings(work, car_id, new_id, cat):
@@ -1415,7 +1435,8 @@ def changed_settings(work, car_id, new_id, cat):
 
 
 def apply_plan(work, car_id, new_id, install, mods_dir, cat):
-    """Everything apply needs, checked before anything is built: root, mods, rows, changed, info and garage (plan or None)."""
+    """Everything apply needs, checked before anything is built: root (base, or the kit root of a tune with a turbo kit), mods, rows,
+    changed, info, garage (plan or None) and kit (the kit.json of the kit root or None)."""
     root, mods = check_target(work, car_id, new_id, install, mods_dir)
     rows, changed = changed_settings(work, car_id, new_id, cat)
     info = load_stock_info(work, car_id)
@@ -1428,7 +1449,8 @@ def apply_plan(work, car_id, new_id, install, mods_dir, cat):
         raise ValueError("name suffix %s is already used by %s" % (name_suffix, owner))
     state = load_state(work, car_id, new_id)
     garage = garage_plan(work, car_id, new_id, state, cat) if TYRE_KEY in state else None
-    return {"root": root, "mods": mods, "rows": rows, "changed": changed, "info": info, "garage": garage}
+    kit = kit_info(root) if TURBO_KEY in state else None
+    return {"root": root, "mods": mods, "rows": rows, "changed": changed, "info": info, "garage": garage, "kit": kit}
 
 
 def build_partial(work, car_id, new_id, out_dir, plan, cat, game):
@@ -1557,6 +1579,8 @@ def apply(work, car_id, new_id=None, install=True, mods_dir=None, catalogue=None
     plan = apply_plan(work, car_id, new_id, install, mods_dir, cat)
     out_dir = os.path.join(build_dir(work, car_id), new_id)
     part, meta, notes = build_partial(work, car_id, new_id, out_dir, plan, cat, game)
+    if plan["kit"]:
+        notes += kit_notes(plan["kit"], car_id)
     car_root = car_root_of(part, new_id)
     edits, tyre_edits, applied = collect_edits(car_id, new_id, plan["changed"], part, car_root)
     write_edits(car_root, edits)
@@ -2314,6 +2338,243 @@ def reset_turbo(work, car_id, tune=None):
     return {"removed": removed}
 
 
+def kit_path(work, car_id, donor):
+    return os.path.join(car_work(work, car_id), KIT_DIR, donor)
+
+
+def kit_info(root):
+    """The kit.json of a kit root, None when it is missing, damaged or of another shape than kit_root writes."""
+    try:
+        info = read_json(os.path.join(root, KIT_JSON))
+    except (ValueError, OSError):
+        return None
+    ok = (isinstance(info, dict) and isinstance(info.get("donor"), str) and isinstance(info.get("kind"), str)
+          and all(isinstance(info.get(k), list) and all(isinstance(x, str) for x in info[k]) for k in ("files", "fields", "inline_fields"))
+          and isinstance(info.get("stamp"), list) and all(isinstance(x, list) and len(x) == 4 and isinstance(x[1], str) for x in info["stamp"]))
+    return info if ok else None
+
+
+def car_file_rels(root, car_id):
+    """The paths below the car folder of the .car files in its data folder, sorted."""
+    data = find_ci(car_root_of(root, car_id), "data")
+    return [rel_of(root, car_id, os.path.join(data, n)) for n in sorted(os.listdir(kspkg.long_path(data))) if n.lower().endswith(".car")]
+
+
+def kit_stamp(work, car_id, donor, listed):
+    """[side, path below the car folder, size, mtime_ns] (size and time null for a missing file) of what a kit depends on: the
+    .car files of the car (side "car") and of the donor (side "donor") in their base folders, and the (side, path) pairs of
+    listed (the engine files of both and the turbo files of the donor)."""
+    stamp = []
+    for side, cid in (("car", car_id), ("donor", donor)):
+        root = base_dir(work, cid)
+        for rel in car_file_rels(root, cid) + [r for s, r in listed if s == side]:
+            st = stat_or_none(os.path.join(car_root_of(root, cid), *rel.split("/")))
+            stamp.append([side, rel, st.st_size if st else None, st.st_mtime_ns if st else None])
+    return stamp
+
+
+def kit_current(work, car_id, donor, root):
+    """Whether root holds a complete kit of the donor whose inputs have not changed since it was built."""
+    info = kit_info(root)
+    if info is None or info["donor"] != donor:
+        return False
+    try:
+        now = kit_stamp(work, car_id, donor, [(x[0], x[1]) for x in info["stamp"] if not x[1].lower().endswith(".car")])
+    except (ValueError, OSError):
+        return False
+    return (now == info["stamp"] and os.path.isdir(kspkg.long_path(car_root_of(root, car_id)))
+            and all(os.path.isfile(kspkg.long_path(os.path.join(root, *f.split("/")))) for f in info["files"]))
+
+
+def check_kit(work, car_id, donor):
+    """The checks of set_turbo at the time a kit is used: the car has no turbo itself and is extracted, the donor is another car
+    that list_turbo_donors would list. Raises ValueError("turbo kit: ...")."""
+    root = base_dir(work, car_id)
+    if turbo_parts(root, car_id)["count"] >= 1:
+        raise ValueError("turbo kit: %s has a turbo already" % car_id)
+    if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
+        raise ValueError("turbo kit: no base car in %s, run init first" % root)
+    if donor == car_id:
+        raise ValueError("turbo kit: %s cannot be its own turbo donor" % car_id)
+    droot = base_dir(work, donor)
+    found = turbo_listing(droot, donor) if os.path.isdir(kspkg.long_path(car_root_of(droot, donor))) else None
+    if found is None or found["count"] < 1 or found["missing"]:
+        raise ValueError("turbo kit: %s is not an installed car with a turbo" % donor)
+
+
+def link_tree(src, dst):
+    """Copy the tree src to dst, every file as a hard link to its source where the file system allows it, else as a copy. A file of
+    dst must be replaced, never written in place: that would change the file in src."""
+    src, dst = kspkg.long_path(src), kspkg.long_path(dst)
+    for root, _, names in os.walk(src):
+        rel = root[len(src):].strip(os.sep)
+        out = os.path.join(dst, rel) if rel else dst
+        os.makedirs(out, exist_ok=True)
+        for n in names:
+            try:
+                os.link(os.path.join(root, n), os.path.join(out, n))
+            except OSError:
+                shutil.copy2(os.path.join(root, n), os.path.join(out, n))
+
+
+def save_fresh(path, name, obj):
+    """save_msg into a new file: an existing one (maybe a hard link to a file of base) is removed first, never written in place."""
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(kspkg.long_path(path))
+    save_msg(path, name, obj)
+
+
+def set_field(obj, key, value, packed=False):
+    """Put value into the top-level field key of a decoded message and keep its wire bookkeeping valid: the names in _order follow
+    the number of occurrences (every element of a list, but one for a packed list or a single value) and _packed names the packed
+    lists."""
+    if packed:
+        set_list(obj, key, [None])
+        obj[key] = value
+    elif isinstance(value, list):
+        set_list(obj, key, value)
+    elif key in obj:
+        obj[key] = value
+    else:
+        add_key(obj, key, value)
+    marked = [k for k in obj.get("_packed", []) if k != key] + ([key] if packed else [])
+    if marked:
+        obj["_packed"] = marked
+    else:
+        obj.pop("_packed", None)
+
+
+def copy_turbo_fields(dst, src, listing):
+    """Copy every top-level field of src whose name has "turbo", "boost" or "bov" in it into dst (deep copies, replacing or adding
+    the field); the list listing takes the place of turbos_to_load. Returns the names of the fields copied."""
+    names = []
+    for key, value in src.items():
+        if key.startswith("_") or not any(w in key.lower() for w in KIT_WORDS):
+            continue
+        set_field(dst, key, list(listing) if key == "turbos_to_load" else copy.deepcopy(value), key in src.get("_packed", []))
+        names.append(key)
+    return names
+
+
+def kit_entry(text, donor, car_id, name):
+    """The turbos_to_load entry for the file data/<name> of the car, written like the entry text of the donor: its separators, the
+    id of the car in capitals when the donor's id is in capitals."""
+    m = re.fullmatch(r"(content[\\/]+cars[\\/]+)(%s)([\\/]+)(.+)" % re.escape(donor), text, re.IGNORECASE)
+    if not m or re.match(r"[\\/]", m.group(4)):
+        raise ValueError("turbo kit: cannot read the style of the turbos_to_load entry %r of %s, expected content\\cars\\%s\\... or with /"
+                         % (text, donor, donor))
+    sep = re.search(r"[\\/]+", m.group(4))
+    return m.group(1) + (car_id.upper() if m.group(2).isupper() else car_id) + m.group(3) + "data" + (sep.group(0) if sep else m.group(3)) + name
+
+
+def inline_listing(donor, inline, texts, new_texts):
+    """turbos_to_load of the inline engine block of the donor's .car as new entries: the entry of the engine file that names the same file."""
+    keys = [game_path_key(t) for t in texts]
+    entries = inline["turbos_to_load"]
+    if not (isinstance(entries, list) and all(isinstance(t, str) and game_path_key(t) in keys for t in entries)):
+        raise ValueError("turbo kit: the .car file of %s lists turbo files that its engine file does not list" % donor)
+    return [new_texts[keys.index(game_path_key(t))] for t in entries]
+
+
+def kit_inline(path, donor, donor_inline, texts, new_texts):
+    """Patch the inline engine block of the .car file at path (when it and the donor's have one); returns the fields copied."""
+    if not isinstance(donor_inline, dict):
+        return []
+    car, name = load_msg(path)
+    inline = car.get("engine")
+    if not isinstance(inline, dict):
+        return []
+    listing = inline_listing(donor, donor_inline, texts, new_texts) if "turbos_to_load" in donor_inline else None
+    fields = copy_turbo_fields(inline, donor_inline, listing)
+    if fields:
+        save_fresh(path, name, car)
+    return fields
+
+
+def kit_turbo_files(work, car_id, donor, part, listing):
+    """Copy the turbo files of the donor (listing: turbo_listing of its base) into the data folder of the car in part as
+    kit_turbo_<n>.turbo; returns (paths below the car folder, the turbos_to_load entries that name them)."""
+    droot = base_dir(work, donor)
+    car_root = car_root_of(part, car_id)
+    data = find_ci(car_root, "data")
+    taken = {n.lower() for n in os.listdir(kspkg.long_path(data))}
+    rels, texts = [], []
+    for n, (rel, text) in enumerate(zip(listing["files"], listing["texts"])):
+        name = "kit_turbo_%d.turbo" % n
+        if name in taken:
+            raise ValueError("turbo kit: %s has a data/%s already" % (car_id, name))
+        texts.append(kit_entry(text, donor, car_id, name))
+        dst = os.path.join(data, name)
+        shutil.copy2(kspkg.long_path(car_path(car_root_of(droot, donor), rel)), kspkg.long_path(dst))
+        rels.append(rel_of(part, car_id, dst))
+    return rels, texts
+
+
+def patch_kit(work, car_id, donor, part):
+    """Add the turbo files of the donor to the copy of base in part and copy the turbo fields into its engine file and the inline
+    engine block of its .car file; returns the content of the kit.json."""
+    droot, dcache, cache = base_dir(work, donor), {}, {}
+    donor_car, car_root = car_root_of(droot, donor), car_root_of(part, car_id)
+    donor_engine_rel = resolve_file("@engine", droot, donor, dcache)
+    donor_engine = read_file(donor_car, donor_engine_rel, dcache)
+    listing = dict(turbo_listing(droot, donor, dcache), texts=donor_engine["turbos_to_load"])
+    rels, new_texts = kit_turbo_files(work, car_id, donor, part, listing)
+    engine_rel = resolve_file("@engine", part, car_id, cache)
+    path = car_path(car_root, engine_rel)
+    engine, name = load_msg(path)
+    fields = copy_turbo_fields(engine, donor_engine, new_texts)
+    save_fresh(path, name, engine)
+    donor_inline = read_file(donor_car, resolve_file("@car", droot, donor, dcache), dcache).get("engine")
+    inline = kit_inline(car_path(car_root, resolve_file("@car", part, car_id, cache)), donor, donor_inline, listing["texts"], new_texts)
+    listed = [("car", engine_rel), ("donor", donor_engine_rel)] + [("donor", f) for f in listing["files"]]
+    return {"donor": donor, "kind": turbo_kind(len(rels)), "count": len(rels), "files": ["content/cars/%s/%s" % (car_id, r) for r in rels],
+            "fields": fields, "inline_fields": inline, "stamp": kit_stamp(work, car_id, donor, listed)}
+
+
+def kit_root(work, car_id, donor):
+    """The folder <work>/<car>/kit/<donor>: a tree like base for the car with the turbo kit of the donor built in (see the module
+    docstring). Built when it is missing or damaged or when a file it depends on has changed (kit.json holds their size and time),
+    else used as it is. Raises ValueError("turbo kit: ...") when the car has a turbo itself or the donor is no donor (any more); a
+    failed build removes its .partial folder."""
+    if not (isinstance(donor, str) and re.fullmatch(r"[a-z0-9_]+", donor)):
+        raise ValueError("turbo kit: %r is not an installed car with a turbo" % (donor,))
+    root = kit_path(work, car_id, donor)
+    with _kit_lock:
+        if kit_current(work, car_id, donor, root):
+            return root
+        check_kit(work, car_id, donor)
+        part = root + ".partial"
+        if os.path.exists(kspkg.long_path(part)):
+            remove_tree(work, part)
+        try:
+            link_tree(base_dir(work, car_id), part)
+            save_json(os.path.join(part, KIT_JSON), patch_kit(work, car_id, donor, part))
+            if os.path.exists(kspkg.long_path(root)):
+                remove_tree(work, root)
+            os.rename(kspkg.long_path(part), kspkg.long_path(root))
+        except BaseException:
+            if os.path.exists(kspkg.long_path(part)):
+                with contextlib.suppress(OSError):
+                    remove_tree(work, part)
+            raise
+    return root
+
+
+def root_for(work, car_id, tune=None):
+    """The folder the tune of a car is read and built from: the kit root (kit_root) when its state has a turbo kit, else base."""
+    donor = saved_turbo(load_state(work, car_id, tune))
+    return base_dir(work, car_id) if donor is None else kit_root(work, car_id, donor)
+
+
+def kit_notes(info, car_id):
+    """The notes of apply for a build from a kit root with this kit.json."""
+    notes = ["note: turbo kit: donor %s (%s): files %s, engine fields %s" % (
+        info["donor"], info["kind"], ", ".join(f.split("/", 3)[3] for f in info["files"]), ", ".join(info["fields"]))]
+    if info["inline_fields"]:
+        notes.append("note: turbo kit: .car engine fields %s" % ", ".join(info["inline_fields"]))
+    return notes
+
+
 def tyre_source_files(src_root, src_car, src, tyre_id):
     """The files (front, rear) of the source of a library tyre in the base src_root of the extracted car src_car."""
     files = {}
@@ -3031,6 +3292,24 @@ def cmd_turbo_remove():
     print("turbo kit %s" % ("removed from the state" if res["removed"] else "was not set"))
 
 
+def cmd_turbo_kit():
+    pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+    if pos or ("tune" in opts and "draft" in opts):
+        usage()
+    work, car_id = start(opts)
+    tune_id = DRAFT if "draft" in opts else tune_arg(work, car_id, opts)
+    donor = saved_turbo(load_state(work, car_id, tune_id))
+    if donor is None:
+        raise ValueError("no turbo kit chosen for %s, turbo-add chooses one" % (tune_id or new_id_for(car_id)))
+    root = kit_root(work, car_id, donor)
+    info = kit_info(root)
+    print("kit root: %s" % root)
+    print("donor: %s (%s)" % (info["donor"], info["kind"]))
+    print("files: %s" % ", ".join(info["files"]))
+    print("engine fields: %s" % ", ".join(info["fields"]))
+    print(".car fields: %s" % (", ".join(info["inline_fields"]) or "none"))
+
+
 def cmd_ranges():
     pos, opts = cli_args(("work",))
     if pos:
@@ -3068,6 +3347,7 @@ COMMANDS = {
     "turbo-donors": cmd_turbo_donors,
     "turbo-add": cmd_turbo_add,
     "turbo-remove": cmd_turbo_remove,
+    "turbo-kit": cmd_turbo_kit,
     "ranges": cmd_ranges,
 }
 
