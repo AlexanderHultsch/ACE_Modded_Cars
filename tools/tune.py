@@ -20,6 +20,9 @@ usage:
   python tools/tune.py garage       [--tune ID | --draft] [--car ID] [--work <dir>]
   python tools/tune.py garage-set   <key> [<key> ...] [--tune ID | --draft] [--car ID] [--work <dir>]
   python tools/tune.py garage-reset [--tune ID | --draft] [--car ID] [--work <dir>]
+  python tools/tune.py turbo-donors [--car ID] [--work <dir>]
+  python tools/tune.py turbo-add    <donor> [--tune ID | --draft] [--car ID] [--work <dir>]
+  python tools/tune.py turbo-remove [--tune ID | --draft] [--car ID] [--work <dir>]
   python tools/tune.py ranges       [--work <dir>]
 
 --car ID picks any car of the game (default: the default car of tuner/cars.json); an id that is not a game car is
@@ -124,6 +127,15 @@ garage:       shows the choices of the car with their key: ticked (x), start (th
 garage-set:   ticks exactly the given keys (own:<id>, stock:<front>|<rear>), at least one; all stock tyres and no own tyre is
           the default and removes the entry.
 garage-reset: removes the selection (the car is not touched any more).
+Turbo kit (library functions turbo_parts, turbo_kind, list_turbo_donors, turbo_choice, set_turbo, reset_turbo): a modded car without a
+turbo can take the turbo setup of a donor, an installed car whose engine lists turbo files. The choice is the object "_turbo" =
+{"donor": <stock car id of the donor>} in the state file (tune_state.json, draft_state.json). Like "_tyres" it is not a setting: never
+reported as unknown, shown in show or counted as an applied setting, and duplicate and Create copy it with the rest of the state; no
+"_turbo" entry = the car is not touched. A donor is an extracted car (base folder present) whose engine (@engine) lists turbos_to_load
+files that are all present in its base; turbo_parts reads the files, their number and the max_boost of the engine's turbos.
+turbo-donors: lists the donors (car id, name, kind: no turbo / single turbo / twin turbo / <n> turbos, boost in bar); with --car it adds the
+          kit the car has chosen in its default tune ("chosen: <donor>" or "no turbo kit chosen"). It extracts nothing.
+turbo-add:    chooses the donor for a car that has no turbo itself and has been extracted; turbo-remove removes the choice.
 ranges:       the soft borders for the settings page (library functions compute_ranges, write_ranges, load_ranges): reads the
           defaults of every car with an extracted base in the work folder (every <work>/<car>/base) and writes the lowest and
           highest default of every numeric setting (kind value, type int or float; a field a car does not store does not
@@ -238,6 +250,7 @@ GAME_SHARED = "content\\cars\\%s\\" % SHARED_DIR
 TYRE_UNAVAILABLE = "shared tyre files not extracted"
 TYRES_DIR = "tyres"
 TYRE_KEY = "_tyres"
+TURBO_KEY = "_turbo"
 TYRE_ID = re.compile(r"[a-z0-9_]{1,24}")
 TYRE_ID_MAX = 24
 TYRE_NAME_MAX = 40
@@ -509,7 +522,7 @@ def save_state(work, car_id, state, tune=None):
 
 def unknown_state_ids(work, car_id, catalogue=None, tune=None):
     known = {s["id"] for s in (catalogue or load_catalogue())["settings"]}
-    return [sid for sid in load_state(work, car_id, tune) if sid not in known and sid != TYRE_KEY]
+    return [sid for sid in load_state(work, car_id, tune) if sid not in known and sid not in (TYRE_KEY, TURBO_KEY)]
 
 
 def to_f32(x):
@@ -611,7 +624,7 @@ def set_value(work, car_id, setting_id, text, catalogue=None, tune=None):
 
 def unset_value(work, car_id, setting_id, catalogue=None, tune=None):
     state = load_state(work, car_id, tune)
-    if setting_id not in state or setting_id == TYRE_KEY:
+    if setting_id not in state or setting_id in (TYRE_KEY, TURBO_KEY):
         find_setting(catalogue or load_catalogue(), setting_id)
     removed = state.pop(setting_id, None) is not None
     if removed:
@@ -2180,6 +2193,127 @@ def reset_garage(work, car_id, tune=None):
     return {"removed": removed}
 
 
+def turbo_rel(root, car_id, text):
+    """The path below the car folder that the text of a turbos_to_load entry names, whether the file exists or not."""
+    parts = [p for p in re.split(r"[\\/]+", text) if p]
+    return os.path.relpath(os.path.join(root, *parts), car_root_of(root, car_id)).replace(os.sep, "/")
+
+
+def turbo_listing(root, car_id, cache=None):
+    """What the engine file (@engine) of a car lists: {files (path below the car folder of each turbos_to_load entry, in
+    order; as @turbo[N] resolves it, else the path the entry names), boost (max_boost of each entry of turbos that has a
+    number), count (len(files)), missing (the files that are not on disk)}. An engine that cannot be read, or whose
+    turbos_to_load is not a list of texts, lists nothing."""
+    cache = {} if cache is None else cache
+    nothing = {"files": [], "boost": [], "count": 0, "missing": []}
+    try:
+        engine = read_file(car_root_of(root, car_id), resolve_file("@engine", root, car_id, cache), cache)
+    except (ValueError, OSError):
+        return nothing
+    texts = engine.get("turbos_to_load", [])
+    if not (isinstance(texts, list) and all(isinstance(t, str) and t for t in texts)):
+        return nothing
+    files, missing = [], []
+    for i, text in enumerate(texts):
+        try:
+            files.append(resolve_file("@turbo[%d]" % i, root, car_id, cache))
+        except ValueError:
+            files.append(turbo_rel(root, car_id, text))
+            missing.append(files[-1])
+    turbos = engine.get("turbos", [])
+    boost = [float(b) for b in (plain(t.get("max_boost")) for t in turbos if isinstance(t, dict))
+             if finite_number(b)] if isinstance(turbos, list) else []
+    return {"files": files, "boost": boost, "count": len(files), "missing": missing}
+
+
+def turbo_parts(root, car_id, cache=None):
+    """The turbo setup of a car in root (a base folder, as resolve_file takes it): {files (the turbo files turbos_to_load of
+    its engine names, in order, as @turbo[N] resolves them), boost (max_boost of each entry of the engine's turbos that has
+    one), count (len(files))}. A car whose engine lists no turbo file or cannot be read has count 0."""
+    found = turbo_listing(root, car_id, cache)
+    return {"files": found["files"], "boost": found["boost"], "count": found["count"]}
+
+
+def turbo_kind(count):
+    return "no turbo" if count == 0 else "single turbo" if count == 1 else "twin turbo" if count == 2 else "%d turbos" % count
+
+
+def list_turbo_donors(work):
+    """The cars that can give their turbo setup: every extracted car (base folder present; a car that cannot be read counts
+    as having no turbo) whose engine lists at least one turbo file and has all of them in its base, sorted by display name,
+    then id: {car, label (stock_info.json, else the cached car index, else the id), count, kind, boost}. Nothing is
+    extracted, the game package is not needed."""
+    names = {c["id"]: c["display_name"] for c in load_cars_index(work, "") or []}
+    donors = []
+    for car_id in car_folders(work):
+        if not os.path.isdir(kspkg.long_path(car_root_of(base_dir(work, car_id), car_id))):
+            continue
+        found = turbo_listing(base_dir(work, car_id), car_id)
+        if found["count"] < 1 or found["missing"]:
+            continue
+        try:
+            info = load_stock_info(work, car_id)
+        except (ValueError, OSError):
+            info = None
+        donors.append({"car": car_id, "label": info["display_name"] if info else names.get(car_id) or car_id,
+                       "count": found["count"], "kind": turbo_kind(found["count"]), "boost": found["boost"]})
+    return sorted(donors, key=lambda d: (d["label"].lower(), d["car"]))
+
+
+def saved_turbo(state):
+    """The donor id of the "_turbo" entry of a state, None when it has none."""
+    if TURBO_KEY not in state:
+        return None
+    saved = state[TURBO_KEY]
+    if not (isinstance(saved, dict) and isinstance(saved.get("donor"), str)):
+        raise ValueError("damaged turbo kit in the saved state")
+    return saved["donor"]
+
+
+def turbo_choice(work, car_id, tune=None):
+    """The turbo kit of a car: {donor (saved donor id or None), available (False when the car has a turbo itself or no
+    donor exists), reason (why not, else ""), donors (list_turbo_donors without the car), picked (the entry of the saved
+    donor in donors, None when it has none or is no donor any more)}."""
+    donor = saved_turbo(load_state(work, car_id, tune))
+    donors = [d for d in list_turbo_donors(work) if d["car"] != car_id]
+    reason = ("the car has a turbo already" if turbo_parts(base_dir(work, car_id), car_id)["count"] >= 1
+              else "" if donors else "no installed car has a turbo")
+    return {"donor": donor, "available": not reason, "reason": reason, "donors": donors,
+            "picked": next((d for d in donors if d["car"] == donor), None)}
+
+
+def set_turbo(work, car_id, donor, tune=None):
+    """Choose the donor of a car's turbo kit and store {"donor": donor} in the state (written only when it changes); the car
+    must be extracted and have no turbo itself, the donor must be one of list_turbo_donors and not the car. Returns
+    {donor, count, kind, boost} of the donor."""
+    root = base_dir(work, car_id)
+    if turbo_parts(root, car_id)["count"] >= 1:
+        raise ValueError("%s has a turbo already" % car_id)
+    if not os.path.isdir(kspkg.long_path(car_root_of(root, car_id))):
+        raise ValueError("no base car in %s, run init first" % root)
+    if not isinstance(donor, str):
+        raise ValueError("the turbo donor must be a car id, got %r" % (donor,))
+    if donor == car_id:
+        raise ValueError("%s cannot be its own turbo donor" % car_id)
+    picked = next((d for d in list_turbo_donors(work) if d["car"] == donor), None)
+    if picked is None:
+        raise ValueError("%s is not an installed car with a turbo" % donor)
+    state = load_state(work, car_id, tune)
+    if state.get(TURBO_KEY) != {"donor": donor}:
+        state[TURBO_KEY] = {"donor": donor}
+        save_state(work, car_id, state, tune)
+    return {"donor": donor, "count": picked["count"], "kind": picked["kind"], "boost": picked["boost"]}
+
+
+def reset_turbo(work, car_id, tune=None):
+    """Remove the turbo kit choice of a state: the car is not touched any more. Returns {removed}."""
+    state = load_state(work, car_id, tune)
+    removed = state.pop(TURBO_KEY, None) is not None
+    if removed:
+        save_state(work, car_id, state, tune)
+    return {"removed": removed}
+
+
 def tyre_source_files(src_root, src_car, src, tyre_id):
     """The files (front, rear) of the source of a library tyre in the base src_root of the extracted car src_car."""
     files = {}
@@ -2857,6 +2991,46 @@ def cmd_garage_reset():
     print("garage selection %s" % ("removed from the state" if res["removed"] else "was not set"))
 
 
+def boost_text(boost):
+    return " / ".join("%g" % b for b in boost) if boost else "unknown"
+
+
+def cmd_turbo_donors():
+    pos, opts = cli_args(("car", "work"))
+    if pos:
+        usage()
+    work, car_id = start(opts) if "car" in opts else (work_arg(opts), None)
+    donors = list_turbo_donors(work)
+    if donors:
+        print(table(["car", "name", "kind", "boost (bar)"],
+                    [[d["car"], d["label"], d["kind"], boost_text(d["boost"])] for d in donors]))
+    else:
+        print("no installed car has a turbo")
+    if car_id:
+        res = turbo_choice(work, car_id)
+        print("chosen: %s" % res["donor"] if res["donor"] else "no turbo kit chosen")
+        if res["donor"] and not res["picked"]:
+            print("warning: the saved turbo donor %s is not available any more" % res["donor"], file=sys.stderr)
+
+
+def cmd_turbo_add():
+    pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+    if len(pos) != 1 or ("tune" in opts and "draft" in opts):
+        usage()
+    work, car_id = start(opts)
+    res = set_turbo(work, car_id, pos[0], DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+    print("%s: %s, boost %s bar" % (res["donor"], res["kind"], boost_text(res["boost"])))
+
+
+def cmd_turbo_remove():
+    pos, opts = cli_args(("car", "tune", "work"), ("draft",))
+    if pos or ("tune" in opts and "draft" in opts):
+        usage()
+    work, car_id = start(opts)
+    res = reset_turbo(work, car_id, DRAFT if "draft" in opts else tune_arg(work, car_id, opts))
+    print("turbo kit %s" % ("removed from the state" if res["removed"] else "was not set"))
+
+
 def cmd_ranges():
     pos, opts = cli_args(("work",))
     if pos:
@@ -2891,6 +3065,9 @@ COMMANDS = {
     "garage": cmd_garage,
     "garage-set": cmd_garage_set,
     "garage-reset": cmd_garage_reset,
+    "turbo-donors": cmd_turbo_donors,
+    "turbo-add": cmd_turbo_add,
+    "turbo-remove": cmd_turbo_remove,
     "ranges": cmd_ranges,
 }
 

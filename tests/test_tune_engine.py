@@ -2960,7 +2960,8 @@ class TestUsageText(unittest.TestCase):
     def test_every_usage_line_is_a_command_main_dispatches(self):
         commands = [line.split()[2] for line in self.usage_lines()]
         self.assertEqual(commands, ["cars", "init", "defaults", "set", "unset", "show", "apply", "duplicate", "doc", "tyres", "tyre-sources",
-                                    "tyre-new", "tyre-show", "tyre-set", "tyre-unset", "tyre-delete", "garage", "garage-set", "garage-reset", "ranges"])
+                                    "tyre-new", "tyre-show", "tyre-set", "tyre-unset", "tyre-delete", "garage", "garage-set", "garage-reset", "turbo-donors",
+                                    "turbo-add", "turbo-remove", "ranges"])
         self.assertEqual(list(tune.COMMANDS), commands)
         for cmd in commands:
             self.assertEqual(tune.COMMANDS[cmd].__name__, "cmd_" + cmd.replace("-", "_"))
