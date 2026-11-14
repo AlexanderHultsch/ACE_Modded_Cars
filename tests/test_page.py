@@ -807,6 +807,54 @@ class TestJobRunning(unittest.TestCase):
         self.assertLess(note, body.index('job.state === "done"'))
 
 
+class TestFullWidth(unittest.TestCase):
+    PAGE_RULE = re.search(r"\n\.page \{([^}]*)\}", STYLE).group(1)
+
+    def test_the_page_container_has_no_fixed_maximum_width(self):
+        self.assertNotIn("1280", STYLE)
+        self.assertNotIn("max-width", self.PAGE_RULE)
+        self.assertIn("padding: 0 20px 40px;", self.PAGE_RULE)
+
+    def test_no_media_rule_caps_the_page_width_either(self):
+        for rule in re.findall(r"\.page \{([^}]*)\}", STYLE):
+            with self.subTest(rule):
+                self.assertNotIn("max-width", rule)
+                self.assertNotRegex(rule, r"(?<![\w-])width:")
+
+    def test_the_readable_width_of_the_descriptions_stays(self):
+        self.assertRegex(re.search(r"\n\.gdesc \{([^}]*)\}", STYLE).group(1), r"max-width: 80ch;")
+
+
+class TestRunningTitle(unittest.TestCase):
+    RULE = re.search(r"\n\.panel h2\.running \{([^}]*)\}", STYLE).group(1)
+
+    def test_the_running_heading_carries_the_class_and_the_rule_uses_the_accent(self):
+        self.assertEqual(self.RULE.strip(), "color: var(--color-accent);")
+        self.assertIn('box.appendChild(el("h2", "running", title + ": running ..."));', function_body("renderProgress"))
+        self.assertIn("running", used_classes())
+        self.assertIn("running", css_classes())
+
+    def test_only_the_running_heading_has_the_class(self):
+        headings = re.findall(r'el\("h2", "([^"]*)", ([^;]*)\);', function_body("renderProgress"))
+        self.assertEqual(len(headings), 5, headings)
+        for cls, text in headings:
+            with self.subTest(text):
+                self.assertEqual(cls, "running" if "running" in text else "")
+        self.assertIn('title + ": finished"', [t for _, t in headings if "finished" in t][0])
+        self.assertIn('title + ": failed"', [t for _, t in headings if "failed" in t][0])
+
+    def test_the_finished_and_error_panels_keep_their_colours(self):
+        self.assertIn(".panel.ok { background: var(--color-ok-tint); color: var(--color-ok); border-color: var(--color-ok); }", STYLE)
+        self.assertIn(".panel.err { background: var(--color-error-tint); color: var(--color-error); border-color: var(--color-error); }", STYLE)
+        self.assertNotRegex(STYLE, r"\.panel\.(?:ok|err) h2")
+
+    def test_the_accent_reads_on_the_panel_background(self):
+        tokens = dict(re.findall(r"(--[\w-]+): (#[0-9a-fA-F]{6});", TestDarkTheme.ROOT_RULE))
+        self.assertIn("background: var(--color-bg-alt);", re.search(r"\n\.panel \{([^}]*)\}", STYLE).group(1))
+        self.assertGreaterEqual(contrast(tokens["--color-accent"], tokens["--color-bg-alt"]), 4.5)
+        self.assertGreaterEqual(contrast(tokens["--color-text"], tokens["--color-bg-alt"]), 4.5)
+
+
 class TestInstallCars(unittest.TestCase):
     def test_the_init_panel_says_install_not_extract(self):
         panel = re.search(r'<section id="init-panel".*?</section>', MARKUP, re.S).group(0)
@@ -924,9 +972,22 @@ class TestErrorHandling(unittest.TestCase):
 class TestModdedCars(unittest.TestCase):
     def test_the_selector_has_the_three_groups_in_order(self):
         labels = re.findall(r'\["((?:Installed|Other|Modded) Cars)", ', function_body("renderCars"))
-        self.assertEqual(labels, ["Installed Cars", "Other Cars", "Modded Cars"])
+        self.assertEqual(labels, ["Modded Cars", "Installed Cars", "Other Cars"])
         self.assertIn('<select id="car-select" aria-label="Car"', MARKUP)
         self.assertEqual(MARKUP.count("<optgroup"), 0)
+
+    def test_the_modded_cars_are_on_top_of_the_base_cars(self):
+        body = function_body("renderCars")
+        self.assertLess(body.index('["Modded Cars", '), body.index('["Installed Cars", '))
+        self.assertLess(body.index('["Installed Cars", '), body.index('["Other Cars", '))
+
+    def test_the_default_selection_does_not_depend_on_the_order_of_the_groups(self):
+        body = function_body("renderCars")
+        self.assertIn("select.value = choiceValue(selection);", body)
+        self.assertNotIn("selectedIndex", body)
+        self.assertNotIn("firstChild", body)
+        self.assertNotIn("options[0]", body)
+        self.assertIn("selection = { car: info.car, tune: info.tune };", function_body("refresh"))
 
     def test_the_installed_group_holds_the_extracted_cars_and_the_other_group_the_rest(self):
         body = function_body("renderCars")
@@ -949,7 +1010,7 @@ class TestModdedCars(unittest.TestCase):
 
     def test_the_option_values_encode_the_target(self):
         body = function_body("renderCars")
-        self.assertEqual(re.findall(r'\["(base|mod):" \+ (\w)\.id, ', body), [("base", "c"), ("base", "c"), ("mod", "m")])
+        self.assertEqual(re.findall(r'\["(base|mod):" \+ (\w)\.id, ', body), [("mod", "m"), ("base", "c"), ("base", "c")])
         self.assertIn("o.value = value;", body)
         self.assertIn('startsWith("base:")', function_body("choiceOf"))
         self.assertIn('startsWith("mod:")', function_body("choiceOf"))

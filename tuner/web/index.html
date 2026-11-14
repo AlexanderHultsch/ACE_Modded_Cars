@@ -43,7 +43,7 @@ body {
   font: 15px/1.45 var(--font-sans);
 }
 .mono { font-family: var(--font-mono); }
-.page { max-width: 1280px; margin: 0 auto; padding: 0 20px 40px; }
+.page { padding: 0 20px 40px; }
 .bar {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
   padding: 16px 0 8px;
@@ -108,6 +108,7 @@ input[type="checkbox"] { accent-color: var(--color-accent); }
   background: var(--color-bg-alt);
 }
 .panel h2 { margin: 0 0 6px; font-size: 15px; }
+.panel h2.running { color: var(--color-accent); }
 .panel pre {
   margin: 6px 0 0; padding: 8px 10px; max-height: 220px; overflow: auto; white-space: pre-wrap;
   background: var(--color-bg-elevated); color: var(--color-text); border-radius: 6px; font-size: 12.5px;
@@ -615,9 +616,9 @@ function renderCars() {
   const list = info && info.cars ? info.cars : [];
   const byName = (a, b) => (a.display_name || a.label).localeCompare(b.display_name || b.label);
   const groupsOf = [
+    ["Modded Cars", moddedList().map((m) => ["mod:" + m.id, m.label + (m.installed ? " - installed" : " - not installed")])],
     ["Installed Cars", list.filter((c) => c.extracted).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
-    ["Other Cars", list.filter((c) => !c.extracted).sort(byName).map((c) => ["base:" + c.id, optionText(c)])],
-    ["Modded Cars", moddedList().map((m) => ["mod:" + m.id, m.label + (m.installed ? " - installed" : " - not installed")])]
+    ["Other Cars", list.filter((c) => !c.extracted).sort(byName).map((c) => ["base:" + c.id, optionText(c)])]
   ];
   const sig = JSON.stringify([groupsOf, selection]);
   if (sig === carsSig) return;
@@ -726,7 +727,7 @@ function renderProgress() {
     box.appendChild(el("h2", "", "Previous job: " + title));
   }
   if (job.state === "running") {
-    box.appendChild(el("h2", "", title + ": running ..."));
+    box.appendChild(el("h2", "running", title + ": running ..."));
     addLine(box, "Do not close the console window while this runs.");
   } else if (job.state === "done") {
     if (!errors.length) box.classList.add("ok");
