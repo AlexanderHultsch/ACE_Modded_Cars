@@ -256,7 +256,7 @@ class TestApiContract(unittest.TestCase):
 
     def test_every_api_call_of_the_page_passes_the_selection_which_carries_the_tune(self):
         calls = re.findall(r"await api\((.*)\);$", CODE, re.M)
-        self.assertEqual(len(calls), 21, calls)
+        self.assertEqual(len(calls), 24, calls)
         for call in calls:
             with self.subTest(call):
                 self.assertRegex(call, r", (?:want|target|r\.target|selection)$")
@@ -1738,6 +1738,243 @@ class TestGarage(unittest.TestCase):
         read = set(re.findall(r"\b(?:c|garage)\.(\w+)", "".join(function_body(n) for n in ("renderGarage", "garageSummary", "lockGarage", "renderGarageLines"))))
         self.assertTrue({"key", "kind", "label", "ticked", "start", "choices", "custom", "missing"} <= read, sorted(read))
         self.assertEqual(sorted(read - sent), [])
+
+
+class TestTurboKit(unittest.TestCase):
+    CAR_PANEL = MARKUP[MARKUP.index('id="panel-car"'):MARKUP.index('id="panel-tyres"')]
+    PANEL = re.search(r'<div id="turbo" class="panel garage" hidden>.*?\n      </div>\n', MARKUP, re.S).group(0)
+    FUNCTIONS = ("boostText", "turboOptionText", "turboSummary", "turboPickedText", "renderTurboToggle", "renderTurboLines", "lockTurbo",
+                 "renderTurbo", "renderTurboControls", "loadTurbo", "showTurbo", "turboFailed", "sendTurboSet", "sendTurboReset",
+                 "turboChanged", "toggleTurbo")
+
+    @staticmethod
+    def tag(ident):
+        return re.search(r'<[a-z]+\b[^>]*\bid="%s"[^>]*>' % ident, MARKUP).group(0)
+
+    def test_the_panel_sits_directly_above_the_garage_panel_below_the_table(self):
+        tuner = MARKUP[MARKUP.index('<section id="tuner"'):MARKUP.index("</section>", MARKUP.index('<section id="tuner"'))]
+        self.assertEqual(tuner.count('id="turbo"'), 1)
+        self.assertLess(tuner.index('id="empty"'), tuner.index('id="turbo"'))
+        self.assertLess(tuner.index('id="turbo"'), tuner.index('id="garage"'))
+        between = tuner[tuner.index('id="turbo"'):tuner.index('<div id="garage"')]
+        self.assertEqual(between.count('class="panel garage"'), 1)
+        self.assertIn('id="turbo"', self.CAR_PANEL)
+        self.assertNotIn('id="turbo"', MARKUP[MARKUP.index('id="panel-tyres"'):])
+
+    def test_the_panel_is_hidden_until_the_server_has_answered(self):
+        self.assertRegex(self.tag("turbo"), r"\bhidden>$")
+        self.assertIn('$("turbo").hidden = !turbo || turbo.has_turbo;', function_body("renderTurbo"))
+        self.assertRegex(CODE, r"(?m)^let turbo = null;")
+
+    def test_the_header_is_a_collapsed_toggle_button_with_a_chevron_the_name_and_the_summary(self):
+        button = re.search(r'<button id="turbo-toggle".*?</button>', self.PANEL, re.S).group(0)
+        for part in ('class="grouptoggle"', 'type="button"', 'aria-expanded="false"', 'aria-controls="turbo-body"'):
+            self.assertIn(part, button)
+        self.assertIn('<span class="chev" aria-hidden="true"></span>', button)
+        self.assertIn('<span class="gname">Turbo kit</span>', button)
+        self.assertIn('<span id="turbo-count" class="gcount"></span>', button)
+        self.assertIn("turbo-body", dom_ids())
+
+    def test_the_body_is_hidden_by_default_and_holds_the_help_the_select_the_picked_line_and_the_error(self):
+        self.assertRegex(self.tag("turbo-body"), r"\bhidden>$")
+        body = self.PANEL[self.PANEL.index('id="turbo-body"'):]
+        self.assertIn("Adds the turbo setup of another installed car to this modded car. Apply copies the donor's turbo files and engine turbo "
+                      "fields into your car; the turbo settings then appear in the Turbo group of the table. A turbo multiplies the engine "
+                      "power on top of its curve, so lower the boost settings if the car becomes too strong. Unverified: whether the game "
+                      "accepts a turbo on a car that has none is not tested yet.", body)
+        self.assertRegex(body, r'<label for="turbo-donor">Turbo from</label>\s*<select id="turbo-donor" disabled></select>')
+        self.assertRegex(body, r'</select>\s*</div>\s*<p id="turbo-picked"></p>\s*<p id="turbo-error" class="msg err" role="alert" hidden></p>')
+        self.assertNotIn("aria-live", self.PANEL)
+        self.assertNotIn("<button", body)
+        self.assertEqual(CODE.count('setAttribute("role", "alert")'), 1)
+
+    def test_the_panel_is_collapsed_by_default_and_the_toggle_flips_a_separate_variable(self):
+        self.assertRegex(CODE, r"(?m)^let turboOpen = false;")
+        self.assertNotRegex(CODE, r"turboOpen = true")
+        body = function_body("toggleTurbo")
+        self.assertIn("turboOpen = !turboOpen;", body)
+        self.assertNotIn("expanded", body)
+        toggle = function_body("renderTurboToggle")
+        self.assertIn('$("turbo-toggle").setAttribute("aria-expanded", turboOpen ? "true" : "false");', toggle)
+        self.assertIn('$("turbo-body").hidden = !turboOpen;', toggle)
+        self.assertIn('$("turbo-count").textContent = turboSummary();', toggle)
+        self.assertIn('$("turbo-toggle").addEventListener("click", toggleTurbo);', CODE)
+        for name in ("setAllGroups", "toggleGroup", "applyFilter", "revealGroup"):
+            with self.subTest(name):
+                self.assertNotIn("turbo", function_body(name).lower())
+
+    def test_another_car_collapses_the_panel_and_forgets_the_old_answer(self):
+        body = function_body("switchCar")
+        for part in ("turboOpen = false;", "turbo = null;", 'turboError = "";', "renderTurbo();"):
+            self.assertIn(part, body)
+        self.assertEqual(len(re.findall(r"(?m)^  turboOpen = false;", CODE)), 1)
+
+    def test_the_summary_says_none_or_the_kind_and_the_name_of_the_donor(self):
+        body = function_body("turboSummary")
+        self.assertIn('if (!turbo.donor) return "(none)";', body)
+        self.assertIn('return "(" + turbo.picked.kind + " from " + turbo.picked.label + ")";', body)
+        self.assertIn('"(" + turbo.donor + ", not available any more)"', body)
+
+    def test_an_option_is_the_name_the_kind_and_the_boost_of_a_donor_and_the_boost_is_left_out_when_unknown(self):
+        self.assertIn('entry.label + " - " + entry.kind + (entry.boost.length ? ", " + boostText(entry.boost) + " bar" : "")',
+                      function_body("turboOptionText"))
+        self.assertIn('list.map((b) => String(Math.round(b * 100) / 100)).join(" / ")', function_body("boostText"))
+        body = function_body("renderTurbo")
+        self.assertIn('el("option", "", "No turbo kit (stock engine)")', body)
+        self.assertIn('none.value = "";', body)
+        self.assertIn("for (const entry of turbo ? turbo.donors : []) {", body)
+        self.assertIn("o.value = entry.car;", body)
+        self.assertIn("turboOptionText(entry)", body)
+        self.assertLess(body.index("No turbo kit (stock engine)"), body.index("turboOptionText(entry)"))
+
+    def test_the_saved_donor_is_preselected_and_one_that_is_gone_is_a_disabled_selected_option(self):
+        body = function_body("renderTurbo")
+        self.assertIn('select.value = turbo && turbo.donor ? turbo.donor : "";', body)
+        self.assertIn("if (turbo && turbo.donor && !turbo.picked) {", body)
+        self.assertIn('el("option", "", turbo.donor + " (not available any more)")', body)
+        self.assertIn("gone.disabled = true;", body)
+        self.assertLess(body.index("gone.disabled = true;"), body.index("select.value ="))
+
+    def test_the_line_below_the_select_says_which_turbo_the_chosen_donor_has(self):
+        body = function_body("turboPickedText")
+        self.assertIn('"No turbo kit chosen."', body)
+        self.assertIn('"No installed car has a turbo: install one first (select a car with a turbo and press Install car)."', body)
+        self.assertIn("turbo.donors.length === 0", body)
+        self.assertIn('" is not available any more. Choose another donor or no turbo kit."', body)
+        self.assertIn('" (" + entry.count + (entry.count === 1 ? " turbo)" : " turbos)")', body)
+        self.assertIn("entry.count <= 2", body)
+        self.assertIn('", boost " + boostText(entry.boost) + " bar"', body)
+        self.assertIn('"Chosen: " + entry.kind + count + boost + ", from " + entry.label', body)
+        self.assertIn('$("turbo-picked").textContent = turboPickedText();', function_body("renderTurboLines"))
+
+    def test_the_error_line_shows_the_message_of_a_failed_write(self):
+        body = function_body("renderTurboLines")
+        self.assertIn('$("turbo-error").textContent = turboError;', body)
+        self.assertIn('$("turbo-error").hidden = turboError === "";', body)
+        failed = function_body("turboFailed")
+        self.assertLess(failed.index("await loadTurbo();"), failed.index("turboError = e.message;"))
+        self.assertIn("renderTurboLines();", failed)
+        for name in ("sendTurboSet", "sendTurboReset"):
+            with self.subTest(name):
+                self.assertIn("await turboFailed(target, e);", function_body(name))
+
+    def test_the_kit_is_read_with_the_selection_without_a_body_through_the_one_api_helper(self):
+        body = function_body("loadTurbo")
+        self.assertIn('await api("/api/turbo", undefined, target);', body)
+        self.assertIn("if (!tableLoaded) return;", body)
+        self.assertIn("const seq = ++turboSeq;", body)
+        self.assertIn("if (seq !== turboSeq || target !== selection) return;", body)
+        self.assertIn("turbo = res;", body)
+        self.assertIn("turboError = e.message;", body)
+        self.assertIn("renderTurbo();", body)
+        self.assertEqual(len(re.findall(r"\bfetch\(", CODE)), 1)
+
+    def test_the_kit_is_loaded_with_the_table_after_a_tab_change_after_a_job_and_after_create_and_apply(self):
+        body = function_body("loadSettings")
+        self.assertIn("loadTurbo();", body)
+        self.assertLess(body.index("tableLoaded = true;"), body.index("loadTurbo();"))
+        self.assertIn('if (tabs[i] === $("tab-car")) loadTurbo();', function_body("selectTab"))
+        controls = function_body("renderTurboControls")
+        self.assertIn('if (turboJobRunning && !running && !$("panel-car").hidden) loadTurbo();', controls)
+        self.assertIn("turboJobRunning = running;", controls)
+        self.assertIn("renderTurboControls();", function_body("renderButtons"))
+        self.assertRegex(function_body("startJob"), r"await refresh\(\);\s*loadGarage\(\);\s*loadTurbo\(\);")
+        self.assertRegex(function_body("submitDialog"), r"await refresh\(\);\s*loadGarage\(\);\s*loadTurbo\(\);")
+        self.assertEqual(len(re.findall(r"\bpollTimer = setTimeout\(", CODE)), 1)
+        self.assertEqual(len(re.findall(r"setInterval\(", CODE)), 0)
+        self.assertEqual(re.findall(r"setTimeout\([^;]*[Tt]urbo", CODE), [])
+
+    def test_a_change_posts_the_donor_or_the_reset_through_the_shared_queue(self):
+        self.assertIn('$("turbo-donor").addEventListener("change", turboChanged);', CODE)
+        body = function_body("turboChanged")
+        self.assertIn('const donor = $("turbo-donor").value;', body)
+        self.assertIn("const target = selection;", body)
+        self.assertIn("queue = queue.then(async () => {", body)
+        self.assertIn('donor === "" ? await sendTurboReset(target) : await sendTurboSet(donor, target)', body)
+        send = function_body("sendTurboSet")
+        self.assertIn('await api("/api/turbo_set", { donor: donor }, target);', send)
+        self.assertIn("showTurbo(target, res.turbo);", send)
+        reset = function_body("sendTurboReset")
+        self.assertIn('await api("/api/turbo_reset", {}, target);', reset)
+        self.assertIn("showTurbo(target, res.turbo);", reset)
+        fields = set(re.findall(r"\b(\w+):", re.search(r'api\("/api/turbo_set", (\{[^}]*\})', CODE).group(1)))
+        self.assertEqual(fields, set(re.findall(r'body\.get\("(\w+)"\)', inspect.getsource(ts.api_turbo_set))) - {"tune"})
+
+    def test_the_server_answer_wins_over_what_the_page_showed(self):
+        show = function_body("showTurbo")
+        self.assertIn("if (target !== selection) return;", show)
+        self.assertIn("turboSeq += 1;", show)
+        self.assertIn("turbo = answer;", show)
+        self.assertIn("renderTurbo();", show)
+
+    def test_the_settings_table_is_read_again_after_a_write_and_the_open_groups_are_kept(self):
+        body = function_body("turboChanged")
+        self.assertIn("if (done && target === selection) await loadSettings();", body)
+        self.assertLess(body.index("sendTurboSet(donor, target)"), body.index("await loadSettings();"))
+        self.assertNotIn("expanded", body)
+        self.assertNotIn("tableLoaded", body)
+        self.assertNotIn("clearTable", body)
+        for name in ("sendTurboSet", "sendTurboReset"):
+            with self.subTest(name):
+                self.assertIn("return true;", function_body(name))
+                self.assertIn("return false;", function_body(name))
+        self.assertEqual(len(re.findall(r"expanded\.clear\(\)", CODE)), 2)
+        self.assertNotIn("expanded.clear()", function_body("loadSettings"))
+
+    def test_the_select_is_off_while_a_job_runs_without_a_base_car_and_with_nothing_to_choose_from(self):
+        body = function_body("lockTurbo")
+        self.assertIn('if (!info) why = serverError || "server not reachable";', body)
+        self.assertIn('else if (info.job.state === "running") why = "a job is running";', body)
+        self.assertIn('else if (!info.base_present) why = "extract the stock car first";', body)
+        self.assertIn("const nothing = !turbo || (turbo.donors.length === 0 && !turbo.donor);", body)
+        self.assertIn('$("turbo-donor").disabled = why !== "" || nothing;', body)
+        self.assertIn('$("turbo-donor").title = why;', body)
+        self.assertIn("lockTurbo();", function_body("renderTurbo"))
+        self.assertIn("lockTurbo();", function_body("renderTurboControls"))
+
+    def test_the_focus_stays_on_the_select_after_the_redraw(self):
+        body = function_body("renderTurbo")
+        self.assertIn('const select = $("turbo-donor");', body)
+        self.assertIn("const focused = document.activeElement === select;", body)
+        self.assertIn("if (focused && !select.disabled) select.focus();", body)
+        self.assertLess(body.index("lockTurbo();"), body.index("select.focus();"))
+        self.assertNotIn("aria-live", "".join(function_body(n) for n in self.FUNCTIONS))
+
+    def test_the_page_reads_only_the_fields_of_the_answer_the_server_sends(self):
+        source = inspect.getsource(ts.turbo_json)
+        sent = quoted_words(ts.tune.turbo_choice, ts.tune.list_turbo_donors, ts.turbo_json) | set(re.findall(r"\b(\w+)=", source))
+        read = set(re.findall(r"\b(?:turbo|entry)\.(\w+)", "".join(function_body(n) for n in self.FUNCTIONS)))
+        self.assertTrue({"donor", "donors", "picked", "has_turbo", "label", "kind", "count", "boost", "car"} <= read, sorted(read))
+        self.assertEqual(sorted(read - sent - {"length"}), [])
+
+    def test_the_server_routes_the_page_calls_exist(self):
+        self.assertIn("/api/turbo", ts.GET_ROUTES)
+        for route in ("/api/turbo_set", "/api/turbo_reset"):
+            self.assertIn(route, ts.POST_ROUTES)
+        for route in ("/api/turbo", "/api/turbo_set", "/api/turbo_reset"):
+            self.assertIn(route, called_paths())
+
+    def test_the_panel_reuses_the_garage_styles_and_the_select_takes_tokens(self):
+        for cls in ("garage", "garage-body", "garage-help", "garage-row", "grouptoggle", "gname", "gcount", "chev"):
+            self.assertIn(cls, css_classes())
+        self.assertIn("garage-help", self.PANEL)
+        rule = re.search(r"\n\.garage select \{([^}]*)\}", STYLE).group(1)
+        for part in ("max-width: 100%;", "border: 1px solid var(--color-border);", "background: var(--color-bg);", "color: var(--color-text);"):
+            self.assertIn(part, rule)
+
+    def test_the_help_text_reads_on_the_panel_background(self):
+        tokens = dict(re.findall(r"--([\w-]+): (#[0-9a-fA-F]{6});", STYLE))
+        self.assertIn("background: var(--color-bg-alt);", re.search(r"\n\.panel \{([^}]*)\}", STYLE).group(1))
+        self.assertGreaterEqual(contrast(tokens["color-text-muted"], tokens["color-bg-alt"]), 4.5)
+        self.assertGreaterEqual(contrast(tokens["color-text"], tokens["color-bg-alt"]), 4.5)
+
+    def test_the_kit_text_enters_the_page_as_text(self):
+        for name in self.FUNCTIONS:
+            with self.subTest(name):
+                self.assertNotRegex(function_body(name), r"\.html\b|innerHTML")
+        for name in ("renderTurbo", "renderTurboToggle", "renderTurboLines"):
+            with self.subTest(name):
+                self.assertTrue("textContent" in function_body(name) or 'el("option"' in function_body(name))
 
 
 class TestStartBat(unittest.TestCase):

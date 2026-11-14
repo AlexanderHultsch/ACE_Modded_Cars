@@ -10,6 +10,7 @@ import json
 import ntpath
 import os
 import re
+import shutil
 import sys
 import threading
 import time
@@ -45,6 +46,10 @@ TYRE_KEYS = {"id", "name", "source", "changed"}
 TYRE_ROW_KEYS = {"id", "label", "group", "unit", "type", "kind", "description", "verified", "min", "max", "axle", "default", "value",
                  "changed", "applicable", "reason"}
 GARAGE_KEYS = {"choices", "custom", "missing", "car", "tune"}
+TURBO_KEYS = {"donor", "available", "reason", "donors", "picked", "car", "tune", "has_turbo"}
+TWIN = {"car": "ks_b", "label": "Twin B", "count": 2, "kind": "twin turbo", "boost": [0.7, 0.7]}
+OWN = {"car": "ks_t", "label": "Car T", "count": 1, "kind": "single turbo", "boost": [1.0]}
+SINGLE = {"car": "ks_a", "label": "Single A", "count": 1, "kind": "single turbo", "boost": [0.9]}
 JOB_RUNNING = {"error": "a job is running, wait until it has finished"}
 
 
@@ -244,9 +249,10 @@ class TestRoutes(ServerCase):
         self.make_car()
 
     def test_route_tables(self):
-        self.assertEqual(sorted(ts.GET_ROUTES), ["/api/garage", "/api/groups", "/api/settings", "/api/state", "/api/tyre", "/api/tyres"])
+        self.assertEqual(sorted(ts.GET_ROUTES), ["/api/garage", "/api/groups", "/api/settings", "/api/state", "/api/turbo", "/api/tyre",
+                                                 "/api/tyres"])
         self.assertEqual(sorted(ts.POST_ROUTES), ["/api/apply", "/api/duplicate", "/api/garage_reset", "/api/garage_set", "/api/init",
-                                                  "/api/reset_all", "/api/set", "/api/tyre_delete",
+                                                  "/api/reset_all", "/api/set", "/api/turbo_reset", "/api/turbo_set", "/api/tyre_delete",
                                                   "/api/tyre_new", "/api/tyre_rename", "/api/tyre_reset", "/api/tyre_set",
                                                   "/api/tyre_source", "/api/tyre_unset", "/api/unset"])
         self.assertEqual(ts.ACCEPTED, ("/api/init", "/api/apply"))
@@ -2513,6 +2519,294 @@ class TestGarageRoutes(TyreCase):
         r = self.post("/api/garage_reset", {})
         self.assertEqual((r.status, r.json["removed"], r.json["garage"]["custom"]), (200, True, False))
         self.assertEqual(self.saved_state(), {})
+
+
+# -------------------------------------------------------------------------------------------------- turbo kit
+class TurboCase(TuneCase):
+    """TuneCase with two donor cars next to ks_x (no turbo): ks_a has one turbo (boost 0.9, name from the car index) and ks_b two
+    (boost 0.7 and 0.7, name from its stock info), ks_t one (boost 1.0): all three are donors of ks_x, and each is the car under test
+    where the car itself has a turbo."""
+
+    def setUp(self):
+        super().setUp()
+        self.write(os.path.join(self.work, "cars_index.json"),
+                   [{"id": "ks_x", "display_name": "Car X", "brand": "B", "year": 1999}, {"id": "ks_y", "display_name": "Car Y", "brand": "B", "year": 2000},
+                    {"id": "ks_a", "display_name": "Single A", "brand": "B", "year": 2001}, {"id": "ks_b", "display_name": "Twin B", "brand": "B", "year": 2002},
+                    {"id": "ks_t", "display_name": "Car T", "brand": "B", "year": 2003}])
+        self.add_car("ks_a", ["t0.turbo"], [0.9])
+        self.add_car("ks_b", ["t0.turbo", "t1.turbo"], [0.7, 0.7])
+        self.add_car("ks_t", ["t0.turbo"], [1.0])
+        self.write(tune.stock_info_path(self.work, "ks_b"), {"car_id": "ks_b", "display_name": "Twin B", "brand": "Brand", "year": 1999})
+
+    def add_car(self, car_id, turbos, boost):
+        fc = FakeCar(self.work, car_id)
+        fc.store = self.fc.store
+        gp = fc.game_path
+        fc.add("data/%s.car" % car_id, {"engine_path": gp("data/engine.carengine")})
+        fc.add("data/engine.carengine", {"limiter": 7000, "turbos_to_load": [gp("data/" + t) for t in turbos],
+                                         "turbos": [{"max_boost": b} for b in boost]})
+        for t in turbos:
+            fc.add("data/" + t, {"max_boost": 1.0})
+        return fc
+
+    def turbo(self, query=""):
+        return self.get("/api/turbo" + query)
+
+    def kit(self, donor):
+        return {tune.TURBO_KEY: {"donor": donor}}
+
+
+class TestTurboRoutes(TurboCase):
+    def test_turbo_of_the_default_car_offers_the_donors_and_has_no_kit(self):
+        r = self.turbo()
+        self.assertEqual((r.status, r.headers.get("Content-Type"), set(r.json)), (200, "application/json; charset=utf-8", TURBO_KEYS))
+        self.assertEqual((r.json["car"], r.json["tune"], r.json["donor"], r.json["picked"]), ("ks_x", None, None, None))
+        self.assertEqual((r.json["available"], r.json["reason"], r.json["has_turbo"]), (True, "", False))
+        self.assertEqual(r.json["donors"], [OWN, SINGLE, TWIN])
+        self.assertEqual(r.json, dict(tune.turbo_choice(self.work, "ks_x"), car="ks_x", tune=None, has_turbo=False))
+
+    def test_a_car_with_a_turbo_of_its_own_has_turbo_and_no_choice_and_is_not_its_own_donor(self):
+        r = self.turbo("?car=ks_t")
+        self.assertEqual((r.status, r.json["has_turbo"], r.json["available"], r.json["reason"]), (200, True, False, "the car has a turbo already"))
+        self.assertEqual(r.json["donors"], [SINGLE, TWIN])
+        r = self.turbo("?car=ks_a")
+        self.assertEqual((r.json["has_turbo"], [d["car"] for d in r.json["donors"]]), (True, ["ks_t", "ks_b"]))
+
+    def test_without_any_donor_the_choice_is_not_available_and_the_car_has_no_turbo(self):
+        for car_id in ("ks_a", "ks_b", "ks_t"):
+            shutil.rmtree(tune.base_dir(self.work, car_id))
+        r = self.turbo()
+        self.assertEqual((r.status, r.json["donors"], r.json["available"], r.json["reason"], r.json["has_turbo"]),
+                         (200, [], False, "no installed car has a turbo", False))
+
+    def test_turbo_echoes_the_tune_and_reads_its_own_state(self):
+        self.make_tune("ax01", dict({"name_suffix": "_A"}, **self.kit("ks_b")))
+        r = self.turbo("?tune=ax01")
+        self.assertEqual((r.json["tune"], r.json["donor"], r.json["picked"]), ("ax01", "ks_b", TWIN))
+        self.assertEqual(self.turbo("?tune=draft").json["tune"], "draft")
+        self.assertIsNone(self.turbo("?tune=draft").json["donor"])
+        self.assertIsNone(self.turbo().json["donor"])
+
+    def test_turbo_names_a_saved_donor_that_is_not_offered_any_more(self):
+        self.make_tune(None, self.kit("ks_gone"))
+        r = self.turbo()
+        self.assertEqual((r.status, r.json["donor"], r.json["picked"], r.json["available"]), (200, "ks_gone", None, True))
+
+    def test_turbo_needs_the_base_car(self):
+        r = self.turbo("?car=ks_y")
+        self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+        self.assertEqual(self.turbo("?car=ks_y&tune=draft").status, 409)
+
+    def test_turbo_with_a_damaged_kit_is_400(self):
+        self.make_tune(None, {tune.TURBO_KEY: "ks_b"})
+        r = self.turbo()
+        self.assertEqual((r.status, r.json), (400, {"error": "damaged turbo kit in the saved state"}))
+
+    def test_turbo_is_read_under_state_lock(self):
+        held, real = [], tune.turbo_choice
+
+        def spy(*args, **kw):
+            held.append(ts.STATE_LOCK.locked())
+            return real(*args, **kw)
+        self.patch(tune, "turbo_choice", spy)
+        self.turbo()
+        self.assertEqual(held, [True])
+
+    def test_turbo_set_chooses_the_donor_of_the_default_tune(self):
+        r = self.post("/api/turbo_set", {"donor": "ks_b"})
+        self.assertEqual((r.status, set(r.json)), (200, {"result", "turbo"}))
+        self.assertEqual(r.json["result"], {"donor": "ks_b", "count": 2, "kind": "twin turbo", "boost": [0.7, 0.7]})
+        self.assertEqual(r.json["turbo"], self.turbo().json)
+        self.assertEqual((r.json["turbo"]["donor"], r.json["turbo"]["picked"], r.json["turbo"]["has_turbo"]), ("ks_b", TWIN, False))
+        self.assertEqual(self.saved_state(), self.kit("ks_b"))
+
+    def test_turbo_set_names_the_kind_and_the_boost_of_each_donor(self):
+        r = self.post("/api/turbo_set", {"donor": "ks_a"})
+        self.assertEqual((r.json["result"]["kind"], r.json["result"]["boost"], r.json["turbo"]["picked"]["kind"], r.json["turbo"]["picked"]["boost"]),
+                         ("single turbo", [0.9], "single turbo", [0.9]))
+
+    def test_turbo_set_replaces_the_donor_and_keeps_the_other_values_of_the_state(self):
+        self.write(self.state_file(), {"limiter": 8000})
+        self.post("/api/turbo_set", {"donor": "ks_b"})
+        r = self.post("/api/turbo_set", {"donor": "ks_a"})
+        self.assertEqual((r.status, r.json["turbo"]["donor"]), (200, "ks_a"))
+        self.assertEqual(self.saved_state(), {"limiter": 8000, tune.TURBO_KEY: {"donor": "ks_a"}})
+
+    def test_turbo_set_of_a_modded_car_changes_only_its_state(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        r = self.post("/api/turbo_set", {"donor": "ks_b", "tune": "ax01"})
+        self.assertEqual((r.status, r.json["turbo"]["tune"], r.json["turbo"]["donor"]), (200, "ax01", "ks_b"))
+        self.assertEqual(self.tune_state("ax01"), dict({"name_suffix": "_A"}, **self.kit("ks_b")))
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_x", "draft")))
+        self.assertEqual(self.turbo("?tune=ax01").json, r.json["turbo"])
+
+    def test_turbo_set_of_the_draft_needs_no_modded_car(self):
+        r = self.post("/api/turbo_set", {"donor": "ks_a", "tune": "draft"})
+        self.assertEqual((r.status, r.json["turbo"]["tune"]), (200, "draft"))
+        self.assertEqual(self.tune_state("draft"), self.kit("ks_a"))
+        self.assertEqual(self.tune_ids(), [])
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_turbo_set_with_a_donor_that_is_not_text_is_400_and_writes_nothing(self):
+        for body in ({}, {"donor": None}, {"donor": 5}, {"donor": ["ks_b"]}, {"donor": {"car": "ks_b"}}, {"donor": True}):
+            with self.subTest(body):
+                r = self.post("/api/turbo_set", body)
+                self.assertEqual((r.status, r.json), (400, {"error": "need donor (text)"}))
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_turbo_set_with_a_refused_donor_is_400_with_the_message_and_changes_nothing(self):
+        self.write(self.state_file(), {"limiter": 8000, tune.TURBO_KEY: {"donor": "ks_a"}})
+        for body, text in (({"donor": "ks_zz"}, "ks_zz is not an installed car with a turbo"),
+                           ({"donor": "ks_y"}, "ks_y is not an installed car with a turbo"),
+                           ({"donor": "ks_x"}, "ks_x cannot be its own turbo donor"),
+                           ({"donor": ""}, " is not an installed car with a turbo"),
+                           ({"donor": "ks_b", "car": "ks_t"}, "ks_t has a turbo already")):
+            with self.subTest(body):
+                r = self.post("/api/turbo_set", body)
+                self.assertEqual(r.status, 400)
+                self.assertTrue(r.json["error"].endswith(text), r.json)
+        self.assertEqual(self.saved_state(), {"limiter": 8000, tune.TURBO_KEY: {"donor": "ks_a"}})
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_t")))
+
+    def test_turbo_set_without_a_base_is_409_and_writes_nothing(self):
+        for tune_id in (None, "draft"):
+            with self.subTest(tune_id):
+                r = self.post("/api/turbo_set", {"car": "ks_y", "donor": "ks_b", "tune": tune_id})
+                self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+        self.assertFalse(os.path.exists(os.path.join(self.work, "ks_y")))
+
+    def test_turbo_set_with_an_unknown_modded_car_is_400(self):
+        r = self.post("/api/turbo_set", {"donor": "ks_b", "tune": "nope"})
+        self.assertEqual((r.status, r.json), (400, {"error": "unknown modded car nope of ks_x"}))
+
+    def test_turbo_reset_removes_the_kit_and_keeps_the_other_values(self):
+        self.write(self.state_file(), {"limiter": 8000, tune.TURBO_KEY: {"donor": "ks_b"}})
+        r = self.post("/api/turbo_reset", {})
+        self.assertEqual((r.status, set(r.json), r.json["removed"]), (200, {"removed", "turbo"}, True))
+        self.assertEqual((r.json["turbo"]["donor"], r.json["turbo"]["picked"], set(r.json["turbo"])), (None, None, TURBO_KEYS))
+        self.assertEqual(r.json["turbo"], self.turbo().json)
+        self.assertEqual(self.saved_state(), {"limiter": 8000})
+
+    def test_turbo_reset_without_a_kit_changes_nothing(self):
+        r = self.post("/api/turbo_reset")
+        self.assertEqual((r.status, r.json["removed"], r.json["turbo"]["donor"]), (200, False, None))
+        self.assertFalse(os.path.exists(self.state_file()))
+
+    def test_turbo_reset_of_a_modded_car_and_of_the_draft(self):
+        self.make_tune("ax01", dict({"name_suffix": "_A"}, **self.kit("ks_b")))
+        self.make_tune(tune.DRAFT, dict({"limiter": 8000}, **self.kit("ks_a")))
+        self.make_tune(None, self.kit("ks_a"))
+        r = self.post("/api/turbo_reset", {"tune": "ax01"})
+        self.assertEqual((r.status, r.json["removed"], r.json["turbo"]["tune"]), (200, True, "ax01"))
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A"})
+        self.assertEqual(self.post("/api/turbo_reset", {"tune": "draft"}).json["removed"], True)
+        self.assertEqual(self.tune_state("draft"), {"limiter": 8000})
+        self.assertEqual(self.saved_state(), self.kit("ks_a"))
+
+    def test_turbo_reset_without_a_base_is_409(self):
+        r = self.post("/api/turbo_reset", {"car": "ks_y"})
+        self.assertEqual((r.status, r.json), (409, {"error": "base car missing, run init"}))
+
+    def test_turbo_reset_with_a_damaged_kit_still_removes_it(self):
+        self.write(self.state_file(), {tune.TURBO_KEY: "ks_b"})
+        r = self.post("/api/turbo_reset", {})
+        self.assertEqual((r.status, r.json["removed"], r.json["turbo"]["donor"]), (200, True, None))
+        self.assertEqual(self.saved_state(), {})
+
+    def test_the_kit_writes_happen_under_state_lock(self):
+        held = []
+        for name in ("set_turbo", "reset_turbo"):
+            def spy(*args, _name=name, _real=getattr(tune, name), **kw):
+                held.append((_name, ts.STATE_LOCK.locked()))
+                return _real(*args, **kw)
+            self.patch(tune, name, spy)
+        self.assertEqual(self.post("/api/turbo_set", {"donor": "ks_b"}).status, 200)
+        self.assertEqual(self.post("/api/turbo_reset", {}).status, 200)
+        self.assertEqual(held, [("set_turbo", True), ("reset_turbo", True)])
+
+    def test_both_writes_are_409_while_a_job_runs_and_change_nothing(self):
+        self.make_tune("ax01", {"name_suffix": "_A"})
+        self.hold_jobs()
+        self.assertEqual(self.post("/api/init").status, 202)
+        self.entered.wait(5)
+        for path, body in (("/api/turbo_set", {"donor": "ks_b"}), ("/api/turbo_reset", {})):
+            for tune_id in (None, "ax01", "draft"):
+                with self.subTest(path, tune=tune_id):
+                    r = self.post(path, dict(body, tune=tune_id))
+                    self.assertEqual((r.status, r.json), (409, JOB_RUNNING))
+        r = self.post("/api/turbo_set", {"donor": 5})
+        self.assertEqual((r.status, r.json), (409, JOB_RUNNING))
+        self.assertEqual(self.tune_state("ax01"), {"name_suffix": "_A"})
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertFalse(os.path.exists(tune.state_path(self.work, "ks_x", "draft")))
+        self.assertEqual(self.turbo().status, 200)
+        self.finish_held_job()
+        self.assertEqual(self.post("/api/turbo_set", {"donor": "ks_b"}).status, 200)
+
+    def test_the_routes_check_the_host_the_post_headers_and_the_method(self):
+        self.assertEqual(self.post("/api/turbo_set", {"donor": "ks_b"}, headers={"X-Tuner": None}).status, 403)
+        r = self.post("/api/turbo_reset", {}, headers={"Content-Type": "text/plain"})
+        self.assertEqual((r.status, r.json), (415, {"error": "Content-Type must be application/json"}))
+        self.assertEqual(self.get("/api/turbo", host="evil.example").status, 403)
+        self.assertEqual(self.post("/api/turbo_set", {"donor": "ks_b"}, host="evil.example").status, 403)
+        self.assertFalse(os.path.exists(self.state_file()))
+        self.assertEqual(self.get("/api/turbo_set").status, 404)
+        self.assertEqual(self.get("/api/turbo_reset").status, 404)
+        self.assertEqual(self.post("/api/turbo", {}).status, 404)
+        for method in ("PUT", "DELETE", "PATCH"):
+            with self.subTest(method):
+                r = self.request(method, "/api/turbo")
+                self.assertEqual((r.status, r.headers.get("Allow")), (405, "GET, POST"))
+
+    def test_the_statuses_of_the_turbo_routes_are_200_not_202(self):
+        self.assertTrue({"/api/turbo", "/api/turbo_set", "/api/turbo_reset"}.isdisjoint(ts.ACCEPTED))
+        self.assertTrue({"/api/turbo"}.isdisjoint(ts.QUERY_ROUTES))
+
+
+class TestSettingsWithATurboKit(TurboCase):
+    def test_the_settings_of_a_tune_with_a_kit_are_read_from_the_kit_root(self):
+        asked = []
+
+        def kit_root(work, car_id, donor):
+            asked.append((work, car_id, donor))
+            return tune.base_dir(work, car_id)
+        self.patch(tune, "kit_root", kit_root)
+        self.make_tune("ax01", dict({"limiter": 8000, "name_suffix": "_A"}, **self.kit("ks_b")))
+        r = self.get("/api/settings?tune=ax01")
+        self.assertEqual(r.status, 200)
+        self.assertEqual(next(row["value"] for row in r.json if row["id"] == "limiter"), 8000)
+        self.assertEqual(set(asked), {(self.work, "ks_x", "ks_b")})
+        self.assertEqual(self.get("/api/settings?tune=draft").status, 200)
+        self.assertEqual(set(asked), {(self.work, "ks_x", "ks_b")})
+
+    def test_the_settings_of_the_draft_and_the_default_tune_with_a_kit_use_it_too(self):
+        asked = []
+        self.patch(tune, "kit_root", lambda work, car_id, donor: asked.append(donor) or tune.base_dir(work, car_id))
+        self.make_tune(tune.DRAFT, self.kit("ks_a"))
+        self.make_tune(None, dict({"name_suffix": "_D"}, **self.kit("ks_b")))
+        self.assertEqual(self.get("/api/settings?tune=draft").status, 200)
+        self.assertEqual(self.get("/api/settings").status, 200)
+        self.assertEqual(asked, ["ks_a", "ks_b"])
+
+    def test_the_settings_of_a_tune_whose_donor_is_gone_are_400_with_the_turbo_kit_message(self):
+        for tune_id, state in (("ax01", {"name_suffix": "_A", tune.TURBO_KEY: {"donor": "ks_gone"}}), (tune.DRAFT, self.kit("ks_gone")),
+                               (None, self.kit("ks_gone"))):
+            with self.subTest(tune_id):
+                self.make_tune(tune_id, state)
+                r = self.get("/api/settings" + ("" if tune_id is None else "?tune=" + tune_id))
+                self.assertEqual((r.status, r.json), (400, {"error": "turbo kit: ks_gone is not an installed car with a turbo"}))
+
+    def test_the_settings_of_a_car_that_has_a_turbo_but_a_saved_kit_are_400(self):
+        tune.save_state(self.work, "ks_t", self.kit("ks_b"), tune.DRAFT)
+        r = self.get("/api/settings?car=ks_t&tune=draft")
+        self.assertEqual((r.status, r.json), (400, {"error": "turbo kit: ks_t has a turbo already"}))
+
+    def test_removing_the_kit_makes_the_settings_readable_again(self):
+        self.make_tune(None, self.kit("ks_gone"))
+        self.assertEqual(self.get("/api/settings").status, 400)
+        self.assertEqual(self.post("/api/turbo_reset", {}).json["removed"], True)
+        self.assertEqual(self.get("/api/settings").status, 200)
 
 
 # -------------------------------------------------------------------------------------------------- job lifecycle

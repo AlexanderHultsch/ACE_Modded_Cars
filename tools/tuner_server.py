@@ -57,6 +57,19 @@ the server answers them at /ACESCT/api/... (for example GET /ACESCT/api/state). 
   POST /api/garage_set  {"keys": [text, ...]}             ticks exactly these tyres (own:<tyre id>, stock:<front>|<rear>);
                         answers {"result": {keys, start, maybe default}, "garage": the answer of GET /api/garage}
   POST /api/garage_reset  {}                              removes the selection; answers {"removed", "garage"}
+  GET  /api/turbo       the turbo kit of the car and the tune (the turbo setup of another installed car, the donor, built into
+                        a modded car that has none): "donor" (saved donor car id or null), "available" (false when the car has a
+                        turbo itself or no donor exists) with "reason", "donors" (car, label, count, kind "single turbo" / "twin
+                        turbo" / "<n> turbos", boost in bar; never the car itself), "picked" (the entry of the saved donor, null
+                        when it has none or is not offered any more), "car", "tune" and "has_turbo" (the car has a turbo itself);
+                        needs the base car
+  POST /api/turbo_set   {"donor": car id}                 chooses the donor; answers {"result": {donor, count, kind, boost},
+                        "turbo": the answer of GET /api/turbo}
+  POST /api/turbo_reset {}                                removes the choice; answers {"removed", "turbo"}
+                        A tune with a turbo kit shows the turbo settings in /api/settings (read from the kit built on that read)
+                        and builds with the donor's turbo, so the page must read the settings again after every change of the
+                        kit; /api/settings answers 400 with the "turbo kit: ..." message when the kit cannot be built (the donor
+                        is gone, the car has a turbo).
 The tyre library is shared by all cars: its routes ignore the car and the tune and need no base car; so does /api/groups.
 Every route takes an optional car id of the game (the list is cached in <work>/cars_index.json, see tune.py; without it
 and without the game package only the tested cars of tuner/cars.json): the query parameter ?car=<id> on GET, the field
@@ -65,7 +78,7 @@ Every route also takes an optional tune next to the car (?tune=<x> on GET, the f
 the default tune of the car (the modded car <new_id>), "draft" the draft of the base car (the values of the base car
 that are not saved as a modded car yet), any other value the id of a modded car of that car (400 otherwise).
 
-Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (client address that is not private, wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, tyre library or garage edit while a job runs, tyre deleted while a modded car selects it, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
+Answers: JSON {"error": text} with 400 (bad input, unknown car or modded car, malformed JSON, new id or name suffix refused), 403 (client address that is not private, wrong Host, missing X-Tuner), 404 (unknown path), 405 (any method but GET and POST, with the header Allow: GET, POST), 413 (body over 65536 bytes), 415 (Content-Type is not application/json), 409 (base car missing, another job running, edit or duplicate while a job runs, tyre library, garage or turbo kit edit while a job runs, tyre deleted while a modded car selects it, game running, mods folder not expandable), 500 (internal error); /api/init and /api/apply answer 202 {"job": "started"} and the page polls GET /api/state; every other route answers 200.
 
 The job state (GET /api/state "job") is global, there is one background job at a time for all cars. The state answer
 also lists the car ("car", "cars") and the installed package of the selected modded car; the old single-car layout of the work folder
@@ -336,7 +349,10 @@ def api_state(car, tune_id):
 
 def api_settings(car, tune_id):
     with STATE_LOCK:
-        return rows_json(CONFIG["work"], car, tune.load_catalogue(), tune_id)
+        try:
+            return rows_json(CONFIG["work"], car, tune.load_catalogue(), tune_id)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
 
 
 def api_groups(car, tune_id):
@@ -612,6 +628,47 @@ def api_garage_reset(car, body):
             raise ApiError(400, str(e)) from None
 
 
+def turbo_json(work, car, tune_id):
+    return dict(tune.turbo_choice(work, car, tune_id), car=car, tune=tune_id,
+                has_turbo=tune.turbo_parts(tune.base_dir(work, car), car)["count"] >= 1)
+
+
+def api_turbo(car, tune_id):
+    work = CONFIG["work"]
+    require_base(work, car)
+    with STATE_LOCK:
+        try:
+            return turbo_json(work, car, tune_id)
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_turbo_set(car, body):
+    work, tune_id, donor = CONFIG["work"], body.get("tune"), body.get("donor")
+    refuse_while_job_runs()
+    if not isinstance(donor, str):
+        raise ApiError(400, "need donor (text)")
+    require_base(work, car)
+    with STATE_LOCK:
+        try:
+            result = tune.set_turbo(work, car, donor, tune_id)
+            return {"result": result, "turbo": turbo_json(work, car, tune_id)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
+def api_turbo_reset(car, body):
+    work, tune_id = CONFIG["work"], body.get("tune")
+    refuse_while_job_runs()
+    require_base(work, car)
+    with STATE_LOCK:
+        try:
+            res = tune.reset_turbo(work, car, tune_id)
+            return {"removed": res["removed"], "turbo": turbo_json(work, car, tune_id)}
+        except ValueError as e:
+            raise ApiError(400, str(e)) from None
+
+
 def request_car(value, query):
     if value is None:
         value = (urllib.parse.parse_qs(query).get("car") or [None])[0]
@@ -634,13 +691,13 @@ def request_tune(value, query, car):
 
 
 GET_ROUTES = {"/api/state": api_state, "/api/settings": api_settings, "/api/groups": api_groups, "/api/tyres": api_tyres,
-              "/api/tyre": api_tyre, "/api/garage": api_garage}
+              "/api/tyre": api_tyre, "/api/garage": api_garage, "/api/turbo": api_turbo}
 POST_ROUTES = {"/api/set": api_set, "/api/unset": api_unset, "/api/reset_all": api_reset_all,
                "/api/init": api_init, "/api/duplicate": api_duplicate,
                "/api/apply": api_apply, "/api/tyre_new": api_tyre_new, "/api/tyre_rename": api_tyre_rename,
                "/api/tyre_source": api_tyre_source, "/api/tyre_set": api_tyre_set, "/api/tyre_unset": api_tyre_unset,
                "/api/tyre_reset": api_tyre_reset, "/api/tyre_delete": api_tyre_delete, "/api/garage_set": api_garage_set,
-               "/api/garage_reset": api_garage_reset}
+               "/api/garage_reset": api_garage_reset, "/api/turbo_set": api_turbo_set, "/api/turbo_reset": api_turbo_reset}
 
 
 def private_ip(text):

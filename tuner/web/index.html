@@ -212,6 +212,10 @@ button.reset { padding: 2px 8px; font-size: 12px; }
 .garage fieldset { min-width: 0; margin: 0 0 8px; padding: 0; border: 0; }
 .garage-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 3px 0; }
 .garage-row label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.garage select {
+  font: inherit; max-width: 100%; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 6px;
+  background: var(--color-bg); color: var(--color-text);
+}
 .empty { padding: 18px 14px; color: var(--color-text-muted); }
 .sr-only {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
@@ -311,6 +315,22 @@ button.reset { padding: 2px 8px; font-size: 12px; }
           <tbody id="rows"></tbody>
         </table>
         <div id="empty" class="empty" hidden>No settings match.</div>
+      </div>
+      <div id="turbo" class="panel garage" hidden>
+        <button id="turbo-toggle" class="grouptoggle" type="button" aria-expanded="false" aria-controls="turbo-body">
+          <span class="chev" aria-hidden="true"></span>
+          <span class="gname">Turbo kit</span>
+          <span id="turbo-count" class="gcount"></span>
+        </button>
+        <div id="turbo-body" class="garage-body" hidden>
+          <p class="garage-help">Adds the turbo setup of another installed car to this modded car. Apply copies the donor's turbo files and engine turbo fields into your car; the turbo settings then appear in the Turbo group of the table. A turbo multiplies the engine power on top of its curve, so lower the boost settings if the car becomes too strong. Unverified: whether the game accepts a turbo on a car that has none is not tested yet.</p>
+          <div class="garage-row">
+            <label for="turbo-donor">Turbo from</label>
+            <select id="turbo-donor" disabled></select>
+          </div>
+          <p id="turbo-picked"></p>
+          <p id="turbo-error" class="msg err" role="alert" hidden></p>
+        </div>
       </div>
       <div id="garage" class="panel garage">
         <button id="garage-toggle" class="grouptoggle" type="button" aria-expanded="false" aria-controls="garage-body">
@@ -472,6 +492,14 @@ let garageError = "";
 let garageRows = [];
 let garageSeq = 0;
 let garageJobRunning = false;
+// the turbo kit of the shown car or modded car as the server answered last ({donor, donors, picked, has_turbo, ...}), null
+// until it is loaded; turboOpen is the state of its panel: collapsed by default, reset when another car is selected; turboSeq
+// counts the loads and the answers of writes, so that a slow load never replaces a newer answer
+let turbo = null;
+let turboOpen = false;
+let turboError = "";
+let turboSeq = 0;
+let turboJobRunning = false;
 
 function storedSelection() {
   const none = { car: null, tune: DRAFT };
@@ -679,6 +707,7 @@ function renderButtons() {
   $("name-host").hidden = !baseOk || !tableLoaded || !headerRow;
   renderTyreControls();
   renderGarageControls();
+  renderTurboControls();
 }
 
 function addLine(box, text, cls) {
@@ -1154,6 +1183,7 @@ async function loadSettings() {
     tableLoaded = true;
     localError = "";
     loadGarage();
+    loadTurbo();
   } catch (e) {
     localError = e.message;
   }
@@ -1170,6 +1200,7 @@ async function startJob(path, body) {
   }
   await refresh();
   loadGarage();
+  loadTurbo();
 }
 
 // Create has started its job: when it ends with a new modded car, that car is selected
@@ -1243,6 +1274,7 @@ async function submitDialog() {
       }
       await refresh();
       loadGarage();
+      loadTurbo();
     } else {
       const res = await api("/api/duplicate", { new_id: newId, suffix: suffix }, target);
       if (dialog !== mine) return;
@@ -1293,6 +1325,10 @@ function switchCar(next) {
   garage = null;
   garageError = "";
   renderGarage();
+  turboOpen = false;
+  turbo = null;
+  turboError = "";
+  renderTurbo();
   awaitCreated = null;
   closeDialog(false);
   tableLoaded = false;
@@ -1777,6 +1813,169 @@ function toggleGarage() {
   renderGarageToggle();
 }
 
+/* ---------- turbo kit ---------- */
+
+function boostText(list) {
+  return list.map((b) => String(Math.round(b * 100) / 100)).join(" / ");
+}
+
+function turboOptionText(entry) {
+  return entry.label + " - " + entry.kind + (entry.boost.length ? ", " + boostText(entry.boost) + " bar" : "");
+}
+
+function turboSummary() {
+  if (!turbo) return "";
+  if (!turbo.donor) return "(none)";
+  if (!turbo.picked) return "(" + turbo.donor + ", not available any more)";
+  return "(" + turbo.picked.kind + " from " + turbo.picked.label + ")";
+}
+
+function turboPickedText() {
+  if (!turbo) return "";
+  if (!turbo.donor) {
+    return turbo.donors.length === 0 ?
+      "No installed car has a turbo: install one first (select a car with a turbo and press Install car)." : "No turbo kit chosen.";
+  }
+  const entry = turbo.picked;
+  if (!entry) return turbo.donor + " is not available any more. Choose another donor or no turbo kit.";
+  const count = entry.count <= 2 ? " (" + entry.count + (entry.count === 1 ? " turbo)" : " turbos)") : "";
+  const boost = entry.boost.length ? ", boost " + boostText(entry.boost) + " bar" : "";
+  return "Chosen: " + entry.kind + count + boost + ", from " + entry.label;
+}
+
+function renderTurboToggle() {
+  $("turbo-toggle").setAttribute("aria-expanded", turboOpen ? "true" : "false");
+  $("turbo-body").hidden = !turboOpen;
+  $("turbo-count").textContent = turboSummary();
+}
+
+function renderTurboLines() {
+  $("turbo-picked").textContent = turboPickedText();
+  $("turbo-error").textContent = turboError;
+  $("turbo-error").hidden = turboError === "";
+}
+
+// the select is off while a job runs, while the page has no base car and while there is nothing to choose from (no donor
+// and no saved donor to take away)
+function lockTurbo() {
+  let why = "";
+  if (!info) why = serverError || "server not reachable";
+  else if (info.job.state === "running") why = "a job is running";
+  else if (!info.base_present) why = "extract the stock car first";
+  const nothing = !turbo || (turbo.donors.length === 0 && !turbo.donor);
+  $("turbo-donor").disabled = why !== "" || nothing;
+  $("turbo-donor").title = why;
+}
+
+// the panel is drawn from the answer of the server; the select keeps its element and so the focus
+function renderTurbo() {
+  const select = $("turbo-donor");
+  const focused = document.activeElement === select;
+  $("turbo").hidden = !turbo || turbo.has_turbo;
+  select.replaceChildren();
+  const none = el("option", "", "No turbo kit (stock engine)");
+  none.value = "";
+  select.appendChild(none);
+  for (const entry of turbo ? turbo.donors : []) {
+    const o = el("option", "", turboOptionText(entry));
+    o.value = entry.car;
+    select.appendChild(o);
+  }
+  if (turbo && turbo.donor && !turbo.picked) {
+    const gone = el("option", "", turbo.donor + " (not available any more)");
+    gone.value = turbo.donor;
+    gone.disabled = true;
+    select.appendChild(gone);
+  }
+  select.value = turbo && turbo.donor ? turbo.donor : "";
+  renderTurboToggle();
+  renderTurboLines();
+  lockTurbo();
+  if (focused && !select.disabled) select.focus();
+}
+
+function renderTurboControls() {
+  const running = !!info && info.job.state === "running";
+  // a job that ends may have installed or changed a car, so the kit is read again
+  if (turboJobRunning && !running && !$("panel-car").hidden) loadTurbo();
+  turboJobRunning = running;
+  lockTurbo();
+}
+
+async function loadTurbo() {
+  if (!tableLoaded) return;
+  const target = selection;
+  const seq = ++turboSeq;
+  try {
+    const res = await api("/api/turbo", undefined, target);
+    if (seq !== turboSeq || target !== selection) return;
+    turbo = res;
+    turboError = "";
+  } catch (e) {
+    if (seq !== turboSeq || target !== selection) return;
+    turbo = null;
+    turboError = e.message;
+  }
+  renderTurbo();
+}
+
+// the answer of a write carries the kit of the server, which wins over what the page showed
+function showTurbo(target, answer) {
+  if (target !== selection) return;
+  turboSeq += 1;
+  turbo = answer;
+  turboError = "";
+  renderTurbo();
+}
+
+// a failed write: the kit is read again and the message of the write stays in the panel
+async function turboFailed(target, e) {
+  await loadTurbo();
+  if (target !== selection) return;
+  turboError = e.message;
+  renderTurboLines();
+}
+
+async function sendTurboSet(donor, target) {
+  try {
+    const res = await api("/api/turbo_set", { donor: donor }, target);
+    showTurbo(target, res.turbo);
+    return true;
+  } catch (e) {
+    await turboFailed(target, e);
+    return false;
+  }
+}
+
+async function sendTurboReset(target) {
+  try {
+    const res = await api("/api/turbo_reset", {}, target);
+    showTurbo(target, res.turbo);
+    return true;
+  } catch (e) {
+    await turboFailed(target, e);
+    return false;
+  }
+}
+
+// the empty option takes the kit away; after a write the settings table is read again, because the Turbo group appears
+// or disappears (the open groups are kept)
+function turboChanged() {
+  const donor = $("turbo-donor").value;
+  const target = selection;
+  turboError = "";
+  renderTurboLines();
+  queue = queue.then(async () => {
+    const done = donor === "" ? await sendTurboReset(target) : await sendTurboSet(donor, target);
+    if (done && target === selection) await loadSettings();
+  });
+}
+
+function toggleTurbo() {
+  turboOpen = !turboOpen;
+  renderTurboToggle();
+}
+
 /* ---------- tabs ---------- */
 
 function selectTab(i) {
@@ -1788,6 +1987,7 @@ function selectTab(i) {
   });
   if (tabs[i] === $("tab-tyres")) loadTyres(true);
   if (tabs[i] === $("tab-car")) loadGarage();
+  if (tabs[i] === $("tab-car")) loadTurbo();
 }
 
 function tabKey(ev) {
@@ -1829,6 +2029,8 @@ $("btn-tyre-reset").addEventListener("click", resetTyre);
 $("tyre-dialog-ok").addEventListener("click", submitTyreDialog);
 $("tyre-dialog-cancel").addEventListener("click", () => closeTyreDialog(true));
 $("tyre-dialog").addEventListener("keydown", tyreDialogKey);
+$("turbo-toggle").addEventListener("click", toggleTurbo);
+$("turbo-donor").addEventListener("change", turboChanged);
 $("garage-toggle").addEventListener("click", toggleGarage);
 $("garage").addEventListener("change", garageChanged);
 $("btn-garage-reset").addEventListener("click", resetGarage);
