@@ -86,6 +86,14 @@ A modded car is a stock car plus its own tuned-car id, its own saved values and 
 
 The page has an icon (a rev counter in the page's dark colours, drawn by `tools/make_icons.py` from the page's CSS colours; run `python tools\make_icons.py` to redraw) in `tuner/web/`: `apple-touch-icon.png` (180 px, for the iPhone home screen), `icon-192.png`, `icon-512.png`, `favicon.png` (32 px), `favicon.ico` and `manifest.webmanifest` (name, colours, start URL `/ACESCT/`, standalone). The server serves exactly these six files under `/ACESCT/<name>` from a fixed whitelist; the page head links them and carries the iOS web-app tags (`apple-mobile-web-app-capable`, title "ACE Tuner", black status bar). A test keeps the committed PNGs equal (as decoded pixels) to the generator output. Not tried on a real iPhone yet.
 
+## 4g. Editing a car while the game runs: tested, not possible (2026-11-14)
+
+Alex asked whether a car can be changed while the game is running (a staged "new bank": write a complete new file, swap it in when ready, always keep one valid version). Tested on his laptop with the game open at the car selection:
+
+- **The game holds the installed package open without delete sharing.** Opening it for reading works; opening it for writing, renaming it and `os.replace` over it fail with "access denied" (PermissionError 5). A full copy of the new package staged next to it (`<id>.kspkg.new`) could not replace it; the old package stayed byte-identical (the valid version is never lost).
+- **The game reads the mods folder only at start.** A second, brand-new package (another car id and name, `BMW M3 E46 CSL_PB`) copied into the mods folder while the game ran did not show up after leaving the selection to the main menu, nor after going to the garage and back; it appeared only after restarting the game. So a second car id as the other "bank" does not help either.
+- **Consequence:** the workflow stays: close the game, Apply, start the game. The tuner keeps refusing to install while the game runs (`game_running` guard); no staging or pending-swap feature is built (Alex's decision: topic closed). The `.part` copy plus `os.replace` in `clone_car.install` already keeps the old package valid if a swap fails.
+
 ## 4e. Range for base cars
 
 The Car Tuner table has a column "Range for base cars": the lowest and the highest default of the setting over all game cars installed in the work folder. It is a soft border (information only; values outside stay allowed) and carries no car names, counts or tooltip.
